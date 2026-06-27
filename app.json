@@ -1,15 +1,17 @@
 {
   "expo": {
-    "name": "msu-schedule-mobile",
+    "name": "МГУ Расписание",
     "slug": "msu-schedule-mobile",
+    "scheme": "msu-schedule",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "tj.msu.schedule",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +22,17 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5f760efa-bfd9-46cb-ad95-827a7ed60dba"
+      }
+    },
+    "owner": "suhrob4ikk"
   }
 }
