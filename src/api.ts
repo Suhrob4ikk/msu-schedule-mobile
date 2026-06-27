@@ -80,6 +80,35 @@ export interface Change {
   new_value: string | null;
 }
 
+export interface WeekOption {
+  week_start: string;
+  week_number: number;
+  is_latest: boolean;
+}
+
+export function weekLabel(weekStart: string): string {
+  const start = new Date(weekStart + 'T00:00:00');
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (today >= start && today <= end) return 'Эта неделя';
+  const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  const dateStr = `${start.getDate()} ${months[start.getMonth()]}`;
+  if (start > today && start.getTime() - today.getTime() <= 8 * 86400000)
+    return `Следующая · ${dateStr}`;
+  return dateStr;
+}
+
+export function isCurrentWeek(weekStart: string): boolean {
+  const start = new Date(weekStart + 'T00:00:00');
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today >= start && today <= end;
+}
+
 export function shortGroupName(name: string): string {
   const n = name.toUpperCase();
   if (n.includes('ПРИКЛАДНАЯ МАТЕМАТИКА') || (n.includes('МАТЕМАТИК') && n.includes('ИНФОРМАТИК'))) return 'ПМиИ';
@@ -97,11 +126,13 @@ export const api = {
     get<Lesson[]>(`/schedule/group/${id}${weekId ? `?week_id=${weekId}` : ''}`),
   getGroupWeeks: (id: number) => get<WeekInfo[]>(`/schedule/weeks/${id}`),
   getNow: (id: number) => get<TodayItem[]>(`/schedule/now?group_id=${id}`),
+  getWeeksAll: () => get<WeekOption[]>('/schedule/weeks-all'),
   getTeachers: () => get<Teacher[]>('/schedule/teachers'),
-  getTeacherSchedule: (id: number) => get<Lesson[]>(`/schedule/teacher/${id}`),
-  getFreeRooms: (day: string, pair: string) =>
+  getTeacherSchedule: (id: number, weekStart?: string) =>
+    get<Lesson[]>(`/schedule/teacher/${id}${weekStart ? `?week_start=${weekStart}` : ''}`),
+  getFreeRooms: (day: string, pair: string, weekStart?: string) =>
     get<{ room_name: string; is_free: boolean; occupied_by?: string }[]>(
-      `/schedule/free-rooms?day_of_week=${encodeURIComponent(day)}&pair_number=${pair}`
+      `/schedule/free-rooms?day_of_week=${encodeURIComponent(day)}&pair_number=${pair}${weekStart ? `&week_start=${weekStart}` : ''}`
     ),
   getChanges: () => get<Change[]>('/schedule/changes'),
   registerUser: (deviceId: string, name: string, groupId: number) =>

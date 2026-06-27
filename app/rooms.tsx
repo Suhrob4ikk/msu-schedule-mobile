@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { api, DAYS_ORDER, PAIR_TIMES } from '../src/api';
+import { api, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek } from '../src/api';
 import { useTheme } from '../src/theme';
 
 const DAY_LABELS: Record<string, string> = {
@@ -17,12 +17,24 @@ export default function RoomsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [weeks, setWeeks] = useState<WeekOption[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState<WeekOption | null>(null);
 
-  const load = async (silent = false) => {
+  useEffect(() => {
+    api.getWeeksAll()
+      .then(ws => {
+        setWeeks(ws);
+        const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
+        if (cur) setSelectedWeek(cur);
+      })
+      .catch(() => {});
+  }, []);
+
+  const load = async (silent = false, week: WeekOption | null = selectedWeek) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const data = await api.getFreeRooms(day, pair);
+      const data = await api.getFreeRooms(day, pair, week?.week_start);
       setRooms(data);
     } catch {
       setError('Не удалось загрузить данные об аудиториях');
@@ -32,7 +44,14 @@ export default function RoomsScreen() {
     }
   };
 
-  useEffect(() => { load(); }, [day, pair]);
+  useEffect(() => {
+    if (selectedWeek) load();
+  }, [day, pair, selectedWeek]);
+
+  const switchWeek = (w: WeekOption) => {
+    setSelectedWeek(w);
+    load(false, w);
+  };
 
   const onRefresh = () => { setRefreshing(true); load(true); };
 
@@ -62,6 +81,26 @@ export default function RoomsScreen() {
         </View>
       </View>
 
+      {/* Выбор недели */}
+      {weeks.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.weekBar} contentContainerStyle={{ paddingRight: 4 }}>
+          {weeks.map(w => {
+            const active = selectedWeek?.week_start === w.week_start;
+            const cur = isCurrentWeek(w.week_start);
+            return (
+              <TouchableOpacity
+                key={w.week_start}
+                onPress={() => switchWeek(w)}
+                style={[s.weekBtn, { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border }]}
+              >
+                <Text style={[s.weekBtnText, { color: active ? '#fff' : C.fg }]}>{weekLabel(w.week_start)}</Text>
+                {cur && <View style={[s.weekDot, { backgroundColor: active ? 'rgba(255,255,255,0.7)' : C.primary }]} />}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
         <Text style={[s.hintText, { color: C.muted }]}>Выберите день и номер пары — увидите свободные и занятые аудитории. Потяните вниз для обновления.</Text>
       </View>
@@ -70,12 +109,6 @@ export default function RoomsScreen() {
 
       {error && (
         <Text style={s.error}>{error}</Text>
-      )}
-
-      {!loading && !error && rooms.length === 0 && (
-        <View style={s.empty}>
-          <Text style={[s.emptyText, { color: C.muted }]}>Потяните вниз для обновления</Text>
-        </View>
       )}
 
       {!loading && !error && (
@@ -106,17 +139,25 @@ export default function RoomsScreen() {
 const s = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
-  pickerRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  pickerRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   pickerWrap: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   label: { fontSize: 11, paddingTop: 8, paddingLeft: 12 },
   picker: { height: 50 },
+
+  weekBar: { flexGrow: 0, marginBottom: 10 },
+  weekBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10, marginRight: 8, borderWidth: 1,
+  },
+  weekBtnText: { fontSize: 12, fontWeight: '500' },
+  weekDot: { width: 6, height: 6, borderRadius: 3 },
+
   sectionHeader: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
   roomCard: { borderRadius: 10, padding: 12, marginBottom: 6, borderLeftWidth: 3 },
   roomName: { fontSize: 14, fontWeight: '600' },
   occupiedBy: { fontSize: 12, marginTop: 2 },
   noRooms: { fontSize: 13, textAlign: 'center', paddingVertical: 8 },
-  empty: { paddingVertical: 48, alignItems: 'center' },
-  emptyText: { fontSize: 14 },
   error: { color: '#dc2626', textAlign: 'center', marginTop: 24, fontSize: 14 },
   hint: { borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1 },
   hintText: { fontSize: 12, lineHeight: 17 },

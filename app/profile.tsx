@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
 import { useTheme } from '../src/theme';
 
@@ -50,7 +51,10 @@ export default function ProfileScreen() {
 
     setSaving(false);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => {
+      setSaved(false);
+      router.push('/');
+    }, 1000);
   };
 
   return (
@@ -107,7 +111,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[s.hint, { backgroundColor: C.tag }]}>
-          <Text style={[s.hintText, { color: C.muted }]}>Укажи своё имя и выбери группу — расписание будет сразу открываться на твои пары.</Text>
+          <Text style={[s.hintText, { color: C.muted }]}>Укажи своё имя и выбери группу. После сохранения приложение само перейдёт на расписание.</Text>
         </View>
 
         <TouchableOpacity

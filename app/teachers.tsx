@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator,
+  StyleSheet, ActivityIndicator, ScrollView,
 } from 'react-native';
-import { api, Teacher, Lesson, DAYS_ORDER, shortGroupName } from '../src/api';
+import {
+  api, Teacher, Lesson, DAYS_ORDER, shortGroupName,
+  WeekOption, weekLabel, isCurrentWeek,
+} from '../src/api';
 import { useTheme } from '../src/theme';
 
 const DAY_FULL: Record<string, string> = {
@@ -21,25 +24,42 @@ export default function TeachersScreen() {
   const [loadingList, setLoadingList] = useState(true);
   const [view, setView] = useState<'list' | 'schedule'>('list');
   const [error, setError] = useState<string | null>(null);
+  const [weeks, setWeeks] = useState<WeekOption[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState<WeekOption | null>(null);
 
   useEffect(() => {
+    api.getWeeksAll()
+      .then(ws => {
+        setWeeks(ws);
+        const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
+        if (cur) setSelectedWeek(cur);
+      })
+      .catch(() => {});
+
     api.getTeachers()
       .then(setTeachers)
       .catch(() => setError('Не удалось загрузить список преподавателей'))
       .finally(() => setLoadingList(false));
   }, []);
 
-  const loadTeacher = async (t: Teacher) => {
+  const loadTeacher = async (t: Teacher, week: WeekOption | null = selectedWeek) => {
     setSelected(t);
     setLoading(true);
     setView('schedule');
     setError(null);
     try {
-      setLessons(await api.getTeacherSchedule(t.id));
+      setLessons(await api.getTeacherSchedule(t.id, week?.week_start));
     } catch {
       setError('Не удалось загрузить расписание');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const switchWeek = (w: WeekOption) => {
+    setSelectedWeek(w);
+    if (selected && view === 'schedule') {
+      loadTeacher(selected, w);
     }
   };
 
@@ -53,6 +73,30 @@ export default function TeachersScreen() {
     return acc;
   }, {} as Record<string, Lesson[]>);
 
+  const weekSelector = weeks.length > 1 ? (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[s.weekBar, { borderBottomColor: C.border }]}
+      contentContainerStyle={{ paddingHorizontal: 12 }}
+    >
+      {weeks.map(w => {
+        const active = selectedWeek?.week_start === w.week_start;
+        const cur = isCurrentWeek(w.week_start);
+        return (
+          <TouchableOpacity
+            key={w.week_start}
+            onPress={() => switchWeek(w)}
+            style={[s.weekBtn, { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border }]}
+          >
+            <Text style={[s.weekBtnText, { color: active ? '#fff' : C.fg }]}>{weekLabel(w.week_start)}</Text>
+            {cur && <View style={[s.weekDot, { backgroundColor: active ? 'rgba(255,255,255,0.7)' : C.primary }]} />}
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  ) : null;
+
   if (view === 'schedule' && selected) {
     return (
       <View style={[s.container, { backgroundColor: C.bg }]}>
@@ -63,6 +107,7 @@ export default function TeachersScreen() {
           <Text style={[s.backText, { color: C.primary }]}>← Все преподаватели</Text>
         </TouchableOpacity>
         <Text style={[s.teacherName, { color: C.fg }]}>{selected.name}</Text>
+        {weekSelector}
         {loading ? (
           <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />
         ) : error ? (
@@ -88,13 +133,10 @@ export default function TeachersScreen() {
                     {l.room && <Text style={[s.meta, { color: C.muted }]}>Ауд. {l.room.name}</Text>}
                   </View>
                 ))}
-                {dl.length === 0 && (
-                  <Text style={[s.empty, { color: C.muted }]}>Занятий нет</Text>
-                )}
               </View>
             )}
             ListEmptyComponent={
-              <Text style={[s.empty, { color: C.muted }]}>Занятий не найдено</Text>
+              <Text style={[s.empty, { color: C.muted }]}>Занятий не найдено на этой неделе</Text>
             }
           />
         )}
@@ -116,6 +158,7 @@ export default function TeachersScreen() {
           <Text style={[s.hintText, { color: C.muted }]}>Найдите преподавателя по фамилии и нажмите на имя — появится его расписание.</Text>
         </View>
       </View>
+      {weekSelector}
       {loadingList && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
       {error && !loadingList && <Text style={s.errorText}>{error}</Text>}
       {!loadingList && (
@@ -145,6 +188,16 @@ const s = StyleSheet.create({
   search: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, marginBottom: 8 },
   hint: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   hintText: { fontSize: 12, lineHeight: 17 },
+
+  weekBar: { flexGrow: 0, paddingVertical: 10, borderBottomWidth: 1 },
+  weekBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10, marginRight: 8, borderWidth: 1,
+  },
+  weekBtnText: { fontSize: 12, fontWeight: '500' },
+  weekDot: { width: 6, height: 6, borderRadius: 3 },
+
   teacherItem: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1,
@@ -153,7 +206,7 @@ const s = StyleSheet.create({
   arrow: { fontSize: 20 },
   backBtn: { padding: 14, borderBottomWidth: 1 },
   backText: { fontSize: 14 },
-  teacherName: { fontSize: 17, fontWeight: '700', padding: 16 },
+  teacherName: { fontSize: 17, fontWeight: '700', padding: 16, paddingBottom: 0 },
   dayHeader: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, marginTop: 4 },
   card: { borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 0.5, elevation: 1, shadowOpacity: 0.04, shadowRadius: 3 },
   pairBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
