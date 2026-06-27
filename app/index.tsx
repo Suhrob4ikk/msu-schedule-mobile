@@ -7,17 +7,17 @@ import { useFocusEffect } from 'expo-router';
 import { Picker } from '@react-native-picker/picker';
 import * as Haptics from 'expo-haptics';
 import {
-  api, Group, Lesson, TodayItem, WeekInfo,
+  api, Group, Lesson, TodayItem, WeekInfo, Stats,
   DAYS_ORDER, DAY_LABELS, shortGroupName,
 } from '../src/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
 
 const TYPE_COLORS: Record<string, string> = {
-  ЗАЧЕТ: '#f59e0b', ЭКЗАМЕН: '#ef4444', ПРАКТИКА: '#8b5cf6', ЛЕКЦИЯ: '#3b82f6',
+  ЗАЧЕТ: '#f59e0b', ЭКЗАМЕН: '#ef4444', ПРАКТИКА: '#1d4ed8', ПЗ: '#1d4ed8', ЛЕКЦИЯ: '#3b82f6',
 };
 const TYPE_LABELS: Record<string, string> = {
-  ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ЛЕКЦИЯ: 'Лекция',
+  ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика', ЛЕКЦИЯ: 'Лекция',
 };
 
 function weekRangeStr(weekStart: string): string {
@@ -133,6 +133,7 @@ export default function ScheduleScreen() {
   const [selectedWeek, setSelectedWeek] = useState<WeekInfo | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [nowItems, setNowItems] = useState<TodayItem[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [selectedDay, setSelectedDay] = useState('all');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -195,12 +196,14 @@ export default function ScheduleScreen() {
       }
       if (targetWeek) setSelectedWeek(targetWeek);
 
-      const [sched, now] = await Promise.all([
+      const [sched, now, st] = await Promise.all([
         api.getGroupSchedule(group.id, targetWeek?.id),
         api.getNow(group.id),
+        api.getStats(group.id).catch(() => null),
       ]);
       setLessons(sched);
       setNowItems(now);
+      if (st) setStats(st);
 
       if (targetWeek) {
         await AsyncStorage.setItem(
@@ -235,6 +238,7 @@ export default function ScheduleScreen() {
     setWeeks([]);
     setSelectedWeek(null);
     setSelectedDay('all');
+    setStats(null);
     await AsyncStorage.setItem('selected_group_id', String(group.id));
     await loadSchedule(group);
   }, [loadSchedule]);
@@ -464,6 +468,37 @@ export default function ScheduleScreen() {
         </View>
       )}
 
+      {/* Статистика недели */}
+      {stats && stats.total_lessons_week >= 3 && (
+        <View style={[s.statsRow, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={s.statItem}>
+            <Text style={[s.statNum, { color: C.primary }]}>{stats.total_lessons_week}</Text>
+            <Text style={[s.statLabel, { color: C.muted }]}>пар</Text>
+          </View>
+          <View style={[s.statDivider, { backgroundColor: C.border }]} />
+          <View style={s.statItem}>
+            <Text style={[s.statNum, { color: C.primary }]}>{stats.unique_subjects}</Text>
+            <Text style={[s.statLabel, { color: C.muted }]}>предметов</Text>
+          </View>
+          <View style={[s.statDivider, { backgroundColor: C.border }]} />
+          <View style={s.statItem}>
+            <Text style={[s.statNum, { color: C.primary }]}>{stats.unique_teachers}</Text>
+            <Text style={[s.statLabel, { color: C.muted }]}>педагогов</Text>
+          </View>
+          {stats.most_loaded_day && (
+            <>
+              <View style={[s.statDivider, { backgroundColor: C.border }]} />
+              <View style={s.statItem}>
+                <Text style={[s.statNum, { color: C.primary }]}>
+                  {DAY_LABELS[stats.most_loaded_day] ?? stats.most_loaded_day.slice(0, 2).toUpperCase()}
+                </Text>
+                <Text style={[s.statLabel, { color: C.muted }]}>загружен</Text>
+              </View>
+            </>
+          )}
+        </View>
+      )}
+
       {/* Фильтр по дню */}
       {selectedGroup && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.dayBar}>
@@ -591,4 +626,13 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 13 },
 
   error: { color: '#dc2626', textAlign: 'center', marginVertical: 12 },
+
+  statsRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+    borderRadius: 12, borderWidth: 0.5, paddingVertical: 12, marginBottom: 12,
+  },
+  statItem: { alignItems: 'center', flex: 1 },
+  statNum: { fontSize: 22, fontWeight: '700' },
+  statLabel: { fontSize: 10, marginTop: 2 },
+  statDivider: { width: 0.5, height: 32 },
 });

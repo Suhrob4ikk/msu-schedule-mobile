@@ -101,7 +101,7 @@ export default function ProfileScreen() {
               groups.filter(g => g.faculty_code === fac).map(g => (
                 <Picker.Item
                   key={g.id}
-                  label={`${g.year} курс — ${g.name}`}
+                  label={`${g.year} курс — ${shortGroupName(g.name)}`}
                   value={g.id}
                   color={C.fg}
                 />

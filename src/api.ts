@@ -1,9 +1,16 @@
 const API_BASE = 'https://msu-schedule-backend-production.up.railway.app/api';
 
-async function get<T>(path: string): Promise<T> {
+// Простой in-memory кэш: ключ → {данные, время}
+const _cache = new Map<string, { data: unknown; ts: number }>();
+
+async function get<T>(path: string, ttl = 180_000): Promise<T> {
+  const hit = _cache.get(path);
+  if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
   const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const data: T = await res.json();
+  _cache.set(path, { data, ts: Date.now() });
+  return data;
 }
 
 export interface Group {
@@ -46,7 +53,7 @@ export interface TodayItem {
   minutes_until: number | null;
 }
 
-export const DAYS_ORDER = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+export const DAYS_ORDER = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
 
 export const PAIR_TIMES: Record<string, [string, string]> = {
   'I':   ['08:00', '09:30'],
@@ -58,7 +65,7 @@ export const PAIR_TIMES: Record<string, [string, string]> = {
 
 export const DAY_LABELS: Record<string, string> = {
   понедельник: 'Пн', вторник: 'Вт', среда: 'Ср',
-  четверг: 'Чт', пятница: 'Пт', суббота: 'Сб',
+  четверг: 'Чт', пятница: 'Пт', суббота: 'Сб', воскресенье: 'Вс',
 };
 
 export interface WeekInfo {
@@ -78,6 +85,17 @@ export interface Change {
   pair_number: string | null;
   old_value: string | null;
   new_value: string | null;
+}
+
+export interface Stats {
+  faculty_code: string;
+  group_name: string;
+  year: number;
+  total_lessons_week: number;
+  lessons_by_day: Record<string, number>;
+  most_loaded_day: string | null;
+  unique_teachers: number;
+  unique_subjects: number;
 }
 
 export interface WeekOption {
@@ -125,7 +143,8 @@ export const api = {
   getGroupSchedule: (id: number, weekId?: number) =>
     get<Lesson[]>(`/schedule/group/${id}${weekId ? `?week_id=${weekId}` : ''}`),
   getGroupWeeks: (id: number) => get<WeekInfo[]>(`/schedule/weeks/${id}`),
-  getNow: (id: number) => get<TodayItem[]>(`/schedule/now?group_id=${id}`),
+  getNow: (id: number) => get<TodayItem[]>(`/schedule/now?group_id=${id}`, 60_000),
+  getStats: (id: number) => get<Stats>(`/schedule/stats/${id}`, 60_000),
   getWeeksAll: () => get<WeekOption[]>('/schedule/weeks-all'),
   getTeachers: () => get<Teacher[]>('/schedule/teachers'),
   getTeacherSchedule: (id: number, weekStart?: string) =>
