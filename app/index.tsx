@@ -173,16 +173,20 @@ export default function ScheduleScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [nextItem]);
 
+  const weeksRef = useRef<WeekInfo[]>([]);
+  useEffect(() => { weeksRef.current = weeks; }, [weeks]);
+
   const loadSchedule = useCallback(async (group: Group, weekId?: number, silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
     setIsOffline(false);
 
     try {
-      let wks = weeks;
+      let wks = weeksRef.current;
       if (wks.length === 0 || selectedGroup?.id !== group.id) {
         wks = await api.getGroupWeeks(group.id);
         setWeeks(wks);
+        weeksRef.current = wks;
       }
 
       let targetWeek: WeekInfo | undefined;
@@ -196,7 +200,7 @@ export default function ScheduleScreen() {
           return today >= w.week_start && today <= end.toISOString().slice(0, 10);
         }) ?? wks.find(w => w.is_latest) ?? wks[0];
       }
-      setSelectedWeek(targetWeek ?? null);
+      if (targetWeek) setSelectedWeek(targetWeek);
 
       const [sched, now] = await Promise.all([
         api.getGroupSchedule(group.id, targetWeek?.id),
@@ -205,7 +209,6 @@ export default function ScheduleScreen() {
       setLessons(sched);
       setNowItems(now);
 
-      // Кэшируем расписание
       if (targetWeek) {
         await AsyncStorage.setItem(
           `cache_schedule_${group.id}_${targetWeek.id}`,
@@ -213,8 +216,8 @@ export default function ScheduleScreen() {
         );
       }
     } catch {
-      // Пробуем загрузить из кэша
-      const targetWeek = weeks.find(w => w.id === weekId) ?? weeks.find(w => w.is_latest);
+      const wks = weeksRef.current;
+      const targetWeek = wks.find(w => w.id === weekId) ?? wks.find(w => w.is_latest);
       if (targetWeek) {
         const cached = await AsyncStorage.getItem(`cache_schedule_${group.id}_${targetWeek.id}`);
         if (cached) {
@@ -231,7 +234,7 @@ export default function ScheduleScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [weeks, selectedGroup]);
+  }, [selectedGroup]);
 
   const loadGroup = useCallback(async (group: Group, haptic = true) => {
     if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -270,11 +273,24 @@ export default function ScheduleScreen() {
     loadSchedule(selectedGroup, selectedWeek?.id, true);
   }, [selectedGroup, selectedWeek, loadSchedule]);
 
-  // Загружаем группы
+  // Загружаем группы (с кэшем для офлайн)
   useEffect(() => {
     api.getGroups()
-      .then(gs => { setGroups(gs); setGroupsLoaded(true); })
-      .catch(() => setError('Нет соединения с сервером'));
+      .then(gs => {
+        setGroups(gs);
+        setGroupsLoaded(true);
+        AsyncStorage.setItem('cache_groups', JSON.stringify(gs));
+      })
+      .catch(async () => {
+        const cached = await AsyncStorage.getItem('cache_groups');
+        if (cached) {
+          setGroups(JSON.parse(cached));
+          setGroupsLoaded(true);
+          setIsOffline(true);
+        } else {
+          setError('Нет соединения с сервером');
+        }
+      });
   }, []);
 
   // При фокусе — загружаем сохранённую группу
