@@ -34,7 +34,7 @@ function AppTabs() {
           height: 60,
           paddingBottom: 8,
         },
-        headerStyle: { backgroundColor: '#2563eb' },
+        headerStyle: { backgroundColor: '#0d9488' },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
         tabBarLabelStyle: { fontSize: 10 },

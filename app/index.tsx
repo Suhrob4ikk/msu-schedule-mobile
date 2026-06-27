@@ -339,7 +339,7 @@ export default function ScheduleScreen() {
         />
       }
     >
-      <StatusBar barStyle="light-content" backgroundColor="#2563eb" />
+      <StatusBar barStyle="light-content" backgroundColor="#0d9488" />
 
       {/* Баннер офлайн-режима */}
       {isOffline && (

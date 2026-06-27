@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Group, shortGroupName } from './api';
 import { Colors } from './theme';
@@ -59,11 +59,7 @@ export default function GroupSelector({ groups, value, onChange, C }: Props) {
   return (
     <View>
       <Text style={[s.label, { color: C.muted }]}>НАПРАВЛЕНИЕ</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.chipRow}
-      >
+      <View style={s.chipRow}>
         {directions.map(dir => {
           const active = activeDir === dir;
           return (
@@ -83,7 +79,7 @@ export default function GroupSelector({ groups, value, onChange, C }: Props) {
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
       {activeDir && years.length > 0 && (
         <>
@@ -125,7 +121,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 8,
   },
-  chipRow: { flexDirection: 'row', gap: 8, paddingBottom: 2 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 2 },
   chip: {
     paddingHorizontal: 20,
     paddingVertical: 13,

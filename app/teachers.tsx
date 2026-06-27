@@ -78,7 +78,7 @@ export default function TeachersScreen() {
       horizontal
       showsHorizontalScrollIndicator={false}
       style={[s.weekBar, { borderBottomColor: C.border }]}
-      contentContainerStyle={{ paddingHorizontal: 12 }}
+      contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}
     >
       {weeks.map(w => {
         const active = selectedWeek?.week_start === w.week_start;
@@ -158,7 +158,6 @@ export default function TeachersScreen() {
           <Text style={[s.hintText, { color: C.muted }]}>Найдите преподавателя по фамилии и нажмите на имя — появится его расписание.</Text>
         </View>
       </View>
-      {weekSelector}
       {loadingList && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
       {error && !loadingList && <Text style={s.errorText}>{error}</Text>}
       {!loadingList && (
@@ -189,13 +188,13 @@ const s = StyleSheet.create({
   hint: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   hintText: { fontSize: 12, lineHeight: 17 },
 
-  weekBar: { flexGrow: 0, paddingVertical: 10, borderBottomWidth: 1 },
+  weekBar: { flexGrow: 0, borderBottomWidth: 1 },
   weekBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 10, marginRight: 8, borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 20, marginRight: 8, borderWidth: 1,
   },
-  weekBtnText: { fontSize: 12, fontWeight: '500' },
+  weekBtnText: { fontSize: 13, fontWeight: '600' },
   weekDot: { width: 6, height: 6, borderRadius: 3 },
 
   teacherItem: {
