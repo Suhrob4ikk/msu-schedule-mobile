@@ -52,7 +52,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
     >
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={C.bg === '#f5f5f0' ? 'dark-content' : 'light-content'} />
 
       {/* Лого */}
       <View style={s.logoRow}>

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, Group } from '../src/api';
+import { api, Group, shortGroupName } from '../src/api';
 import { useTheme } from '../src/theme';
 
 export default function ProfileScreen() {
@@ -67,7 +67,7 @@ export default function ProfileScreen() {
         {name.trim() && <Text style={[s.displayName, { color: C.fg }]}>{name.trim()}</Text>}
         {selectedGroup && (
           <Text style={[s.displayGroup, { color: C.muted }]}>
-            {selectedGroup.year} курс · {selectedGroup.name}
+            {selectedGroup.year} курс · {shortGroupName(selectedGroup.name)}
           </Text>
         )}
       </View>

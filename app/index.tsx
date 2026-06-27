@@ -60,14 +60,14 @@ function getDayDate(dayName: string, weekStart: string): string {
   return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
 }
 
-function SkeletonCard() {
-  const opacity = useRef(new Animated.Value(0.4)).current;
+function SkeletonCard({ C }: { C: ReturnType<typeof useTheme> }) {
+  const opacity = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.5, duration: 700, useNativeDriver: true }),
       ])
     );
     anim.start();
@@ -75,20 +75,13 @@ function SkeletonCard() {
   }, [opacity]);
 
   return (
-    <Animated.View style={[skeletonStyles.card, { opacity }]}>
-      <View style={skeletonStyles.line1} />
-      <View style={skeletonStyles.line2} />
-      <View style={skeletonStyles.line3} />
+    <Animated.View style={[{ backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: C.border }, { opacity }]}>
+      <View style={{ height: 12, backgroundColor: C.border, borderRadius: 4, width: '60%', marginBottom: 8 }} />
+      <View style={{ height: 16, backgroundColor: C.border, borderRadius: 4, width: '85%', marginBottom: 8 }} />
+      <View style={{ height: 12, backgroundColor: C.border, borderRadius: 4, width: '45%' }} />
     </Animated.View>
   );
 }
-
-const skeletonStyles = StyleSheet.create({
-  card: { backgroundColor: '#e2e8f0', borderRadius: 12, padding: 14, marginBottom: 10 },
-  line1: { height: 12, backgroundColor: '#cbd5e1', borderRadius: 4, width: '60%', marginBottom: 8 },
-  line2: { height: 16, backgroundColor: '#cbd5e1', borderRadius: 4, width: '85%', marginBottom: 8 },
-  line3: { height: 12, backgroundColor: '#cbd5e1', borderRadius: 4, width: '45%' },
-});
 
 function LessonCard({ lesson, C }: { lesson: Lesson; C: ReturnType<typeof useTheme> }) {
   const color = lesson.lesson_type ? (TYPE_COLORS[lesson.lesson_type] || '#3b82f6') : '#6b7280';
@@ -250,6 +243,7 @@ export default function ScheduleScreen() {
     if (!selectedGroup || selectedWeek?.id === week.id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedWeek(week);
+    setSelectedDay('all');
     loadSchedule(selectedGroup, week.id);
   }, [selectedGroup, selectedWeek, loadSchedule]);
 
@@ -352,10 +346,12 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {/* Подсказка */}
-      <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
-        <Text style={[s.hintText, { color: C.muted }]}>Выберите группу → нажмите на день недели → смотрите пары. Листайте недели свайпом влево/вправо.</Text>
-      </View>
+      {/* Подсказка — только до выбора группы */}
+      {!selectedGroup && (
+        <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
+          <Text style={[s.hintText, { color: C.muted }]}>Выберите группу → нажмите на день недели → смотрите пары. Листайте недели свайпом влево/вправо.</Text>
+        </View>
+      )}
 
       {/* Выбор группы */}
       <View style={s.section}>
@@ -494,7 +490,7 @@ export default function ScheduleScreen() {
       {/* Скелетон загрузки */}
       {loading && (
         <View>
-          {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
+          {[1, 2, 3].map(i => <SkeletonCard key={i} C={C} />)}
         </View>
       )}
 
@@ -576,7 +572,7 @@ const s = StyleSheet.create({
   nowTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   nowPairBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   nowPairText: { fontSize: 11, fontWeight: '600' },
-  countdown: { marginLeft: 'auto', fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  countdown: { marginLeft: 'auto', fontSize: 18, fontWeight: '800' },
   nowSubject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   nowMeta: { fontSize: 12 },
 
