@@ -3,11 +3,11 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
 import { useTheme } from '../src/theme';
+import GroupSelector from '../src/GroupSelector';
 
 export default function ProfileScreen() {
   const C = useTheme();
@@ -89,26 +89,16 @@ export default function ProfileScreen() {
         />
 
         <Text style={[s.label, { color: C.muted, marginTop: 16 }]}>ГРУППА</Text>
-        <View style={[s.pickerWrap, { backgroundColor: C.inputBg, borderColor: C.inputBorder }]}>
-          <Picker
-            selectedValue={selectedGroupId ?? ''}
-            onValueChange={val => val !== '' && setSelectedGroupId(Number(val))}
-            style={[s.picker, { color: C.fg }]}
-            dropdownIconColor={C.muted}
-          >
-            <Picker.Item label="— Выберите группу —" value="" color={C.muted} />
-            {(['ЕНФ', 'ГФ'] as const).map(fac =>
-              groups.filter(g => g.faculty_code === fac).map(g => (
-                <Picker.Item
-                  key={g.id}
-                  label={`${g.year} курс — ${shortGroupName(g.name)}`}
-                  value={g.id}
-                  color={C.fg}
-                />
-              ))
-            )}
-          </Picker>
-        </View>
+        {groups.length === 0 ? (
+          <ActivityIndicator color={C.primary} style={{ marginVertical: 12 }} />
+        ) : (
+          <GroupSelector
+            groups={groups}
+            value={groups.find(g => g.id === selectedGroupId) ?? null}
+            onChange={g => setSelectedGroupId(g.id)}
+            C={C}
+          />
+        )}
 
         <View style={[s.hint, { backgroundColor: C.tag }]}>
           <Text style={[s.hintText, { color: C.muted }]}>Укажи своё имя и выбери группу. После сохранения приложение само перейдёт на расписание.</Text>
@@ -151,8 +141,6 @@ const s = StyleSheet.create({
   form: { borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 0.5, elevation: 2, shadowOpacity: 0.04, shadowRadius: 6 },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase' },
   input: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, borderWidth: 1 },
-  pickerWrap: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
-  picker: { height: 52 },
 
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   saveBtnDisabled: { opacity: 0.4 },

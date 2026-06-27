@@ -6,6 +6,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
+import GroupSelector from '../src/GroupSelector';
 import { useTheme } from '../src/theme';
 
 type Props = { onDone?: () => void };
@@ -43,8 +44,6 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
     setSaving(false);
     if (onDone) { onDone(); } else { router.replace('/'); }
   };
-
-  const byFaculty = (fac: string) => groups.filter(g => g.faculty_code === fac);
 
   return (
     <ScrollView
@@ -94,38 +93,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
         {error && <Text style={s.errorText}>{error}</Text>}
 
         {!loading && !error && (
-          <>
-            {(['ЕНФ', 'ГФ'] as const).map(fac => (
-              <View key={fac}>
-                <Text style={[s.facLabel, { color: C.muted }]}>
-                  {fac === 'ЕНФ' ? 'Естественнонаучный факультет' : 'Гуманитарный факультет'}
-                </Text>
-                {byFaculty(fac).map(g => (
-                  <TouchableOpacity
-                    key={g.id}
-                    style={[
-                      s.groupItem,
-                      { backgroundColor: C.card, borderColor: C.border },
-                      selected?.id === g.id && { backgroundColor: C.blueBg, borderColor: C.primary },
-                    ]}
-                    onPress={() => setSelected(g)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[
-                      s.groupText,
-                      { color: C.fg },
-                      selected?.id === g.id && { color: C.primary, fontWeight: '600' },
-                    ]}>
-                      {g.year} курс — {shortGroupName(g.name)}
-                    </Text>
-                    {selected?.id === g.id && (
-                      <Text style={[s.checkmark, { color: C.primary }]}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-          </>
+          <GroupSelector groups={groups} value={selected} onChange={setSelected} C={C} />
         )}
 
         <TouchableOpacity
@@ -162,15 +130,6 @@ const s = StyleSheet.create({
   form: { width: '100%', marginTop: 16 },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase' },
   input: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, borderWidth: 0.5 },
-
-  facLabel: { fontSize: 12, fontWeight: '600', marginTop: 12, marginBottom: 6 },
-  groupItem: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13,
-    marginBottom: 6, borderWidth: 0.5,
-  },
-  groupText: { fontSize: 14 },
-  checkmark: { fontSize: 16, fontWeight: '700' },
 
   btn: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
   btnDisabled: { opacity: 0.4 },

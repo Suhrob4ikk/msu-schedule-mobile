@@ -4,14 +4,14 @@ import {
   StyleSheet, StatusBar, RefreshControl, PanResponder, Animated,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { Picker } from '@react-native-picker/picker';
 import * as Haptics from 'expo-haptics';
 import {
   api, Group, Lesson, TodayItem, WeekInfo, Stats,
-  DAYS_ORDER, DAY_LABELS, shortGroupName,
+  DAYS_ORDER, DAY_LABELS,
 } from '../src/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
+import GroupSelector from '../src/GroupSelector';
 
 const TYPE_COLORS: Record<string, string> = {
   ЗАЧЕТ: '#f59e0b', ЭКЗАМЕН: '#ef4444', ПРАКТИКА: '#1d4ed8', ПЗ: '#1d4ed8', ЛЕКЦИЯ: '#3b82f6',
@@ -358,31 +358,12 @@ export default function ScheduleScreen() {
       )}
 
       {/* Выбор группы */}
-      <View style={s.section}>
-        <Text style={[s.sectionTitle, { color: C.muted }]}>Группа</Text>
-        <View style={[s.pickerWrap, { backgroundColor: C.card, borderColor: C.border }]}>
-          <Picker
-            selectedValue={selectedGroup?.id ?? ''}
-            onValueChange={(val) => {
-              const g = groups.find(x => x.id === val);
-              if (g) loadGroup(g);
-            }}
-            style={[s.picker, { color: C.fg }]}
-            dropdownIconColor={C.muted}
-          >
-            <Picker.Item label="— Выберите группу —" value="" color={C.muted} />
-            {(['ЕНФ', 'ГФ'] as const).map(fac =>
-              groups.filter(g => g.faculty_code === fac).map(g => (
-                <Picker.Item
-                  key={g.id}
-                  label={`${g.year} курс — ${shortGroupName(g.name)}`}
-                  value={g.id}
-                  color={C.fg}
-                />
-              ))
-            )}
-          </Picker>
-        </View>
+      <View style={[s.groupCard, { backgroundColor: C.card, borderColor: C.border }]}>
+        {!groupsLoaded ? (
+          <ActivityIndicator color={C.primary} />
+        ) : (
+          <GroupSelector groups={groups} value={selectedGroup} onChange={loadGroup} C={C} />
+        )}
       </View>
 
       {error && <Text style={s.error}>{error}</Text>}
@@ -580,8 +561,7 @@ const s = StyleSheet.create({
   section: { marginBottom: 12 },
   sectionTitle: { fontSize: 11, fontWeight: '600', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  pickerWrap: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
-  picker: { height: 50 },
+  groupCard: { borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 0.5 },
 
   weekBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
