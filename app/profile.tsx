@@ -107,7 +107,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[s.hint, { backgroundColor: C.tag }]}>
-          <Text style={[s.hintText, { color: C.muted }]}>ℹ️  Укажи своё имя и выбери группу — расписание будет сразу открываться на твои пары.</Text>
+          <Text style={[s.hintText, { color: C.muted }]}>Укажи своё имя и выбери группу — расписание будет сразу открываться на твои пары.</Text>
         </View>
 
         <TouchableOpacity

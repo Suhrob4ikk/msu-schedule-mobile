@@ -63,7 +63,7 @@ export default function RoomsScreen() {
       </View>
 
       <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
-        <Text style={[s.hintText, { color: C.muted }]}>ℹ️  Выберите день и номер пары — увидите свободные (🟢) и занятые (🔴) аудитории. Потяните вниз для обновления.</Text>
+        <Text style={[s.hintText, { color: C.muted }]}>Выберите день и номер пары — увидите свободные и занятые аудитории. Потяните вниз для обновления.</Text>
       </View>
 
       {loading && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
@@ -80,7 +80,7 @@ export default function RoomsScreen() {
 
       {!loading && !error && (
         <>
-          <Text style={[s.sectionHeader, { color: '#16a34a' }]}>🟢 Свободных: {free.length}</Text>
+          <Text style={[s.sectionHeader, { color: '#16a34a' }]}>Свободных: {free.length}</Text>
           {free.map(r => (
             <View key={r.room_name} style={[s.roomCard, { backgroundColor: C.greenBg, borderLeftColor: C.green }]}>
               <Text style={[s.roomName, { color: C.fg }]}>{r.room_name}</Text>
@@ -90,7 +90,7 @@ export default function RoomsScreen() {
             <Text style={[s.noRooms, { color: C.muted }]}>Нет свободных аудиторий</Text>
           )}
 
-          <Text style={[s.sectionHeader, { color: '#dc2626', marginTop: 12 }]}>🔴 Занятых: {busy.length}</Text>
+          <Text style={[s.sectionHeader, { color: '#dc2626', marginTop: 12 }]}>Занятых: {busy.length}</Text>
           {busy.map(r => (
             <View key={r.room_name} style={[s.roomCard, { backgroundColor: C.redBg, borderLeftColor: C.red }]}>
               <Text style={[s.roomName, { color: C.fg }]}>{r.room_name}</Text>

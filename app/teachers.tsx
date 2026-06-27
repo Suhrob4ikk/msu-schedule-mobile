@@ -113,7 +113,7 @@ export default function TeachersScreen() {
           onChangeText={setSearch}
         />
         <View style={[s.hint, { backgroundColor: C.tag }]}>
-          <Text style={[s.hintText, { color: C.muted }]}>ℹ️  Найдите преподавателя по фамилии и нажмите на имя — появится его расписание на текущую неделю.</Text>
+          <Text style={[s.hintText, { color: C.muted }]}>Найдите преподавателя по фамилии и нажмите на имя — появится его расписание.</Text>
         </View>
       </View>
       {loadingList && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}

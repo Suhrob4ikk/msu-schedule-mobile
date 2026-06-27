@@ -293,17 +293,17 @@ export default function ScheduleScreen() {
       });
   }, []);
 
-  // При фокусе — загружаем сохранённую группу
+  // При фокусе — загружаем сохранённую группу (только если группа изменилась)
   useFocusEffect(
     useCallback(() => {
       if (!groupsLoaded || groups.length === 0) return;
       AsyncStorage.getItem('selected_group_id').then(id => {
         if (!id) return;
-        if (selectedGroup?.id === Number(id) && lessons.length > 0) return;
+        if (selectedGroup?.id === Number(id)) return;
         const g = groups.find(x => x.id === Number(id));
         if (g) loadGroup(g, false);
       });
-    }, [groupsLoaded, groups, selectedGroup, lessons.length, loadGroup])
+    }, [groupsLoaded, groups, selectedGroup, loadGroup])
   );
 
   // Свайп для переключения недели (через ref, чтобы не было stale closure)
@@ -354,7 +354,6 @@ export default function ScheduleScreen() {
 
       {/* Подсказка */}
       <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
-        <Text style={s.hintIcon}>ℹ️</Text>
         <Text style={[s.hintText, { color: C.muted }]}>Выберите группу → нажмите на день недели → смотрите пары. Листайте недели свайпом влево/вправо.</Text>
       </View>
 
@@ -514,7 +513,6 @@ export default function ScheduleScreen() {
 
           {selectedGroup && Object.keys(byDay).length === 0 && (
             <View style={s.emptyState}>
-              <Text style={[s.emptyIcon, { color: C.muted }]}>📅</Text>
               <Text style={[s.emptyTitle, { color: C.fg }]}>Занятий не найдено</Text>
               <Text style={[s.emptyText, { color: C.muted }]}>
                 {selectedDay !== 'all' ? 'В этот день пар нет' : 'На этой неделе занятий нет'}
@@ -523,7 +521,6 @@ export default function ScheduleScreen() {
           )}
           {!selectedGroup && (
             <View style={s.emptyState}>
-              <Text style={[s.emptyIcon, { color: C.muted }]}>📚</Text>
               <Text style={[s.emptyTitle, { color: C.fg }]}>Выберите группу выше</Text>
               <Text style={[s.emptyText, { color: C.muted }]}>Чтобы увидеть расписание</Text>
             </View>
@@ -538,9 +535,8 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
 
-  hint: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1 },
-  hintIcon: { fontSize: 13, lineHeight: 18 },
-  hintText: { flex: 1, fontSize: 12, lineHeight: 17 },
+  hint: { borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1 },
+  hintText: { fontSize: 12, lineHeight: 17 },
 
   offlineBanner: {
     backgroundColor: '#f59e0b',
@@ -595,7 +591,6 @@ const s = StyleSheet.create({
   },
 
   emptyState: { alignItems: 'center', paddingVertical: 48 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
   emptyText: { fontSize: 13 },
 
