@@ -68,7 +68,7 @@ export default function RoomsScreen() {
         <View style={[s.pickerWrap, { flex: 1.5, backgroundColor: C.card, borderColor: C.border }]}>
           <Text style={[s.label, { color: C.muted }]}>День</Text>
           <Picker selectedValue={day} onValueChange={setDay} style={[s.picker, { color: C.fg }]} dropdownIconColor={C.muted}>
-            {DAYS_ORDER.map(d => <Picker.Item key={d} label={DAY_LABELS[d]} value={d} color={C.fg} />)}
+            {DAYS_ORDER.filter(d => d !== 'воскресенье').map(d => <Picker.Item key={d} label={DAY_LABELS[d]} value={d} color={C.fg} />)}
           </Picker>
         </View>
         <View style={[s.pickerWrap, { flex: 1, backgroundColor: C.card, borderColor: C.border }]}>

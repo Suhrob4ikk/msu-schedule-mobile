@@ -127,17 +127,17 @@ const s = StyleSheet.create({
   },
   chipRow: { flexDirection: 'row', gap: 8, paddingBottom: 2 },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  yearRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  yearChip: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 13,
+    borderRadius: 14,
     borderWidth: 1.5,
   },
-  chipText: { fontSize: 14, fontWeight: '600' },
+  yearRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  yearChip: {
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  chipText: { fontSize: 15, fontWeight: '600' },
 });

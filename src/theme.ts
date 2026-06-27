@@ -1,4 +1,5 @@
-import { useColorScheme } from 'react-native';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const lightColors = {
   bg: '#f5f5f0',
@@ -42,7 +43,51 @@ export const darkColors = {
 
 export type Colors = typeof lightColors;
 
+export type ThemeMode = 'light' | 'dark';
+
+interface ThemeCtxType {
+  colors: Colors;
+  mode: ThemeMode;
+  toggle: () => void;
+}
+
+const ThemeCtx = createContext<ThemeCtxType>({
+  colors: lightColors,
+  mode: 'light',
+  toggle: () => {},
+});
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [mode, setMode] = useState<ThemeMode>('light');
+
+  useEffect(() => {
+    AsyncStorage.getItem('msu_theme').then(v => {
+      if (v === 'dark') setMode('dark');
+    });
+  }, []);
+
+  const toggle = () => {
+    setMode(prev => {
+      const next: ThemeMode = prev === 'light' ? 'dark' : 'light';
+      AsyncStorage.setItem('msu_theme', next);
+      return next;
+    });
+  };
+
+  const value: ThemeCtxType = {
+    colors: mode === 'dark' ? darkColors : lightColors,
+    mode,
+    toggle,
+  };
+
+  return React.createElement(ThemeCtx.Provider, { value }, children);
+}
+
 export function useTheme(): Colors {
-  const scheme = useColorScheme();
-  return scheme === 'dark' ? darkColors : lightColors;
+  return useContext(ThemeCtx).colors;
+}
+
+export function useThemeMode(): { mode: ThemeMode; toggle: () => void } {
+  const { mode, toggle } = useContext(ThemeCtx);
+  return { mode, toggle };
 }

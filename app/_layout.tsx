@@ -3,9 +3,9 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingScreen from './onboarding';
-import { useTheme } from '../src/theme';
+import { ThemeProvider, useTheme } from '../src/theme';
 
-export default function Layout() {
+function AppTabs() {
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const C = useTheme();
@@ -83,5 +83,13 @@ export default function Layout() {
       />
       <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
     </Tabs>
+  );
+}
+
+export default function Layout() {
+  return (
+    <ThemeProvider>
+      <AppTabs />
+    </ThemeProvider>
   );
 }

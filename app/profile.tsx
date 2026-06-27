@@ -6,11 +6,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
-import { useTheme } from '../src/theme';
+import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ProfileScreen() {
   const C = useTheme();
+  const { mode, toggle } = useThemeMode();
   const [groups, setGroups] = useState<Group[]>([]);
   const [name, setName] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
@@ -118,6 +120,23 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Переключение темы */}
+      <TouchableOpacity
+        onPress={toggle}
+        style={[s.themeBtn, { backgroundColor: C.card, borderColor: C.border }]}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={mode === 'dark' ? 'sunny-outline' : 'moon-outline'}
+          size={18}
+          color={C.fg}
+          style={{ marginRight: 8 }}
+        />
+        <Text style={[s.themeBtnText, { color: C.fg }]}>
+          {mode === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+        </Text>
+      </TouchableOpacity>
+
       {/* Инфо о приложении */}
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
@@ -148,6 +167,13 @@ const s = StyleSheet.create({
 
   hint: { borderRadius: 8, padding: 10, marginBottom: 12 },
   hintText: { fontSize: 12, lineHeight: 17 },
+  themeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, paddingVertical: 14, marginBottom: 24,
+    borderWidth: 0.5,
+  },
+  themeBtnText: { fontSize: 15, fontWeight: '600' },
+
   about: { alignItems: 'center', gap: 4 },
   aboutTitle: { fontSize: 13, fontWeight: '600' },
   aboutText: { fontSize: 12, textAlign: 'center' },
