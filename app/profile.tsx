@@ -37,19 +37,7 @@ function NotificationRow() {
       style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
     >
       <View style={ft.text}>
-        <View style={ft.labelRow}>
-          <Text style={[ft.label, { color: C.fg }]}>Уведомления о зачётах / экзаменах</Text>
-          {status === 'granted' && (
-            <View style={[ft.badge, { backgroundColor: '#dcfce7' }]}>
-              <Text style={[ft.badgeText, { color: '#16a34a' }]}>Включены</Text>
-            </View>
-          )}
-          {status === 'denied' && (
-            <View style={[ft.badge, { backgroundColor: C.tag }]}>
-              <Text style={[ft.badgeText, { color: C.muted }]}>Заблокированы</Text>
-            </View>
-          )}
-        </View>
+        <Text style={[ft.label, { color: C.fg }]}>Уведомления о зачётах / экзаменах</Text>
         <Text style={[ft.desc, { color: C.muted }]}>
           {status === 'granted'
             ? 'Придёт напоминание накануне и в день зачёта'
@@ -58,12 +46,8 @@ function NotificationRow() {
             : 'Нажмите чтобы включить напоминания о зачётах'}
         </Text>
       </View>
-      <View style={[ft.track, {
-        backgroundColor: status === 'granted' ? C.primary : C.border,
-      }]}>
-        <View style={[ft.thumb, {
-          transform: [{ translateX: status === 'granted' ? 20 : 2 }],
-        }]} />
+      <View style={[ft.track, { backgroundColor: status === 'granted' ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: status === 'granted' ? 20 : 2 }] }]} />
       </View>
     </TouchableOpacity>
   );
@@ -127,6 +111,7 @@ export default function ProfileScreen() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     api.getGroups().then(setGroups).catch(() => {});
@@ -135,6 +120,8 @@ export default function ProfileScreen() {
       const gid = pairs.find(([k]) => k === 'selected_group_id')?.[1];
       if (n) setName(n);
       if (gid) setSelectedGroupId(Number(gid));
+      // Если группы нет — сразу переходим в режим редактирования
+      if (!gid) setIsEditing(true);
     });
   }, []);
 
@@ -162,10 +149,22 @@ export default function ProfileScreen() {
 
     setSaving(false);
     setSaved(true);
+    setIsEditing(false);
     setTimeout(() => {
       setSaved(false);
       router.push('/');
-    }, 1000);
+    }, 800);
+  };
+
+  const handleChangeGroup = () => {
+    Alert.alert(
+      'Изменить данные?',
+      'Можно поменять имя или группу — например при переходе на новый курс.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Изменить', onPress: () => setIsEditing(true) },
+      ]
+    );
   };
 
   return (
@@ -187,47 +186,65 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* Форма */}
-      <View style={[s.form, { backgroundColor: C.card, borderColor: C.border }]}>
-        <Text style={[s.label, { color: C.muted }]}>ИМЯ</Text>
-        <TextInput
-          style={[s.input, { backgroundColor: C.inputBg, borderColor: C.inputBorder, color: C.fg }]}
-          placeholder="Введи своё имя..."
-          placeholderTextColor={C.muted}
-          value={name}
-          onChangeText={setName}
-          returnKeyType="done"
-        />
-
-        <Text style={[s.label, { color: C.muted, marginTop: 16 }]}>ГРУППА</Text>
-        {groups.length === 0 ? (
-          <ActivityIndicator color={C.primary} style={{ marginVertical: 12 }} />
-        ) : (
-          <GroupSelector
-            groups={groups}
-            value={groups.find(g => g.id === selectedGroupId) ?? null}
-            onChange={g => setSelectedGroupId(g.id)}
-            C={C}
+      {isEditing ? (
+        /* ─── Режим редактирования ─── */
+        <View style={[s.form, { backgroundColor: C.card, borderColor: C.border }]}>
+          <Text style={[s.label, { color: C.muted }]}>ИМЯ</Text>
+          <TextInput
+            style={[s.input, { backgroundColor: C.inputBg, borderColor: C.inputBorder, color: C.fg }]}
+            placeholder="Введи своё имя..."
+            placeholderTextColor={C.muted}
+            value={name}
+            onChangeText={setName}
+            returnKeyType="done"
           />
-        )}
 
-        <View style={[s.hint, { backgroundColor: C.tag }]}>
-          <Text style={[s.hintText, { color: C.muted }]}>Укажи своё имя и выбери группу. После сохранения приложение само перейдёт на расписание.</Text>
-        </View>
-
-        <TouchableOpacity
-          style={[s.saveBtn, { backgroundColor: C.primary }, (!selectedGroupId || saving) && s.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={!selectedGroupId || saving}
-          activeOpacity={0.8}
-        >
-          {saving ? (
-            <ActivityIndicator color="#fff" />
+          <Text style={[s.label, { color: C.muted, marginTop: 16 }]}>ГРУППА</Text>
+          {groups.length === 0 ? (
+            <ActivityIndicator color={C.primary} style={{ marginVertical: 12 }} />
           ) : (
-            <Text style={s.saveBtnText}>{saved ? '✓ Сохранено' : 'Сохранить'}</Text>
+            <GroupSelector
+              groups={groups}
+              value={groups.find(g => g.id === selectedGroupId) ?? null}
+              onChange={g => setSelectedGroupId(g.id)}
+              C={C}
+            />
           )}
+
+          <View style={[s.hint, { backgroundColor: C.tag }]}>
+            <Text style={[s.hintText, { color: C.muted }]}>Выбери свою группу. После сохранения приложение перейдёт на расписание.</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[s.saveBtn, { backgroundColor: C.primary }, (!selectedGroupId || saving) && s.saveBtnDisabled]}
+            onPress={handleSave}
+            disabled={!selectedGroupId || saving}
+            activeOpacity={0.8}
+          >
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.saveBtnText}>{saved ? '✓ Сохранено' : 'Сохранить'}</Text>
+            )}
+          </TouchableOpacity>
+
+          {selectedGroupId && (
+            <TouchableOpacity onPress={() => setIsEditing(false)} style={s.cancelBtn}>
+              <Text style={[s.cancelText, { color: C.muted }]}>Отмена</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        /* ─── Режим просмотра ─── */
+        <TouchableOpacity
+          onPress={handleChangeGroup}
+          style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border }]}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="pencil-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
+          <Text style={[s.changeBtnText, { color: C.muted }]}>Изменить имя или группу</Text>
         </TouchableOpacity>
-      </View>
+      )}
 
       {/* Переключение темы */}
       <TouchableOpacity
@@ -266,7 +283,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Синхронизация с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.0.0</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.2.1</Text>
       </View>
     </ScrollView>
   );
@@ -276,11 +293,17 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 24, paddingBottom: 60 },
 
-  avatarSection: { alignItems: 'center', marginBottom: 32, marginTop: 8 },
+  avatarSection: { alignItems: 'center', marginBottom: 28, marginTop: 8 },
   avatar: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   avatarText: { color: '#fff', fontSize: 32, fontWeight: '700' },
   displayName: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
   displayGroup: { fontSize: 13 },
+
+  changeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, paddingVertical: 13, marginBottom: 16, borderWidth: 0.5,
+  },
+  changeBtnText: { fontSize: 14, fontWeight: '500' },
 
   form: { borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 0.5, elevation: 2, shadowOpacity: 0.04, shadowRadius: 6 },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase' },
@@ -289,13 +312,14 @@ const s = StyleSheet.create({
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  cancelBtn: { alignItems: 'center', paddingVertical: 12 },
+  cancelText: { fontSize: 14 },
 
   hint: { borderRadius: 8, padding: 10, marginTop: 16, marginBottom: 4 },
   hintText: { fontSize: 12, lineHeight: 17 },
   themeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 12, paddingVertical: 14, marginBottom: 24,
-    borderWidth: 0.5,
+    borderRadius: 12, paddingVertical: 14, marginBottom: 24, borderWidth: 0.5,
   },
   themeBtnText: { fontSize: 15, fontWeight: '600' },
 
