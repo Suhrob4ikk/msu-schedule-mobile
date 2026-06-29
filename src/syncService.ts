@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, DAYS_ORDER, PAIR_TIMES, isCurrentWeek, WeekOption } from './api';
+import { api, DAYS_ORDER, PAIR_TIMES, isCurrentWeek, WeekOption, Teacher } from './api';
 
 export type ProgressCallback = (step: string) => void;
 
@@ -56,10 +56,17 @@ export async function performFullSync(onProgress?: ProgressCallback): Promise<vo
     onProgress?.(`Расписания групп: ${done}/${total}`);
   }, 2, 150);
 
-  // 4. Teachers list
+  // 4. Teachers list — по неделе (как в вебе), кэшируем под ключ недели
   onProgress?.('Загружаем преподавателей...');
-  const teachers = await api.getTeachers();
-  await AsyncStorage.setItem('cache_teachers', JSON.stringify(teachers));
+  const teacherMap = new Map<number, Teacher>();
+  for (const week of syncWeeks) {
+    try {
+      const ts = await api.getTeachers(week.week_start);
+      await AsyncStorage.setItem(`cache_teachers_${week.week_start}`, JSON.stringify(ts));
+      for (const t of ts) teacherMap.set(t.id, t);
+    } catch {}
+  }
+  const teachers = Array.from(teacherMap.values());
 
   // 5. Teacher schedules for current + next 2 weeks — 3 teachers at a time
   const tTotal = teachers.length;

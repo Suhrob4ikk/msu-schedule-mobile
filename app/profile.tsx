@@ -11,6 +11,8 @@ import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 import { requestNotificationPermission } from '../src/examNotifications';
 import * as Notifications from 'expo-notifications';
+import { useSyncStatus } from '../src/SyncContext';
+import { formatSyncTime } from '../src/syncService';
 
 // Снять блокировку в сентябре 2026 — поменять на false
 const FEATURES_LOCKED = true;
@@ -106,6 +108,8 @@ const ft = StyleSheet.create({
 export default function ProfileScreen() {
   const C = useTheme();
   const { mode, toggle } = useThemeMode();
+  const { isSyncing, syncProgress, lastSyncTime, triggerSync } = useSyncStatus();
+  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [name, setName] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
@@ -165,6 +169,16 @@ export default function ProfileScreen() {
         { text: 'Изменить', onPress: () => setIsEditing(true) },
       ]
     );
+  };
+
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setSyncMsg(null);
+    const ok = await triggerSync();
+    setSyncMsg(ok
+      ? { ok: true, text: '✓ Расписание обновлено' }
+      : { ok: false, text: '✗ Не удалось обновить — проверьте интернет' });
+    setTimeout(() => setSyncMsg(null), 4000);
   };
 
   return (
@@ -279,11 +293,46 @@ export default function ProfileScreen() {
         />
       </View>
 
+      {/* Синхронизация */}
+      <View style={s.section}>
+        <Text style={[s.sectionTitle, { color: C.muted }]}>Синхронизация</Text>
+        <TouchableOpacity
+          onPress={handleSync}
+          disabled={isSyncing}
+          activeOpacity={0.7}
+          style={[s.syncBtn, { backgroundColor: C.primary, opacity: isSyncing ? 0.7 : 1 }]}
+        >
+          {isSyncing ? (
+            <>
+              <ActivityIndicator color="#fff" size="small" style={{ marginRight: 8 }} />
+              <Text style={s.syncBtnText}>{syncProgress || 'Синхронизация...'}</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={s.syncBtnText}>Обновить расписание</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        <Text
+          style={[
+            s.syncStatus,
+            { color: syncMsg ? (syncMsg.ok ? '#16a34a' : '#dc2626') : C.muted },
+          ]}
+        >
+          {syncMsg
+            ? syncMsg.text
+            : lastSyncTime
+            ? `Последнее обновление: ${formatSyncTime(lastSyncTime)}`
+            : 'Ещё не синхронизировано'}
+        </Text>
+      </View>
+
       {/* Инфо о приложении */}
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
-        <Text style={[s.aboutText, { color: C.muted }]}>Синхронизация с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.2.2</Text>
+        <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.2.3</Text>
       </View>
     </ScrollView>
   );
@@ -325,6 +374,12 @@ const s = StyleSheet.create({
 
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 },
+  syncBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, paddingVertical: 14,
+  },
+  syncBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  syncStatus: { fontSize: 12, textAlign: 'center', marginTop: 8 },
   about: { alignItems: 'center', gap: 4 },
   aboutTitle: { fontSize: 13, fontWeight: '600' },
   aboutText: { fontSize: 12, textAlign: 'center' },

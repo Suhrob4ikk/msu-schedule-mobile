@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { performFullSync, getLastSyncTime, shouldResync, formatSyncTime } from './syncService';
+import { clearApiCache } from './api';
 
 const API_PING = 'https://msu-schedule-backend-production.up.railway.app/api/schedule/groups';
 const PING_TIMEOUT_MS = 4000;
@@ -26,6 +27,8 @@ type SyncState = {
   /** Increments every time we transition offline → online. Use in useEffect deps. */
   onlineAt: number;
   offlineBannerText: string;
+  /** Ручной запуск синхронизации. Возвращает true при успехе, false при ошибке. */
+  triggerSync: () => Promise<boolean>;
 };
 
 const SyncContext = createContext<SyncState>({
@@ -35,6 +38,7 @@ const SyncContext = createContext<SyncState>({
   isOnline: true,
   onlineAt: 0,
   offlineBannerText: '',
+  triggerSync: async () => false,
 });
 
 export function useSyncStatus() {
@@ -101,12 +105,31 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Ручная синхронизация — вызывается кнопкой в профиле.
+  const triggerSync = useCallback(async (): Promise<boolean> => {
+    if (syncStarted.current && isSyncing) return false;
+    setIsSyncing(true);
+    setSyncProgress('');
+    try {
+      clearApiCache(); // чтобы тянуть свежие данные, а не из кэша
+      await performFullSync(msg => setSyncProgress(msg));
+      setLastSyncTime(new Date());
+      setOnlineAt(Date.now()); // подталкиваем экраны обновиться
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress('');
+    }
+  }, [isSyncing]);
+
   const offlineBannerText = lastSyncTime
     ? `Офлайн · данные от ${formatSyncTime(lastSyncTime)}`
     : 'Офлайн · нет сохранённых данных';
 
   return (
-    <SyncContext.Provider value={{ lastSyncTime, isSyncing, syncProgress, isOnline, onlineAt, offlineBannerText }}>
+    <SyncContext.Provider value={{ lastSyncTime, isSyncing, syncProgress, isOnline, onlineAt, offlineBannerText, triggerSync }}>
       {children}
     </SyncContext.Provider>
   );

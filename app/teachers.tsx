@@ -20,6 +20,14 @@ const DAY_OFFSET: Record<string, number> = {
   понедельник: 0, вторник: 1, среда: 2, четверг: 3, пятница: 4, суббота: 5,
 };
 
+// Цвета и подписи типов занятий — как на главном экране и в вебе
+const TYPE_COLORS: Record<string, string> = {
+  ЗАЧЕТ: '#f59e0b', ЭКЗАМЕН: '#ef4444', ПРАКТИКА: '#1d4ed8', ПЗ: '#1d4ed8', ЛЕКЦИЯ: '#3b82f6',
+};
+const TYPE_LABELS: Record<string, string> = {
+  ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика', ЛЕКЦИЯ: 'Лекция',
+};
+
 function getDayDate(dayName: string, weekStart: string): string {
   const d = new Date(weekStart + 'T00:00:00');
   d.setDate(d.getDate() + (DAY_OFFSET[dayName] ?? 0));
@@ -42,39 +50,41 @@ export default function TeachersScreen() {
   const [isOffline, setIsOffline] = useState(false);
   const [weeks, setWeeks] = useState<WeekOption[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<WeekOption | null>(null);
-  const [teacherHasLessons, setTeacherHasLessons] = useState<Record<number, boolean> | null>(null);
-  const [filteringTeachers, setFilteringTeachers] = useState(false);
 
   const selectedRef = useRef<Teacher | null>(null);
   const selectedWeekRef = useRef<WeekOption | null>(null);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
   useEffect(() => { selectedWeekRef.current = selectedWeek; }, [selectedWeek]);
 
-  const loadTeachersList = async (silent = false) => {
+  // Список преподавателей запрашиваем по неделе — как в веб-версии, чтобы списки
+  // совпадали (сервер возвращает только тех, у кого есть пары в эту неделю).
+  const loadTeachersList = async (weekStart?: string, silent = false) => {
     if (!silent) setLoadingList(true);
     try {
-      const [ws, ts] = await Promise.all([api.getWeeksAll(), api.getTeachers()]);
+      const ws = await api.getWeeksAll();
       setWeeks(ws);
       AsyncStorage.setItem('cache_weeks_all', JSON.stringify(ws));
       const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
-      if (cur) setSelectedWeek(cur);
+      const week = (weekStart && ws.find(w => w.week_start === weekStart)) || cur;
+      if (week) setSelectedWeek(week);
+      const ts = await api.getTeachers(week?.week_start);
       setTeachers(ts);
-      AsyncStorage.setItem('cache_teachers', JSON.stringify(ts));
+      if (week) AsyncStorage.setItem(`cache_teachers_${week.week_start}`, JSON.stringify(ts));
       setError(null);
       setIsOffline(false);
     } catch {
       if (silent) return; // keep whatever is shown
       // Fallback to cache
-      const [cachedWks, cachedTs] = await Promise.all([
-        AsyncStorage.getItem('cache_weeks_all'),
-        AsyncStorage.getItem('cache_teachers'),
-      ]);
+      const cachedWks = await AsyncStorage.getItem('cache_weeks_all');
+      let week: WeekOption | null = selectedWeek;
       if (cachedWks) {
         const ws: WeekOption[] = JSON.parse(cachedWks);
         setWeeks(ws);
         const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
-        if (cur) setSelectedWeek(cur);
+        week = (weekStart && ws.find(w => w.week_start === weekStart)) || cur;
+        if (week) setSelectedWeek(week);
       }
+      const cachedTs = week ? await AsyncStorage.getItem(`cache_teachers_${week.week_start}`) : null;
       if (cachedTs) {
         setTeachers(JSON.parse(cachedTs));
         setIsOffline(true);
@@ -94,25 +104,9 @@ export default function TeachersScreen() {
     if (onlineAt === 0) return;
     const t = selectedRef.current;
     const w = selectedWeekRef.current;
-    loadTeachersList(true);
+    loadTeachersList(w?.week_start, true);
     if (t && w) loadTeacher(t, w, true);
   }, [onlineAt]);
-
-  useEffect(() => {
-    if (teachers.length === 0 || !selectedWeek || isOffline) return;
-    setFilteringTeachers(true);
-    setTeacherHasLessons(null);
-    Promise.all(
-      teachers.map(t =>
-        api.getTeacherSchedule(t.id, selectedWeek.week_start)
-          .then(ls => [t.id, ls.length > 0] as [number, boolean])
-          .catch(() => [t.id, false] as [number, boolean])
-      )
-    ).then(results => {
-      setTeacherHasLessons(Object.fromEntries(results));
-      setFilteringTeachers(false);
-    });
-  }, [teachers, selectedWeek?.week_start, isOffline]);
 
   const loadTeacher = async (t: Teacher, week: WeekOption | null = selectedWeek, silent = false) => {
     if (!silent) { setSelected(t); setView('schedule'); setLoading(true); }
@@ -139,6 +133,7 @@ export default function TeachersScreen() {
 
   const switchWeek = (w: WeekOption) => {
     setSelectedWeek(w);
+    loadTeachersList(w.week_start, false); // список преподавателей зависит от недели
     if (selected && view === 'schedule') {
       loadTeacher(selected, w);
     }
@@ -156,9 +151,7 @@ export default function TeachersScreen() {
     setRefreshingSched(false);
   };
 
-  const filtered = teachers
-    .filter(t => t.name.toLowerCase().includes(search.toLowerCase()))
-    .filter(t => !teacherHasLessons || teacherHasLessons[t.id]);
+  const filtered = teachers.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
 
   const byDay = DAYS_ORDER.reduce((acc, day) => {
     const dl = lessons.filter(l => l.day_of_week === day);
@@ -225,11 +218,18 @@ export default function TeachersScreen() {
                 </Text>
                 {dl.map(l => (
                   <View key={l.id} style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                       <Text style={[s.pairBadge, { color: C.primary, backgroundColor: C.blueBg }]}>
                         {l.pair_number} пара
                       </Text>
                       <Text style={[s.time, { color: C.muted }]}>{l.pair_time_start}–{l.pair_time_end}</Text>
+                      {l.lesson_type && (
+                        <View style={[s.typeBadge, { backgroundColor: (TYPE_COLORS[l.lesson_type] || '#3b82f6') + '20' }]}>
+                          <Text style={[s.typeText, { color: TYPE_COLORS[l.lesson_type] || '#3b82f6' }]}>
+                            {TYPE_LABELS[l.lesson_type] || l.lesson_type}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                     <Text style={[s.subject, { color: C.fg }]}>{l.subject}</Text>
                     {l.group && <Text style={[s.meta, { color: C.muted }]}>{l.group.year} курс · {shortGroupName(l.group.name)}</Text>}
@@ -267,9 +267,9 @@ export default function TeachersScreen() {
         </View>
       </View>
       {weekSelector}
-      {(loadingList || filteringTeachers) && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
+      {loadingList && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
       {error && !loadingList && <Text style={s.errorText}>{error}</Text>}
-      {!loadingList && !filteringTeachers && (
+      {!loadingList && (
         <FlatList
           data={filtered}
           keyExtractor={t => t.name}
@@ -324,6 +324,8 @@ const s = StyleSheet.create({
   card: { borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 0.5, elevation: 1, shadowOpacity: 0.04, shadowRadius: 3 },
   pairBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
   time: { fontSize: 11, alignSelf: 'center' },
+  typeBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 },
+  typeText: { fontSize: 10, fontWeight: '600' },
   subject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   meta: { fontSize: 12, marginTop: 2 },
   empty: { textAlign: 'center', marginTop: 48, fontSize: 15 },

@@ -13,6 +13,11 @@ async function get<T>(path: string, ttl = 180_000): Promise<T> {
   return data;
 }
 
+/** Сбрасывает in-memory кэш — чтобы ручная синхронизация тянула свежие данные. */
+export function clearApiCache(): void {
+  _cache.clear();
+}
+
 export interface Group {
   id: number;
   name: string;
@@ -148,7 +153,8 @@ export const api = {
   getNow: (id: number) => get<TodayItem[]>(`/schedule/now?group_id=${id}`, 60_000),
   getStats: (id: number) => get<Stats>(`/schedule/stats/${id}`, 60_000),
   getWeeksAll: () => get<WeekOption[]>('/schedule/weeks-all'),
-  getTeachers: () => get<Teacher[]>('/schedule/teachers'),
+  getTeachers: (weekStart?: string) =>
+    get<Teacher[]>(`/schedule/teachers${weekStart ? `?week_start=${weekStart}` : ''}`),
   getTeacherSchedule: (id: number, weekStart?: string) =>
     get<Lesson[]>(`/schedule/teacher/${id}${weekStart ? `?week_start=${weekStart}` : ''}`),
   getFreeRooms: (day: string, pair: string, weekStart?: string) =>
