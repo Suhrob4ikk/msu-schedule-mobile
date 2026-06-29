@@ -112,10 +112,12 @@ export function weekLabel(weekStart: string): string {
   today.setHours(0, 0, 0, 0);
   if (today >= start && today <= end) return 'Эта неделя';
   const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-  const dateStr = `${start.getDate()} ${months[start.getMonth()]}`;
+  const s = `${start.getDate()} ${months[start.getMonth()]}`;
+  const e = `${end.getDate()} ${months[end.getMonth()]}`;
+  const range = `${s}–${e}`;
   if (start > today && start.getTime() - today.getTime() <= 8 * 86400000)
-    return `Следующая · ${dateStr}`;
-  return dateStr;
+    return `Следующая · ${range}`;
+  return range;
 }
 
 export function isCurrentWeek(weekStart: string): boolean {

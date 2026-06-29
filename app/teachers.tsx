@@ -1,56 +1,137 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, ScrollView,
+  StyleSheet, ActivityIndicator, ScrollView, RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   api, Teacher, Lesson, DAYS_ORDER, shortGroupName,
   WeekOption, weekLabel, isCurrentWeek,
 } from '../src/api';
 import { useTheme } from '../src/theme';
+import { useSyncStatus } from '../src/SyncContext';
 
 const DAY_FULL: Record<string, string> = {
   понедельник: 'Понедельник', вторник: 'Вторник', среда: 'Среда',
   четверг: 'Четверг', пятница: 'Пятница', суббота: 'Суббота',
 };
 
+const DAY_OFFSET: Record<string, number> = {
+  понедельник: 0, вторник: 1, среда: 2, четверг: 3, пятница: 4, суббота: 5,
+};
+
+function getDayDate(dayName: string, weekStart: string): string {
+  const d = new Date(weekStart + 'T00:00:00');
+  d.setDate(d.getDate() + (DAY_OFFSET[dayName] ?? 0));
+  return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+}
+
 export default function TeachersScreen() {
   const C = useTheme();
+  const { offlineBannerText, onlineAt } = useSyncStatus();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selected, setSelected] = useState<Teacher | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
+  const [refreshingList, setRefreshingList] = useState(false);
+  const [refreshingSched, setRefreshingSched] = useState(false);
   const [view, setView] = useState<'list' | 'schedule'>('list');
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
   const [weeks, setWeeks] = useState<WeekOption[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<WeekOption | null>(null);
+  const [teacherHasLessons, setTeacherHasLessons] = useState<Record<number, boolean> | null>(null);
+  const [filteringTeachers, setFilteringTeachers] = useState(false);
 
-  useEffect(() => {
-    api.getWeeksAll()
-      .then(ws => {
+  const selectedRef = useRef<Teacher | null>(null);
+  const selectedWeekRef = useRef<WeekOption | null>(null);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => { selectedWeekRef.current = selectedWeek; }, [selectedWeek]);
+
+  const loadTeachersList = async (silent = false) => {
+    if (!silent) setLoadingList(true);
+    try {
+      const [ws, ts] = await Promise.all([api.getWeeksAll(), api.getTeachers()]);
+      setWeeks(ws);
+      AsyncStorage.setItem('cache_weeks_all', JSON.stringify(ws));
+      const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
+      if (cur) setSelectedWeek(cur);
+      setTeachers(ts);
+      AsyncStorage.setItem('cache_teachers', JSON.stringify(ts));
+      setError(null);
+      setIsOffline(false);
+    } catch {
+      if (silent) return; // keep whatever is shown
+      // Fallback to cache
+      const [cachedWks, cachedTs] = await Promise.all([
+        AsyncStorage.getItem('cache_weeks_all'),
+        AsyncStorage.getItem('cache_teachers'),
+      ]);
+      if (cachedWks) {
+        const ws: WeekOption[] = JSON.parse(cachedWks);
         setWeeks(ws);
         const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
         if (cur) setSelectedWeek(cur);
-      })
-      .catch(() => {});
+      }
+      if (cachedTs) {
+        setTeachers(JSON.parse(cachedTs));
+        setIsOffline(true);
+      } else {
+        setError('Не удалось загрузить список преподавателей');
+      }
+    } finally {
+      setLoadingList(false);
+      setRefreshingList(false);
+    }
+  };
 
-    api.getTeachers()
-      .then(setTeachers)
-      .catch(() => setError('Не удалось загрузить список преподавателей'))
-      .finally(() => setLoadingList(false));
-  }, []);
+  useEffect(() => { loadTeachersList(); }, []);
 
-  const loadTeacher = async (t: Teacher, week: WeekOption | null = selectedWeek) => {
-    setSelected(t);
-    setLoading(true);
-    setView('schedule');
+  // When internet comes back — silently refresh
+  useEffect(() => {
+    if (onlineAt === 0) return;
+    const t = selectedRef.current;
+    const w = selectedWeekRef.current;
+    loadTeachersList(true);
+    if (t && w) loadTeacher(t, w, true);
+  }, [onlineAt]);
+
+  useEffect(() => {
+    if (teachers.length === 0 || !selectedWeek || isOffline) return;
+    setFilteringTeachers(true);
+    setTeacherHasLessons(null);
+    Promise.all(
+      teachers.map(t =>
+        api.getTeacherSchedule(t.id, selectedWeek.week_start)
+          .then(ls => [t.id, ls.length > 0] as [number, boolean])
+          .catch(() => [t.id, false] as [number, boolean])
+      )
+    ).then(results => {
+      setTeacherHasLessons(Object.fromEntries(results));
+      setFilteringTeachers(false);
+    });
+  }, [teachers, selectedWeek?.week_start, isOffline]);
+
+  const loadTeacher = async (t: Teacher, week: WeekOption | null = selectedWeek, silent = false) => {
+    if (!silent) { setSelected(t); setView('schedule'); setLoading(true); }
     setError(null);
+    const cacheKey = `cache_teacher_${t.id}_${week?.week_start ?? 'default'}`;
     try {
-      setLessons(await api.getTeacherSchedule(t.id, week?.week_start));
+      const data = await api.getTeacherSchedule(t.id, week?.week_start);
+      setLessons(data);
+      setIsOffline(false);
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
     } catch {
-      setError('Не удалось загрузить расписание');
+      if (silent) return;
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        setLessons(JSON.parse(cached));
+        setIsOffline(true);
+      } else {
+        setError('Не удалось загрузить расписание');
+      }
     } finally {
       setLoading(false);
     }
@@ -63,9 +144,21 @@ export default function TeachersScreen() {
     }
   };
 
-  const filtered = teachers.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const onRefreshList = () => {
+    setRefreshingList(true);
+    loadTeachersList();
+  };
+
+  const onRefreshSchedule = async () => {
+    if (!selected) return;
+    setRefreshingSched(true);
+    await loadTeacher(selected, selectedWeek);
+    setRefreshingSched(false);
+  };
+
+  const filtered = teachers
+    .filter(t => t.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(t => !teacherHasLessons || teacherHasLessons[t.id]);
 
   const byDay = DAYS_ORDER.reduce((acc, day) => {
     const dl = lessons.filter(l => l.day_of_week === day);
@@ -106,6 +199,11 @@ export default function TeachersScreen() {
         >
           <Text style={[s.backText, { color: C.primary }]}>← Все преподаватели</Text>
         </TouchableOpacity>
+        {isOffline && (
+          <View style={s.offlineBanner}>
+            <Text style={s.offlineText}>{offlineBannerText}</Text>
+          </View>
+        )}
         <Text style={[s.teacherName, { color: C.fg }]}>{selected.name}</Text>
         {weekSelector}
         {loading ? (
@@ -117,9 +215,14 @@ export default function TeachersScreen() {
             data={Object.entries(byDay)}
             keyExtractor={([day]) => day}
             contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            refreshControl={
+              <RefreshControl refreshing={refreshingSched} onRefresh={onRefreshSchedule} tintColor={C.primary} colors={[C.primary]} />
+            }
             renderItem={({ item: [day, dl] }) => (
               <View>
-                <Text style={[s.dayHeader, { color: C.muted }]}>{DAY_FULL[day]}</Text>
+                <Text style={[s.dayHeader, { color: C.muted }]}>
+                  {DAY_FULL[day]}{selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
+                </Text>
                 {dl.map(l => (
                   <View key={l.id} style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
@@ -146,6 +249,11 @@ export default function TeachersScreen() {
 
   return (
     <View style={[s.container, { backgroundColor: C.bg }]}>
+      {isOffline && (
+        <View style={s.offlineBanner}>
+          <Text style={s.offlineText}>{offlineBannerText}</Text>
+        </View>
+      )}
       <View style={[s.searchWrap, { backgroundColor: C.card, borderBottomColor: C.border }]}>
         <TextInput
           style={[s.search, { backgroundColor: C.tag, color: C.fg }]}
@@ -158,13 +266,17 @@ export default function TeachersScreen() {
           <Text style={[s.hintText, { color: C.muted }]}>Найдите преподавателя по фамилии и нажмите на имя — появится его расписание.</Text>
         </View>
       </View>
-      {loadingList && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
+      {weekSelector}
+      {(loadingList || filteringTeachers) && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
       {error && !loadingList && <Text style={s.errorText}>{error}</Text>}
-      {!loadingList && (
+      {!loadingList && !filteringTeachers && (
         <FlatList
           data={filtered}
           keyExtractor={t => String(t.id)}
           contentContainerStyle={{ paddingBottom: 40 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshingList} onRefresh={onRefreshList} tintColor={C.primary} colors={[C.primary]} />
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[s.teacherItem, { backgroundColor: C.card, borderBottomColor: C.border }]}
@@ -174,7 +286,7 @@ export default function TeachersScreen() {
               <Text style={[s.arrow, { color: C.muted }]}>›</Text>
             </TouchableOpacity>
           )}
-          ListEmptyComponent={<Text style={[s.empty, { color: C.muted }]}>Ничего не найдено</Text>}
+          ListEmptyComponent={<Text style={[s.empty, { color: C.muted }]}>Нет преподавателей с занятиями на этой неделе</Text>}
         />
       )}
     </View>
@@ -183,12 +295,14 @@ export default function TeachersScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1 },
+  offlineBanner: { backgroundColor: '#f59e0b', padding: 10 },
+  offlineText: { fontSize: 12, color: '#fff', fontWeight: '600', textAlign: 'center' },
   searchWrap: { padding: 12, borderBottomWidth: 1 },
   search: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, marginBottom: 8 },
   hint: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   hintText: { fontSize: 12, lineHeight: 17 },
 
-  weekBar: { flexGrow: 0, borderBottomWidth: 1 },
+  weekBar: { flexGrow: 0, flexShrink: 0, height: 62, borderBottomWidth: 1 },
   weekBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 9,

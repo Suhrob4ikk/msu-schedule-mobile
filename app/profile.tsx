@@ -10,6 +10,9 @@ import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 
+// Снять блокировку в сентябре 2026 — поменять на false
+const FEATURES_LOCKED = true;
+
 function FeatureToggle({ label, description, storageKey }: { label: string; description: string; storageKey: string }) {
   const C = useTheme();
   const [enabled, setEnabled] = useState(false);
@@ -17,6 +20,7 @@ function FeatureToggle({ label, description, storageKey }: { label: string; desc
     AsyncStorage.getItem(storageKey).then(v => setEnabled(v === '1'));
   }, [storageKey]);
   const toggle = async () => {
+    if (FEATURES_LOCKED) return;
     const next = !enabled;
     setEnabled(next);
     await AsyncStorage.setItem(storageKey, next ? '1' : '0');
@@ -24,15 +28,24 @@ function FeatureToggle({ label, description, storageKey }: { label: string; desc
   return (
     <TouchableOpacity
       onPress={toggle}
-      style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
-      activeOpacity={0.7}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border, opacity: FEATURES_LOCKED ? 0.6 : 1 }]}
+      activeOpacity={FEATURES_LOCKED ? 1 : 0.7}
     >
       <View style={ft.text}>
-        <Text style={[ft.label, { color: C.fg }]}>{label}</Text>
-        <Text style={[ft.desc, { color: C.muted }]}>{description}</Text>
+        <View style={ft.labelRow}>
+          <Text style={[ft.label, { color: C.fg }]}>{label}</Text>
+          {FEATURES_LOCKED && (
+            <View style={[ft.badge, { backgroundColor: C.tag }]}>
+              <Text style={[ft.badgeText, { color: C.muted }]}>С сентября</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[ft.desc, { color: C.muted }]}>
+          {FEATURES_LOCKED ? 'Функция откроется в сентябре 2026' : description}
+        </Text>
       </View>
-      <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
-        <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
+      <View style={[ft.track, { backgroundColor: (!FEATURES_LOCKED && enabled) ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: (!FEATURES_LOCKED && enabled) ? 20 : 2 }] }]} />
       </View>
     </TouchableOpacity>
   );
@@ -43,6 +56,9 @@ const ft = StyleSheet.create({
   text: { flex: 1, marginRight: 12 },
   label: { fontSize: 14, fontWeight: '600' },
   desc: { fontSize: 12, marginTop: 2 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  badgeText: { fontSize: 10, fontWeight: '600' },
   track: { width: 44, height: 24, borderRadius: 12, position: 'relative' },
   thumb: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 },
 });

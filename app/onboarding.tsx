@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, StatusBar,
@@ -20,11 +20,15 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadGroups = useCallback(() => {
+    setLoading(true);
+    setError(null);
     api.getGroups()
       .then(g => { setGroups(g); setLoading(false); })
       .catch(() => { setError('Нет соединения с сервером'); setLoading(false); });
   }, []);
+
+  useEffect(() => { loadGroups(); }, []);
 
   const initials = name.trim()
     ? name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -90,16 +94,23 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
         <Text style={[s.label, { color: C.muted, marginTop: 16 }]}>ГРУППА</Text>
 
         {loading && <ActivityIndicator color={C.primary} style={{ marginVertical: 12 }} />}
-        {error && <Text style={s.errorText}>{error}</Text>}
+        {error && (
+          <View style={s.errorBox}>
+            <Text style={s.errorText}>{error}</Text>
+            <TouchableOpacity onPress={loadGroups} style={[s.retryBtn, { borderColor: C.primary }]}>
+              <Text style={[s.retryText, { color: C.primary }]}>Повторить</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {!loading && !error && (
           <GroupSelector groups={groups} value={selected} onChange={setSelected} C={C} />
         )}
 
         <TouchableOpacity
-          style={[s.btn, { backgroundColor: C.primary }, (!selected || saving) && s.btnDisabled]}
+          style={[s.btn, { backgroundColor: C.primary }, (!selected || !name.trim() || saving) && s.btnDisabled]}
           onPress={handleStart}
-          disabled={!selected || saving}
+          disabled={!selected || !name.trim() || saving}
           activeOpacity={0.85}
         >
           {saving
@@ -107,6 +118,15 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
             : <Text style={s.btnText}>Начать</Text>
           }
         </TouchableOpacity>
+        {(!name.trim() || !selected) && (
+          <Text style={[s.requiredHint, { color: C.muted }]}>
+            {!name.trim() && !selected
+              ? 'Введи имя и выбери группу'
+              : !name.trim()
+              ? 'Введи своё имя'
+              : 'Выбери группу'}
+          </Text>
+        )}
       </View>
     </ScrollView>
   );
@@ -135,5 +155,9 @@ const s = StyleSheet.create({
   btnDisabled: { opacity: 0.4 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  errorText: { color: '#dc2626', textAlign: 'center', marginVertical: 12, fontSize: 14 },
+  errorBox: { alignItems: 'center', marginVertical: 12 },
+  errorText: { color: '#dc2626', textAlign: 'center', fontSize: 14, marginBottom: 10 },
+  retryBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8 },
+  retryText: { fontSize: 14, fontWeight: '600' },
+  requiredHint: { textAlign: 'center', fontSize: 12, marginTop: 10 },
 });

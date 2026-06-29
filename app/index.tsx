@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   StyleSheet, StatusBar, RefreshControl, PanResponder, Animated, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -407,10 +408,13 @@ export default function ScheduleScreen() {
   // При фокусе — загружаем сохранённую группу и фичи-флаги
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(pairs => {
-        setFeatureAttendance(pairs[0][1] === '1');
-        setFeatureNotes(pairs[1][1] === '1');
-      });
+      const FEATURES_LOCKED = true; // Снять в сентябре 2026
+      if (!FEATURES_LOCKED) {
+        AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(pairs => {
+          setFeatureAttendance(pairs[0][1] === '1');
+          setFeatureNotes(pairs[1][1] === '1');
+        });
+      }
       if (!groupsLoaded || groups.length === 0) return;
       AsyncStorage.getItem('selected_group_id').then(id => {
         if (!id) return;
@@ -444,9 +448,15 @@ export default function ScheduleScreen() {
   }, {} as Record<string, Lesson[]>);
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
     <ScrollView
       style={[s.container, { backgroundColor: C.bg }]}
       contentContainerStyle={s.content}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -666,6 +676,7 @@ export default function ScheduleScreen() {
         </View>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
