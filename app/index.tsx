@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  StyleSheet, StatusBar, RefreshControl, PanResponder, Animated,
+  StyleSheet, StatusBar, RefreshControl, PanResponder, Animated, TextInput,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -11,6 +11,7 @@ import {
 } from '../src/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
+import { useSyncStatus } from '../src/SyncContext';
 import GroupSelector from '../src/GroupSelector';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -83,11 +84,49 @@ function SkeletonCard({ C }: { C: ReturnType<typeof useTheme> }) {
   );
 }
 
-function LessonCard({ lesson, C }: { lesson: Lesson; C: ReturnType<typeof useTheme> }) {
+function LessonCard({ lesson, C, showAttendance, showNotes }: {
+  lesson: Lesson;
+  C: ReturnType<typeof useTheme>;
+  showAttendance?: boolean;
+  showNotes?: boolean;
+}) {
   const color = lesson.lesson_type ? (TYPE_COLORS[lesson.lesson_type] || '#3b82f6') : '#6b7280';
   const label = lesson.lesson_type ? (TYPE_LABELS[lesson.lesson_type] || lesson.lesson_type) : null;
+
+  const [attended, setAttended] = useState<boolean | null>(null);
+  const [note, setNote] = useState('');
+  const [editingNote, setEditingNote] = useState(false);
+
+  useEffect(() => {
+    if (showAttendance) {
+      AsyncStorage.getItem(`att_${lesson.id}`).then(v => {
+        if (v === '1') setAttended(true);
+        else if (v === '0') setAttended(false);
+      });
+    }
+    if (showNotes) {
+      AsyncStorage.getItem(`note_${lesson.id}`).then(v => { if (v) setNote(v); });
+    }
+  }, [lesson.id, showAttendance, showNotes]);
+
+  const markAttendance = (value: boolean) => {
+    if (attended === value) {
+      setAttended(null);
+      AsyncStorage.removeItem(`att_${lesson.id}`);
+    } else {
+      setAttended(value);
+      AsyncStorage.setItem(`att_${lesson.id}`, value ? '1' : '0');
+    }
+  };
+
+  const saveNote = (text: string) => {
+    setNote(text);
+    if (text.trim()) AsyncStorage.setItem(`note_${lesson.id}`, text);
+    else AsyncStorage.removeItem(`note_${lesson.id}`);
+  };
+
   return (
-    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 0.5, borderColor: C.border }]}>
+    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}>
       <View style={cardStyles.header}>
         <View style={[cardStyles.pairBadge, { backgroundColor: C.blueBg }]}>
           <Text style={[cardStyles.pairText, { color: C.primary }]}>
@@ -109,6 +148,44 @@ function LessonCard({ lesson, C }: { lesson: Lesson; C: ReturnType<typeof useThe
           <Text style={[cardStyles.metaText, { color: C.muted }]}>Ауд. {lesson.room.name}</Text>
         )}
       </View>
+
+      {showAttendance && (
+        <View style={[cardStyles.attRow, { borderTopColor: C.border }]}>
+          <Text style={[cardStyles.attLabel, { color: C.muted }]}>Был?</Text>
+          <TouchableOpacity
+            onPress={() => markAttendance(true)}
+            style={[cardStyles.attBtn, { backgroundColor: attended === true ? '#22c55e' : 'transparent', borderColor: attended === true ? '#22c55e' : C.border }]}
+          >
+            <Text style={[cardStyles.attBtnText, { color: attended === true ? '#fff' : C.muted }]}>✓ Был</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => markAttendance(false)}
+            style={[cardStyles.attBtn, { backgroundColor: attended === false ? '#ef4444' : 'transparent', borderColor: attended === false ? '#ef4444' : C.border }]}
+          >
+            <Text style={[cardStyles.attBtnText, { color: attended === false ? '#fff' : C.muted }]}>✗ Не был</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {showNotes && (
+        <View style={[cardStyles.notesRow, { borderTopColor: C.border }]}>
+          {editingNote || note ? (
+            <TextInput
+              style={[cardStyles.noteInput, { backgroundColor: C.tag, borderColor: C.border, color: C.fg }]}
+              placeholder="Заметка к паре..."
+              placeholderTextColor={C.muted}
+              multiline
+              value={note}
+              onChangeText={saveNote}
+              onBlur={() => { if (!note.trim()) setEditingNote(false); }}
+            />
+          ) : (
+            <TouchableOpacity onPress={() => setEditingNote(true)}>
+              <Text style={[cardStyles.addNoteText, { color: C.muted }]}>+ Добавить заметку</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -123,10 +200,18 @@ const cardStyles = StyleSheet.create({
   subject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   metaText: { fontSize: 12 },
+  attRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5 },
+  attLabel: { fontSize: 12, marginRight: 4 },
+  attBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+  attBtnText: { fontSize: 12, fontWeight: '600' },
+  notesRow: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5 },
+  noteInput: { borderRadius: 8, padding: 8, fontSize: 12, borderWidth: 1, minHeight: 48, textAlignVertical: 'top' },
+  addNoteText: { fontSize: 12 },
 });
 
 export default function ScheduleScreen() {
   const C = useTheme();
+  const { offlineBannerText, onlineAt } = useSyncStatus();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [weeks, setWeeks] = useState<WeekInfo[]>([]);
@@ -134,7 +219,13 @@ export default function ScheduleScreen() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [nowItems, setNowItems] = useState<TodayItem[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [selectedDay, setSelectedDay] = useState('all');
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const jsDay = new Date().getDay();
+    if (jsDay === 0) return 'all';
+    return DAYS_ORDER[(jsDay + 6) % 7];
+  });
+  const [featureAttendance, setFeatureAttendance] = useState(false);
+  const [featureNotes, setFeatureNotes] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +233,11 @@ export default function ScheduleScreen() {
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [countdown, setCountdown] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref to current group+week for use in the online-recovery effect
+  const selectedGroupRef = useRef<Group | null>(null);
+  const selectedWeekRef = useRef<WeekInfo | null>(null);
+  useEffect(() => { selectedGroupRef.current = selectedGroup; }, [selectedGroup]);
+  useEffect(() => { selectedWeekRef.current = selectedWeek; }, [selectedWeek]);
 
   const nextItem = nowItems.find(i => i.is_next);
   const currentItem = nowItems.find(i => i.is_current);
@@ -181,6 +277,7 @@ export default function ScheduleScreen() {
         wks = await api.getGroupWeeks(group.id);
         setWeeks(wks);
         weeksRef.current = wks;
+        await AsyncStorage.setItem(`cache_weeks_${group.id}`, JSON.stringify(wks));
       }
 
       let targetWeek: WeekInfo | undefined;
@@ -212,7 +309,15 @@ export default function ScheduleScreen() {
         );
       }
     } catch {
-      const wks = weeksRef.current;
+      let wks = weeksRef.current;
+      if (wks.length === 0) {
+        const cachedWks = await AsyncStorage.getItem(`cache_weeks_${group.id}`);
+        if (cachedWks) {
+          wks = JSON.parse(cachedWks);
+          setWeeks(wks);
+          weeksRef.current = wks;
+        }
+      }
       const targetWeek = wks.find(w => w.id === weekId) ?? wks.find(w => w.is_latest);
       if (targetWeek) {
         const cached = await AsyncStorage.getItem(`cache_schedule_${group.id}_${targetWeek.id}`);
@@ -271,6 +376,14 @@ export default function ScheduleScreen() {
     loadSchedule(selectedGroup, selectedWeek?.id, true);
   }, [selectedGroup, selectedWeek, loadSchedule]);
 
+  // Когда интернет появился — тихо обновляем данные и снимаем офлайн-баннер
+  useEffect(() => {
+    if (onlineAt === 0) return;
+    const g = selectedGroupRef.current;
+    const w = selectedWeekRef.current;
+    if (g) loadSchedule(g, w?.id, true);
+  }, [onlineAt]);
+
   // Загружаем группы (с кэшем для офлайн)
   useEffect(() => {
     api.getGroups()
@@ -291,9 +404,13 @@ export default function ScheduleScreen() {
       });
   }, []);
 
-  // При фокусе — загружаем сохранённую группу (только если группа изменилась)
+  // При фокусе — загружаем сохранённую группу и фичи-флаги
   useFocusEffect(
     useCallback(() => {
+      AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(pairs => {
+        setFeatureAttendance(pairs[0][1] === '1');
+        setFeatureNotes(pairs[1][1] === '1');
+      });
       if (!groupsLoaded || groups.length === 0) return;
       AsyncStorage.getItem('selected_group_id').then(id => {
         if (!id) return;
@@ -344,16 +461,14 @@ export default function ScheduleScreen() {
       {/* Баннер офлайн-режима */}
       {isOffline && (
         <View style={s.offlineBanner}>
-          <Text style={s.offlineText}>
-            Нет подключения — показываем сохранённое расписание
-          </Text>
+          <Text style={s.offlineText}>{offlineBannerText}</Text>
         </View>
       )}
 
       {/* Подсказка — только до выбора группы */}
       {!selectedGroup && (
         <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
-          <Text style={[s.hintText, { color: C.muted }]}>Выберите группу → нажмите на день недели → смотрите пары. Листайте недели свайпом влево/вправо.</Text>
+          <Text style={[s.hintText, { color: C.muted }]}>Выберите группу ниже и нажмите на день недели. Листайте недели свайпом.</Text>
         </View>
       )}
 
@@ -411,9 +526,9 @@ export default function ScheduleScreen() {
       )}
 
       {/* Что идёт сейчас */}
-      {(currentItem || nextItem) && (
+      {selectedGroup && !loading && (
         <View style={s.nowRow}>
-          {currentItem && (
+          {currentItem ? (
             <View style={[s.nowCard, { backgroundColor: C.greenBg, borderLeftColor: C.green }]}>
               <View style={s.nowCardTop}>
                 <View style={[s.nowDot, { backgroundColor: C.green }]} />
@@ -428,6 +543,13 @@ export default function ScheduleScreen() {
                 {currentItem.teacher ? ` · ${currentItem.teacher}` : ''}
                 {currentItem.room ? ` · ауд. ${currentItem.room}` : ''}
               </Text>
+            </View>
+          ) : (
+            <View style={[s.nowCard, { backgroundColor: C.card, borderLeftColor: C.border }]}>
+              <View style={s.nowCardTop}>
+                <View style={[s.nowDot, { backgroundColor: C.border }]} />
+                <Text style={[s.nowTitle, { color: C.muted }]}>Занятий сейчас нет</Text>
+              </View>
             </View>
           )}
           {nextItem && (
@@ -485,6 +607,7 @@ export default function ScheduleScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.dayBar}>
           {['all', ...DAYS_ORDER].map(day => {
             const active = selectedDay === day;
+            const hasLessons = day !== 'all' && lessons.some(l => l.day_of_week === day);
             return (
               <TouchableOpacity
                 key={day}
@@ -497,6 +620,9 @@ export default function ScheduleScreen() {
                 <Text style={[s.dayBtnText, { color: active ? '#fff' : C.fg }]}>
                   {day === 'all' ? 'Вся неделя' : DAY_LABELS[day]}
                 </Text>
+                {hasLessons && (
+                  <View style={[s.dayDot, { backgroundColor: active ? 'rgba(255,255,255,0.8)' : C.primary }]} />
+                )}
               </TouchableOpacity>
             );
           })}
@@ -519,7 +645,7 @@ export default function ScheduleScreen() {
                 {day.charAt(0).toUpperCase() + day.slice(1)}
                 {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
               </Text>
-              {dayLessons.map(l => <LessonCard key={l.id} lesson={l} C={C} />)}
+              {dayLessons.map(l => <LessonCard key={l.id} lesson={l} C={C} showAttendance={featureAttendance} showNotes={featureNotes} />)}
             </View>
           ))}
 
@@ -592,7 +718,8 @@ const s = StyleSheet.create({
   nowMeta: { fontSize: 12 },
 
   dayBar: { marginBottom: 12 },
-  dayBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginRight: 8, borderWidth: 1 },
+  dayBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginRight: 8, borderWidth: 1, alignItems: 'center' },
+  dayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
   dayBtnText: { fontSize: 12, fontWeight: '500' },
 
   dayHeader: {

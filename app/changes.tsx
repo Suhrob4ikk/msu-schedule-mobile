@@ -75,7 +75,7 @@ export default function ChangesScreen() {
       ListHeaderComponent={
         <View style={s.header}>
           <Text style={[s.headerTitle, { color: C.fg }]}>История изменений</Text>
-          <Text style={[s.headerSub, { color: C.muted }]}>Автообновление каждые 2 часа с msu.tj</Text>
+          <Text style={[s.headerSub, { color: C.muted }]}>Здесь видно что изменилось в расписании с последнего обновления.</Text>
         </View>
       }
       ListEmptyComponent={

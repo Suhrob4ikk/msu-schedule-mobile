@@ -10,6 +10,43 @@ import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 
+function FeatureToggle({ label, description, storageKey }: { label: string; description: string; storageKey: string }) {
+  const C = useTheme();
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(storageKey).then(v => setEnabled(v === '1'));
+  }, [storageKey]);
+  const toggle = async () => {
+    const next = !enabled;
+    setEnabled(next);
+    await AsyncStorage.setItem(storageKey, next ? '1' : '0');
+  };
+  return (
+    <TouchableOpacity
+      onPress={toggle}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
+      activeOpacity={0.7}
+    >
+      <View style={ft.text}>
+        <Text style={[ft.label, { color: C.fg }]}>{label}</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>{description}</Text>
+      </View>
+      <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const ft = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 12, borderWidth: 0.5, marginBottom: 10 },
+  text: { flex: 1, marginRight: 12 },
+  label: { fontSize: 14, fontWeight: '600' },
+  desc: { fontSize: 12, marginTop: 2 },
+  track: { width: 44, height: 24, borderRadius: 12, position: 'relative' },
+  thumb: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 },
+});
+
 export default function ProfileScreen() {
   const C = useTheme();
   const { mode, toggle } = useThemeMode();
@@ -137,6 +174,21 @@ export default function ProfileScreen() {
         </Text>
       </TouchableOpacity>
 
+      {/* Дополнительные возможности */}
+      <View style={s.section}>
+        <Text style={[s.sectionTitle, { color: C.muted }]}>Дополнительные возможности</Text>
+        <FeatureToggle
+          label="Посещаемость"
+          description="Отмечать был ли на каждой паре"
+          storageKey="feature_attendance"
+        />
+        <FeatureToggle
+          label="Заметки к парам"
+          description="Добавлять текстовые заметки к занятиям"
+          storageKey="feature_notes"
+        />
+      </View>
+
       {/* Инфо о приложении */}
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
@@ -165,7 +217,7 @@ const s = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  hint: { borderRadius: 8, padding: 10, marginBottom: 12 },
+  hint: { borderRadius: 8, padding: 10, marginTop: 16, marginBottom: 4 },
   hintText: { fontSize: 12, lineHeight: 17 },
   themeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -174,6 +226,8 @@ const s = StyleSheet.create({
   },
   themeBtnText: { fontSize: 15, fontWeight: '600' },
 
+  section: { marginBottom: 24 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 },
   about: { alignItems: 'center', gap: 4 },
   aboutTitle: { fontSize: 13, fontWeight: '600' },
   aboutText: { fontSize: 12, textAlign: 'center' },
