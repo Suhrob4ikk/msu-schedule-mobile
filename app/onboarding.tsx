@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
 import GroupSelector from '../src/GroupSelector';
 import { useTheme } from '../src/theme';
+import { requestNotificationPermission } from '../src/examNotifications';
 
 type Props = { onDone?: () => void };
 
@@ -45,6 +46,8 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
       await AsyncStorage.setItem('msu_device_id', deviceId);
     }
     await api.registerUser(deviceId, name.trim() || 'Аноним', selected.id).catch(() => null);
+    // Запрашиваем разрешение на уведомления сразу после регистрации
+    await requestNotificationPermission();
     setSaving(false);
     if (onDone) { onDone(); } else { router.replace('/'); }
   };

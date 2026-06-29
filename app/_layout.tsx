@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingScreen from './onboarding';
 import { ThemeProvider, useTheme } from '../src/theme';
 import { SyncProvider, useSyncStatus } from '../src/SyncContext';
+import { setupNotifications } from '../src/examNotifications';
 
 function SyncBanner() {
   const { isSyncing, syncProgress } = useSyncStatus();
@@ -105,6 +106,10 @@ function AppTabs() {
 }
 
 export default function Layout() {
+  useEffect(() => {
+    setupNotifications();
+  }, []);
+
   return (
     <ThemeProvider>
       <SyncProvider>

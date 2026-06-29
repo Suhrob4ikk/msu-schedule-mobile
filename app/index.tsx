@@ -13,6 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
+import { scheduleExamReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -308,6 +309,8 @@ export default function ScheduleScreen() {
           `cache_schedule_${group.id}_${targetWeek.id}`,
           JSON.stringify(sched)
         );
+        // Обновляем напоминания о зачётах для этой недели
+        scheduleExamReminders(sched, targetWeek.week_start).catch(() => null);
       }
     } catch {
       let wks = weeksRef.current;

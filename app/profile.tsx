@@ -9,9 +9,65 @@ import { api, Group, shortGroupName } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
+import { requestNotificationPermission } from '../src/examNotifications';
+import * as Notifications from 'expo-notifications';
 
 // Снять блокировку в сентябре 2026 — поменять на false
 const FEATURES_LOCKED = true;
+
+function NotificationRow() {
+  const C = useTheme();
+  const [status, setStatus] = useState<'loading' | 'granted' | 'denied' | 'default'>('loading');
+
+  useEffect(() => {
+    Notifications.getPermissionsAsync().then(({ status: s }) => setStatus(s as any));
+  }, []);
+
+  const enable = async () => {
+    const ok = await requestNotificationPermission();
+    setStatus(ok ? 'granted' : 'denied');
+  };
+
+  if (status === 'loading') return null;
+
+  return (
+    <TouchableOpacity
+      onPress={status === 'default' ? enable : undefined}
+      activeOpacity={status === 'default' ? 0.7 : 1}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
+    >
+      <View style={ft.text}>
+        <View style={ft.labelRow}>
+          <Text style={[ft.label, { color: C.fg }]}>Уведомления о зачётах</Text>
+          {status === 'granted' && (
+            <View style={[ft.badge, { backgroundColor: '#dcfce7' }]}>
+              <Text style={[ft.badgeText, { color: '#16a34a' }]}>Включены</Text>
+            </View>
+          )}
+          {status === 'denied' && (
+            <View style={[ft.badge, { backgroundColor: C.tag }]}>
+              <Text style={[ft.badgeText, { color: C.muted }]}>Заблокированы</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[ft.desc, { color: C.muted }]}>
+          {status === 'granted'
+            ? 'Придёт напоминание накануне и в день зачёта'
+            : status === 'denied'
+            ? 'Разрешите уведомления в настройках телефона'
+            : 'Нажмите чтобы включить напоминания о зачётах'}
+        </Text>
+      </View>
+      <View style={[ft.track, {
+        backgroundColor: status === 'granted' ? C.primary : C.border,
+      }]}>
+        <View style={[ft.thumb, {
+          transform: [{ translateX: status === 'granted' ? 20 : 2 }],
+        }]} />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 function FeatureToggle({ label, description, storageKey }: { label: string; description: string; storageKey: string }) {
   const C = useTheme();
@@ -193,6 +249,7 @@ export default function ProfileScreen() {
       {/* Дополнительные возможности */}
       <View style={s.section}>
         <Text style={[s.sectionTitle, { color: C.muted }]}>Дополнительные возможности</Text>
+        <NotificationRow />
         <FeatureToggle
           label="Посещаемость"
           description="Отмечать был ли на каждой паре"
