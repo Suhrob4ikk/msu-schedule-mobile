@@ -272,7 +272,7 @@ export default function TeachersScreen() {
       {!loadingList && !filteringTeachers && (
         <FlatList
           data={filtered}
-          keyExtractor={t => String(t.id)}
+          keyExtractor={t => t.name}
           contentContainerStyle={{ paddingBottom: 40 }}
           refreshControl={
             <RefreshControl refreshing={refreshingList} onRefresh={onRefreshList} tintColor={C.primary} colors={[C.primary]} />
