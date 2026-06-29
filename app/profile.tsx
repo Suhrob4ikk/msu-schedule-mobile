@@ -38,7 +38,7 @@ function NotificationRow() {
     >
       <View style={ft.text}>
         <View style={ft.labelRow}>
-          <Text style={[ft.label, { color: C.fg }]}>Уведомления о зачётах</Text>
+          <Text style={[ft.label, { color: C.fg }]}>Уведомления о зачётах / экзаменах</Text>
           {status === 'granted' && (
             <View style={[ft.badge, { backgroundColor: '#dcfce7' }]}>
               <Text style={[ft.badgeText, { color: '#16a34a' }]}>Включены</Text>
