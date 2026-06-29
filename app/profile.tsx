@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert,
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -328,11 +328,20 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
+      {/* Режим разработчика — открывает скрытую веб-панель /dev (вход по паролю) */}
+      <TouchableOpacity
+        onPress={() => Linking.openURL('https://frontend-ten-nu-80.vercel.app/dev')}
+        activeOpacity={0.6}
+        style={{ alignSelf: 'center', paddingVertical: 8, marginBottom: 8 }}
+      >
+        <Text style={{ color: C.muted, fontSize: 12, opacity: 0.6 }}>Режим разработчика</Text>
+      </TouchableOpacity>
+
       {/* Инфо о приложении */}
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.2.3</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.2.4</Text>
       </View>
     </ScrollView>
   );
