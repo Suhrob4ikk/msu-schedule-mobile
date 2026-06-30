@@ -17,7 +17,7 @@ import { scheduleExamReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
 
 const TYPE_COLORS: Record<string, string> = {
-  ЗАЧЕТ: '#f59e0b', ЭКЗАМЕН: '#ef4444', ПРАКТИКА: '#1d4ed8', ПЗ: '#1d4ed8', ЛЕКЦИЯ: '#3b82f6',
+  ЗАЧЕТ: '#f43f5e', ЭКЗАМЕН: '#f43f5e', ПРАКТИКА: '#6366f1', ПЗ: '#6366f1', ЛЕКЦИЯ: '#0d9488',
 };
 const TYPE_LABELS: Record<string, string> = {
   ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика', ЛЕКЦИЯ: 'Лекция',
@@ -94,6 +94,11 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
 }) {
   const color = lesson.lesson_type ? (TYPE_COLORS[lesson.lesson_type] || '#3b82f6') : '#6b7280';
   const label = lesson.lesson_type ? (TYPE_LABELS[lesson.lesson_type] || lesson.lesson_type) : null;
+  // Цвет левой полосы карточки по типу пары (как на вебе)
+  const lt = lesson.lesson_type ?? '';
+  const accent = /зач|экз/i.test(lt) ? C.examAccent
+    : /пз|практ/i.test(lt) ? C.practiceAccent
+    : lt ? C.lectureAccent : C.border;
 
   const [attended, setAttended] = useState<boolean | null>(null);
   const [note, setNote] = useState('');
@@ -128,7 +133,7 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
   };
 
   return (
-    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}>
+    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderLeftWidth: 3, borderLeftColor: accent }]}>
       <View style={cardStyles.header}>
         <View style={[cardStyles.pairBadge, { backgroundColor: C.blueBg }]}>
           <Text style={[cardStyles.pairText, { color: C.primary }]}>
@@ -193,7 +198,7 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
 }
 
 const cardStyles = StyleSheet.create({
-  card: { borderRadius: 12, padding: 14, marginBottom: 10, elevation: 1, shadowOpacity: 0.04, shadowRadius: 4 },
+  card: { borderRadius: 16, padding: 14, marginBottom: 10, elevation: 1, shadowOpacity: 0.05, shadowRadius: 5 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
   pairBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   pairText: { fontSize: 11, fontWeight: '700' },
