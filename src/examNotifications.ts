@@ -7,6 +7,10 @@
 
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Локальный переключатель напоминаний (отдельно от системного разрешения).
+export const NOTIF_PREF_KEY = 'notif_enabled';
 
 const EXAM_KEYWORDS = ['зачет', 'зачёт', 'экзамен', 'экз'];
 const NOTIFICATION_CHANNEL = 'msu-exams';
@@ -62,6 +66,16 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return status === 'granted';
 }
 
+/** Отменяет все наши запланированные напоминания о зачётах. */
+export async function cancelExamReminders(): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of scheduled) {
+    if ((n.content.data?.type as string) === 'exam') {
+      await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  }
+}
+
 /** Отменяет все запланированные напоминания о зачётах и ставит новые по расписанию. */
 export async function scheduleExamReminders(
   lessons: Array<{ subject: string; day_of_week: string; pair_number: string; lesson_type?: string | null; lesson_date?: string | null }>,
@@ -70,13 +84,12 @@ export async function scheduleExamReminders(
   const { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') return;
 
+  // Уважаем локальный переключатель: если выключен — снимаем все напоминания
+  const pref = await AsyncStorage.getItem(NOTIF_PREF_KEY);
+  if (pref === '0') { await cancelExamReminders(); return; }
+
   // Отменяем только наши напоминания о зачётах
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  for (const n of scheduled) {
-    if ((n.content.data?.type as string) === 'exam') {
-      await Notifications.cancelScheduledNotificationAsync(n.identifier);
-    }
-  }
+  await cancelExamReminders();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

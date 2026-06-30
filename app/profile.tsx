@@ -9,7 +9,7 @@ import { api, Group, shortGroupName } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
-import { requestNotificationPermission } from '../src/examNotifications';
+import { requestNotificationPermission, cancelExamReminders, NOTIF_PREF_KEY } from '../src/examNotifications';
 import * as Notifications from 'expo-notifications';
 import { useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
@@ -20,36 +20,64 @@ const FEATURES_LOCKED = true;
 function NotificationRow() {
   const C = useTheme();
   const [status, setStatus] = useState<'loading' | 'granted' | 'denied' | 'default'>('loading');
+  const [enabled, setEnabled] = useState(true); // локальный переключатель
 
   useEffect(() => {
-    Notifications.getPermissionsAsync().then(({ status: s }) => setStatus(s as any));
+    (async () => {
+      const { status: s } = await Notifications.getPermissionsAsync();
+      setStatus(s as any);
+      const pref = await AsyncStorage.getItem(NOTIF_PREF_KEY);
+      setEnabled(pref !== '0');
+    })();
   }, []);
 
-  const enable = async () => {
-    const ok = await requestNotificationPermission();
-    setStatus(ok ? 'granted' : 'denied');
+  // Включено = есть системное разрешение И не выключено локально
+  const isOn = status === 'granted' && enabled;
+
+  const onToggle = async () => {
+    if (status === 'granted') {
+      // Разрешение есть — переключаем локальный флаг (вкл/выкл напоминания)
+      const next = !enabled;
+      setEnabled(next);
+      await AsyncStorage.setItem(NOTIF_PREF_KEY, next ? '1' : '0');
+      if (!next) await cancelExamReminders();
+    } else if (status === 'denied') {
+      // Системой запрещено — отправляем в настройки телефона
+      Linking.openSettings();
+    } else {
+      // Ещё не спрашивали — запрашиваем разрешение
+      const ok = await requestNotificationPermission();
+      if (ok) {
+        setStatus('granted'); setEnabled(true);
+        await AsyncStorage.setItem(NOTIF_PREF_KEY, '1');
+      } else {
+        setStatus('denied');
+      }
+    }
   };
 
   if (status === 'loading') return null;
 
+  const desc = status === 'denied'
+    ? 'Запрещены в настройках телефона — нажмите, чтобы открыть'
+    : isOn
+    ? 'Придёт напоминание накануне и в день зачёта'
+    : status === 'granted'
+    ? 'Выключено — нажмите, чтобы включить'
+    : 'Нажмите, чтобы включить напоминания о зачётах';
+
   return (
     <TouchableOpacity
-      onPress={status === 'default' ? enable : undefined}
-      activeOpacity={status === 'default' ? 0.7 : 1}
+      onPress={onToggle}
+      activeOpacity={0.7}
       style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
     >
       <View style={ft.text}>
         <Text style={[ft.label, { color: C.fg }]}>Уведомления о зачётах / экзаменах</Text>
-        <Text style={[ft.desc, { color: C.muted }]}>
-          {status === 'granted'
-            ? 'Придёт напоминание накануне и в день зачёта'
-            : status === 'denied'
-            ? 'Разрешите уведомления в настройках телефона'
-            : 'Нажмите чтобы включить напоминания о зачётах'}
-        </Text>
+        <Text style={[ft.desc, { color: C.muted }]}>{desc}</Text>
       </View>
-      <View style={[ft.track, { backgroundColor: status === 'granted' ? C.primary : C.border }]}>
-        <View style={[ft.thumb, { transform: [{ translateX: status === 'granted' ? 20 : 2 }] }]} />
+      <View style={[ft.track, { backgroundColor: isOn ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: isOn ? 20 : 2 }] }]} />
       </View>
     </TouchableOpacity>
   );
@@ -341,7 +369,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.2.4</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.2.5</Text>
       </View>
     </ScrollView>
   );
