@@ -17,7 +17,7 @@ import { scheduleExamReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
 
 const TYPE_COLORS: Record<string, string> = {
-  ЗАЧЕТ: '#f43f5e', ЭКЗАМЕН: '#f43f5e', ПРАКТИКА: '#6366f1', ПЗ: '#6366f1', ЛЕКЦИЯ: '#0d9488',
+  ЗАЧЕТ: '#d43a40', ЭКЗАМЕН: '#d43a40', ПРАКТИКА: '#5650d6', ПЗ: '#5650d6', ЛЕКЦИЯ: '#0e9b72',
 };
 const TYPE_LABELS: Record<string, string> = {
   ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика', ЛЕКЦИЯ: 'Лекция',
@@ -133,7 +133,7 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
   };
 
   return (
-    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderLeftWidth: 3, borderLeftColor: accent }]}>
+    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderLeftWidth: 4, borderLeftColor: accent }]}>
       <View style={cardStyles.header}>
         <View style={[cardStyles.pairBadge, { backgroundColor: C.blueBg }]}>
           <Text style={[cardStyles.pairText, { color: C.primary }]}>
@@ -201,12 +201,12 @@ const cardStyles = StyleSheet.create({
   card: { borderRadius: 16, padding: 14, marginBottom: 10, elevation: 1, shadowOpacity: 0.05, shadowRadius: 5 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
   pairBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  pairText: { fontSize: 11, fontWeight: '700' },
-  typeBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 },
-  typeText: { fontSize: 10, fontWeight: '600' },
-  subject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  pairText: { fontSize: 12, fontWeight: '700' },
+  typeBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5 },
+  typeText: { fontSize: 11, fontWeight: '600' },
+  subject: { fontSize: 15.5, fontWeight: '700', marginBottom: 4 },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  metaText: { fontSize: 12 },
+  metaText: { fontSize: 13 },
   attRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5 },
   attLabel: { fontSize: 12, marginRight: 4 },
   attBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
