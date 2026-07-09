@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Group, shortGroupName } from './api';
 import { Colors } from './theme';
 
@@ -12,10 +13,13 @@ interface Props {
   value: Group | null;
   onChange: (group: Group) => void;
   C: Colors;
+  /** Компактный режим: когда группа выбрана — одна строка, чипы раскрываются по нажатию */
+  collapsible?: boolean;
 }
 
-export default function GroupSelector({ groups, value, onChange, C }: Props) {
+export default function GroupSelector({ groups, value, onChange, C, collapsible }: Props) {
   const [pendingDir, setPendingDir] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const directions = useMemo(() => {
     const dirs = new Set<string>();
@@ -35,9 +39,17 @@ export default function GroupSelector({ groups, value, onChange, C }: Props) {
 
   const activeYear = (pendingDir == null || pendingDir === valueDir) ? value?.year : undefined;
 
+  // После выбора группы в компактном режиме — сворачиваемся
+  const pick = (g: Group) => {
+    onChange(g);
+    setPendingDir(null);
+    if (collapsible) setExpanded(false);
+  };
+
   const onDir = (dir: string) => {
     if (dir === valueDir) {
       setPendingDir(null);
+      if (collapsible) setExpanded(false); // клик по своему направлению — просто свернуть
     } else {
       setPendingDir(dir);
       const ys = [...new Set(
@@ -46,12 +58,12 @@ export default function GroupSelector({ groups, value, onChange, C }: Props) {
 
       if (value?.year && ys.includes(value.year)) {
         const g = groups.find(g => shortGroupName(g.name) === dir && g.year === value.year);
-        if (g) { onChange(g); setPendingDir(null); return; }
+        if (g) { pick(g); return; }
       }
 
       if (ys.length === 1) {
         const g = groups.find(g => shortGroupName(g.name) === dir && g.year === ys[0]);
-        if (g) { onChange(g); setPendingDir(null); }
+        if (g) pick(g);
       }
     }
   };
@@ -59,12 +71,46 @@ export default function GroupSelector({ groups, value, onChange, C }: Props) {
   const onYear = (year: number) => {
     if (!activeDir) return;
     const g = groups.find(g => shortGroupName(g.name) === activeDir && g.year === year);
-    if (g) { onChange(g); setPendingDir(null); }
+    if (g) pick(g);
   };
+
+  // ── Компактная строка (группа выбрана, чипы спрятаны) ──
+  if (collapsible && value && !expanded) {
+    return (
+      <TouchableOpacity
+        onPress={() => setExpanded(true)}
+        activeOpacity={0.7}
+        style={s.compactRow}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[s.label, { color: C.muted, marginBottom: 2 }]}>ГРУППА</Text>
+          <Text style={[s.compactValue, { color: C.fg }]} numberOfLines={1}>
+            {valueDir} · {value.year} курс
+          </Text>
+        </View>
+        <View style={s.compactHint}>
+          <Text style={{ color: C.muted, fontSize: 13 }}>изменить</Text>
+          <Ionicons name="chevron-down" size={16} color={C.muted} />
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View>
-      <Text style={[s.label, { color: C.muted }]}>НАПРАВЛЕНИЕ</Text>
+      <View style={s.labelRow}>
+        <Text style={[s.label, { color: C.muted }]}>НАПРАВЛЕНИЕ</Text>
+        {collapsible && value && (
+          <TouchableOpacity
+            onPress={() => { setPendingDir(null); setExpanded(false); }}
+            style={s.collapseBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: C.muted, fontSize: 12 }}>Свернуть</Text>
+            <Ionicons name="chevron-up" size={14} color={C.muted} />
+          </TouchableOpacity>
+        )}
+      </View>
       <View style={s.chipRow}>
         {directions.map(dir => {
           const active = activeDir === dir;
@@ -89,7 +135,7 @@ export default function GroupSelector({ groups, value, onChange, C }: Props) {
 
       {activeDir && years.length > 0 && (
         <>
-          <Text style={[s.label, { color: C.muted, marginTop: 14 }]}>КУРС</Text>
+          <Text style={[s.label, { color: C.muted, marginTop: 14, marginBottom: 8 }]}>КУРС</Text>
           <View style={s.yearRow}>
             {years.map(year => {
               const active = activeYear === year;
@@ -125,8 +171,22 @@ const s = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
+  collapseBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, padding: 2 },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  compactValue: { fontSize: 17, fontWeight: '700' },
+  compactHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 2 },
   chip: {
     paddingHorizontal: 20,

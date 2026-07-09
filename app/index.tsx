@@ -497,17 +497,17 @@ export default function ScheduleScreen() {
         {!groupsLoaded ? (
           <ActivityIndicator color={C.primary} />
         ) : (
-          <GroupSelector groups={groups} value={selectedGroup} onChange={loadGroup} C={C} />
+          <GroupSelector groups={groups} value={selectedGroup} onChange={loadGroup} C={C} collapsible />
         )}
       </View>
 
       {error && <Text style={s.error}>{error}</Text>}
 
-      {/* Переключатель недель */}
+      {/* Переключатель недель (диапазон дат — в заголовке, отдельный баннер не нужен) */}
       {selectedGroup && weeks.length > 1 && (
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: C.muted }]}>
-            Неделя · свайп влево/вправо для переключения
+            Неделя{selectedWeek ? ` · ${weekRangeStr(selectedWeek.week_start)}` : ''} · свайп для переключения
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {weeks.map(w => {
@@ -535,20 +535,10 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {/* Диапазон выбранной недели */}
-      {selectedWeek && (
-        <View style={[s.weekHeader, { backgroundColor: C.primary }]}>
-          <Text style={s.weekLabel}>
-            {isCurrentWeek(selectedWeek.week_start) ? 'Текущая неделя' : 'Неделя'}
-          </Text>
-          <Text style={s.weekRange}>{weekRangeStr(selectedWeek.week_start)}</Text>
-        </View>
-      )}
-
-      {/* Что идёт сейчас */}
-      {selectedGroup && !loading && (
+      {/* Что идёт сейчас — показываем только когда есть текущая или следующая пара */}
+      {selectedGroup && !loading && (currentItem || nextItem) && (
         <View style={s.nowRow}>
-          {currentItem ? (
+          {currentItem && (
             <View style={[s.nowCard, { backgroundColor: C.greenBg, borderLeftColor: C.green }]}>
               <View style={s.nowCardTop}>
                 <View style={[s.nowDot, { backgroundColor: C.green }]} />
@@ -563,13 +553,6 @@ export default function ScheduleScreen() {
                 {currentItem.teacher ? ` · ${currentItem.teacher}` : ''}
                 {currentItem.room ? ` · ауд. ${currentItem.room}` : ''}
               </Text>
-            </View>
-          ) : (
-            <View style={[s.nowCard, { backgroundColor: C.card, borderLeftColor: C.border }]}>
-              <View style={s.nowCardTop}>
-                <View style={[s.nowDot, { backgroundColor: C.border }]} />
-                <Text style={[s.nowTitle, { color: C.muted }]}>Занятий сейчас нет</Text>
-              </View>
             </View>
           )}
           {nextItem && (
@@ -717,15 +700,6 @@ const s = StyleSheet.create({
   },
   weekBtnText: { fontSize: 13, fontWeight: '500' },
   weekDot: { width: 6, height: 6, borderRadius: 3 },
-
-  weekHeader: {
-    borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 12,
-  },
-  weekLabel: { fontSize: 12, color: '#bfdbfe', fontWeight: '500' },
-  weekRange: { fontSize: 13, color: '#fff', fontWeight: '700' },
 
   nowRow: { gap: 10, marginBottom: 12 },
   nowCard: { borderRadius: 12, padding: 14, borderLeftWidth: 3 },
