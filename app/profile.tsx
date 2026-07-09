@@ -14,8 +14,10 @@ import * as Notifications from 'expo-notifications';
 import { useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
 
-// Снять блокировку в сентябре 2026 — поменять на false
-const FEATURES_LOCKED = true;
+import { featuresUnlocked } from '../src/features';
+
+// Автооткрытие 1 сентября 2026 — см. src/features.ts
+const FEATURES_LOCKED = !featuresUnlocked();
 
 function NotificationRow() {
   const C = useTheme();
@@ -106,12 +108,12 @@ function FeatureToggle({ label, description, storageKey }: { label: string; desc
           <Text style={[ft.label, { color: C.fg }]}>{label}</Text>
           {FEATURES_LOCKED && (
             <View style={[ft.badge, { backgroundColor: C.tag }]}>
-              <Text style={[ft.badgeText, { color: C.muted }]}>С сентября</Text>
+              <Text style={[ft.badgeText, { color: C.muted }]}>с 1 сентября</Text>
             </View>
           )}
         </View>
         <Text style={[ft.desc, { color: C.muted }]}>
-          {FEATURES_LOCKED ? 'Функция откроется в сентябре 2026' : description}
+          {FEATURES_LOCKED ? `${description} · откроется 1 сентября` : description}
         </Text>
       </View>
       <View style={[ft.track, { backgroundColor: (!FEATURES_LOCKED && enabled) ? C.primary : C.border }]}>
@@ -171,6 +173,8 @@ export default function ProfileScreen() {
     setSaving(true);
     await AsyncStorage.setItem('user_name', name.trim());
     await AsyncStorage.setItem('selected_group_id', String(selectedGroupId));
+    // Сменили СВОЮ группу — сбрасываем «какую смотрю», чтобы расписание открылось на новой
+    await AsyncStorage.removeItem('schedule_view_group_id');
 
     let deviceId = await AsyncStorage.getItem('msu_device_id');
     if (!deviceId) {
@@ -311,12 +315,12 @@ export default function ProfileScreen() {
         <NotificationRow />
         <FeatureToggle
           label="Посещаемость"
-          description="Отмечать был ли на каждой паре"
+          description="Отмечай, был ли ты на паре, и следи за статистикой семестра"
           storageKey="feature_attendance"
         />
         <FeatureToggle
           label="Заметки к парам"
-          description="Добавлять текстовые заметки к занятиям"
+          description="Записывай задания и важное к каждой паре"
           storageKey="feature_notes"
         />
       </View>
@@ -369,7 +373,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.2.9</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.3.0</Text>
       </View>
     </ScrollView>
   );

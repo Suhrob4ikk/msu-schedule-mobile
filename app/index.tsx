@@ -15,6 +15,7 @@ import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
 import { scheduleExamReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
+import { featuresUnlocked } from '../src/features';
 
 const TYPE_COLORS: Record<string, string> = {
   ЗАЧЕТ: '#d43a40', ЭКЗАМЕН: '#d43a40', ПРАКТИКА: '#5650d6', ПЗ: '#5650d6', ЛЕКЦИЯ: '#0e9b72',
@@ -100,36 +101,42 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
     : /пз|практ/i.test(lt) ? C.practiceAccent
     : lt ? C.lectureAccent : C.border;
 
+  // Ключи НЕ по lesson.id (он меняется при каждой синхронизации), а по стабильным
+  // признакам: посещаемость — на конкретную дату, заметка — к слоту день+пара.
+  const gid = lesson.group?.id ?? 'g';
+  const attKey = `att2_${gid}_${lesson.lesson_date ?? lesson.day_of_week}_${lesson.pair_number}`;
+  const noteKey = `note2_${gid}_${lesson.day_of_week}_${lesson.pair_number}`;
+
   const [attended, setAttended] = useState<boolean | null>(null);
   const [note, setNote] = useState('');
   const [editingNote, setEditingNote] = useState(false);
 
   useEffect(() => {
     if (showAttendance) {
-      AsyncStorage.getItem(`att_${lesson.id}`).then(v => {
+      AsyncStorage.getItem(attKey).then(v => {
         if (v === '1') setAttended(true);
         else if (v === '0') setAttended(false);
       });
     }
     if (showNotes) {
-      AsyncStorage.getItem(`note_${lesson.id}`).then(v => { if (v) setNote(v); });
+      AsyncStorage.getItem(noteKey).then(v => { if (v) setNote(v); });
     }
-  }, [lesson.id, showAttendance, showNotes]);
+  }, [attKey, noteKey, showAttendance, showNotes]);
 
   const markAttendance = (value: boolean) => {
     if (attended === value) {
       setAttended(null);
-      AsyncStorage.removeItem(`att_${lesson.id}`);
+      AsyncStorage.removeItem(attKey);
     } else {
       setAttended(value);
-      AsyncStorage.setItem(`att_${lesson.id}`, value ? '1' : '0');
+      AsyncStorage.setItem(attKey, value ? '1' : '0');
     }
   };
 
   const saveNote = (text: string) => {
     setNote(text);
-    if (text.trim()) AsyncStorage.setItem(`note_${lesson.id}`, text);
-    else AsyncStorage.removeItem(`note_${lesson.id}`);
+    if (text.trim()) AsyncStorage.setItem(noteKey, text);
+    else AsyncStorage.removeItem(noteKey);
   };
 
   return (
@@ -245,6 +252,10 @@ export default function ScheduleScreen() {
   const selectedWeekRef = useRef<WeekInfo | null>(null);
   useEffect(() => { selectedGroupRef.current = selectedGroup; }, [selectedGroup]);
   useEffect(() => { selectedWeekRef.current = selectedWeek; }, [selectedWeek]);
+  // МОЯ группа (из профиля) — чтобы показать «вернуться» при просмотре чужой
+  const [myGroupId, setMyGroupId] = useState<number | null>(null);
+  const myGroupIdRef = useRef<number | null>(null);
+  useEffect(() => { myGroupIdRef.current = myGroupId; }, [myGroupId]);
 
   const nextItem = nowItems.find(i => i.is_next);
   const currentItem = nowItems.find(i => i.is_current);
@@ -317,8 +328,10 @@ export default function ScheduleScreen() {
           `cache_schedule_${group.id}_${targetWeek.id}`,
           JSON.stringify(sched)
         );
-        // Обновляем напоминания о зачётах для этой недели
-        scheduleExamReminders(sched, targetWeek.week_start).catch(() => null);
+        // Напоминания о зачётах — только для МОЕЙ группы (не для просматриваемых чужих)
+        if (group.id === myGroupIdRef.current) {
+          scheduleExamReminders(sched, targetWeek.week_start).catch(() => null);
+        }
       }
     } catch {
       let wks = weeksRef.current;
@@ -355,7 +368,9 @@ export default function ScheduleScreen() {
     setWeeks([]);
     setSelectedDay('all');
     setStats(null);
-    await AsyncStorage.setItem('selected_group_id', String(group.id));
+    // Сохраняем только «какую группу смотрю» — МОЯ группа (selected_group_id)
+    // задаётся в профиле/онбординге и при просмотре чужих не меняется.
+    await AsyncStorage.setItem('schedule_view_group_id', String(group.id));
     await loadSchedule(group);
   }, [loadSchedule]);
 
@@ -418,18 +433,21 @@ export default function ScheduleScreen() {
   // При фокусе — загружаем сохранённую группу и фичи-флаги
   useFocusEffect(
     useCallback(() => {
-      const FEATURES_LOCKED = true; // Снять в сентябре 2026
-      if (!FEATURES_LOCKED) {
+      if (featuresUnlocked()) {
         AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(pairs => {
           setFeatureAttendance(pairs[0][1] === '1');
           setFeatureNotes(pairs[1][1] === '1');
         });
       }
       if (!groupsLoaded || groups.length === 0) return;
-      AsyncStorage.getItem('selected_group_id').then(id => {
-        if (!id) return;
-        if (selectedGroup?.id === Number(id)) return;
-        const g = groups.find(x => x.id === Number(id));
+      AsyncStorage.multiGet(['selected_group_id', 'schedule_view_group_id']).then(pairs => {
+        const myId = pairs.find(([k]) => k === 'selected_group_id')?.[1];
+        const viewId = pairs.find(([k]) => k === 'schedule_view_group_id')?.[1];
+        if (myId) setMyGroupId(Number(myId));
+        const target = Number(viewId ?? myId);
+        if (!target) return;
+        if (selectedGroup?.id === target) return;
+        const g = groups.find(x => x.id === target);
         if (g) loadGroup(g, false);
       });
     }, [groupsLoaded, groups, selectedGroup, loadGroup])
@@ -500,6 +518,22 @@ export default function ScheduleScreen() {
           <GroupSelector groups={groups} value={selectedGroup} onChange={loadGroup} C={C} collapsible />
         )}
       </View>
+
+      {/* Смотрим чужую группу — кнопка возврата к своей */}
+      {selectedGroup && myGroupId != null && selectedGroup.id !== myGroupId && (
+        <TouchableOpacity
+          onPress={() => {
+            const g = groups.find(x => x.id === myGroupId);
+            if (g) loadGroup(g);
+          }}
+          activeOpacity={0.7}
+          style={[s.backToMine, { backgroundColor: C.card, borderColor: C.border }]}
+        >
+          <Text style={{ color: C.primary, fontSize: 14, fontWeight: '600' }}>
+            ← Вернуться к моей группе
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {error && <Text style={s.error}>{error}</Text>}
 
@@ -692,6 +726,10 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: '600', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   groupCard: { borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 0.5 },
+  backToMine: {
+    borderRadius: 12, borderWidth: 1, paddingVertical: 11,
+    alignItems: 'center', marginTop: -4, marginBottom: 12,
+  },
 
   weekBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

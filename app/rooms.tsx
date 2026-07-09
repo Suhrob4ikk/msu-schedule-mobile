@@ -25,7 +25,11 @@ const DAYS = DAYS_ORDER.filter(d => d !== 'воскресенье');
 export default function RoomsScreen() {
   const C = useTheme();
   const { offlineBannerText, onlineAt } = useSyncStatus();
-  const [day, setDay] = useState('понедельник');
+  // По умолчанию — сегодняшний день (в воскресенье показываем понедельник)
+  const [day, setDay] = useState(() => {
+    const jsDay = new Date().getDay();
+    return jsDay >= 1 && jsDay <= 6 ? DAYS_ORDER[jsDay - 1] : 'понедельник';
+  });
   const [pair, setPair] = useState('I');
   const [rooms, setRooms] = useState<{ room_name: string; is_free: boolean; occupied_by?: string }[]>([]);
   const [loading, setLoading] = useState(false);
