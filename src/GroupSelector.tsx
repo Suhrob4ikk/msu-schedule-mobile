@@ -43,6 +43,12 @@ export default function GroupSelector({ groups, value, onChange, C }: Props) {
       const ys = [...new Set(
         groups.filter(g => shortGroupName(g.name) === dir).map(g => g.year)
       )];
+
+      if (value?.year && ys.includes(value.year)) {
+        const g = groups.find(g => shortGroupName(g.name) === dir && g.year === value.year);
+        if (g) { onChange(g); setPendingDir(null); return; }
+      }
+
       if (ys.length === 1) {
         const g = groups.find(g => shortGroupName(g.name) === dir && g.year === ys[0]);
         if (g) { onChange(g); setPendingDir(null); }

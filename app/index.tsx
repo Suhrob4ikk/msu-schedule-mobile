@@ -290,7 +290,10 @@ export default function ScheduleScreen() {
       let targetWeek: WeekInfo | undefined;
       if (weekId) {
         targetWeek = wks.find(w => w.id === weekId);
-      } else {
+      } else if (selectedWeekRef.current) {
+        targetWeek = wks.find(w => w.week_start === selectedWeekRef.current!.week_start);
+      }
+      if (!targetWeek) {
         const today = new Date().toISOString().slice(0, 10);
         targetWeek = wks.find(w => {
           const end = new Date(w.week_start + 'T00:00:00');
@@ -350,7 +353,6 @@ export default function ScheduleScreen() {
     if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedGroup(group);
     setWeeks([]);
-    setSelectedWeek(null);
     setSelectedDay('all');
     setStats(null);
     await AsyncStorage.setItem('selected_group_id', String(group.id));
