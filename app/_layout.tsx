@@ -88,7 +88,7 @@ function AppTabs() {
             ),
           }}
         />
-        <Tabs.Screen name="changes" options={{ href: null }} />
+        <Tabs.Screen name="changes" options={{ href: null, title: 'Изменения расписания' }} />
         <Tabs.Screen
           name="profile"
           options={{

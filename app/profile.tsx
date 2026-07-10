@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking,
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -134,6 +134,79 @@ const ft = StyleSheet.create({
   track: { width: 44, height: 24, borderRadius: 12, position: 'relative' },
   thumb: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 },
 });
+
+// --- Статистика посещаемости и экспорт (из локальных отметок) ---
+async function collectAttendance() {
+  const keys = (await AsyncStorage.getAllKeys()).filter(k => k.startsWith('att2_'));
+  const rows = await AsyncStorage.multiGet(keys);
+  let attended = 0, missed = 0;
+  const bySubj = new Map<string, number>(); // предмет -> пропуски
+  for (const [, v] of rows) {
+    if (!v) continue;
+    const subj = v.includes('|') ? v.slice(v.indexOf('|') + 1) : '';
+    if (v.startsWith('1')) attended++;
+    else if (v.startsWith('0')) {
+      missed++;
+      if (subj) bySubj.set(subj, (bySubj.get(subj) ?? 0) + 1);
+    }
+  }
+  const topMissed = [...bySubj.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return { attended, missed, total: attended + missed, topMissed };
+}
+
+async function collectNotes(): Promise<Array<{ slot: string; text: string }>> {
+  const keys = (await AsyncStorage.getAllKeys()).filter(k => k.startsWith('note2_'));
+  const rows = await AsyncStorage.multiGet(keys);
+  const out: Array<{ slot: string; text: string }> = [];
+  for (const [k, v] of rows) {
+    if (!v || !v.trim()) continue;
+    const parts = k.split('_'); // note2, id группы, день, пара
+    out.push({ slot: (parts[2] ?? '') + ', ' + (parts[3] ?? '') + ' пара', text: v });
+  }
+  return out;
+}
+
+async function exportMyData() {
+  const st = await collectAttendance();
+  const notes = await collectNotes();
+  const lines: string[] = ['МГУ Расписание — мои данные', ''];
+  if (st.total > 0) {
+    lines.push('Посещаемость: был на ' + st.attended + ' из ' + st.total + ' пар (' + Math.round((st.attended / st.total) * 100) + '%)');
+    if (st.topMissed.length) lines.push('Чаще пропускаю: ' + st.topMissed.map(([s2, n]) => s2 + ' (' + n + ')').join(', '));
+    lines.push('');
+  }
+  if (notes.length > 0) {
+    lines.push('Заметки к парам:');
+    notes.forEach(n => lines.push('• ' + n.slot + ': ' + n.text));
+  }
+  if (st.total === 0 && notes.length === 0) lines.push('Пока нет ни отметок, ни заметок.');
+  try { await Share.share({ message: lines.join('\n') }); } catch {}
+}
+
+function AttendanceStats() {
+  const C = useTheme();
+  const [st, setSt] = useState<{ attended: number; total: number; topMissed: [string, number][] } | null>(null);
+  useEffect(() => { collectAttendance().then(setSt).catch(() => null); }, []);
+  if (!st || st.total === 0) return null;
+  const pct = Math.round((st.attended / st.total) * 100);
+  const good = pct >= 75;
+  return (
+    <View style={[ft.row, { backgroundColor: C.card, borderColor: C.border, flexDirection: 'column', alignItems: 'stretch' }]}>
+      <Text style={[ft.label, { color: C.fg }]}>Моя посещаемость</Text>
+      <Text style={[ft.desc, { color: C.muted }]}>
+        Был на {st.attended} из {st.total} отмеченных пар · <Text style={{ color: good ? C.primary : '#d43a40', fontWeight: '700' }}>{pct}%</Text>
+      </Text>
+      <View style={{ height: 6, borderRadius: 3, backgroundColor: C.tag, overflow: 'hidden', marginTop: 8 }}>
+        <View style={{ width: (pct + '%') as `${number}%`, height: 6, borderRadius: 3, backgroundColor: good ? C.primary : '#d43a40' }} />
+      </View>
+      {st.topMissed.length > 0 && (
+        <Text style={[ft.desc, { color: C.muted, marginTop: 6 }]}>
+          Чаще пропускаю: {st.topMissed.map(([s2, n]) => s2 + ' (' + n + ')').join(', ')}
+        </Text>
+      )}
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const C = useTheme();
@@ -325,6 +398,29 @@ export default function ProfileScreen() {
         />
       </View>
 
+      {/* Статистика, экспорт и история изменений */}
+      <View style={s.section}>
+        {!FEATURES_LOCKED && <AttendanceStats />}
+        {!FEATURES_LOCKED && (
+          <TouchableOpacity
+            onPress={exportMyData}
+            activeOpacity={0.7}
+            style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 10 }]}
+          >
+            <Ionicons name="share-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
+            <Text style={[s.changeBtnText, { color: C.muted }]}>Поделиться заметками и посещаемостью</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          onPress={() => router.push('/changes')}
+          activeOpacity={0.7}
+          style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 0 }]}
+        >
+          <Ionicons name="time-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
+          <Text style={[s.changeBtnText, { color: C.muted }]}>История изменений расписания</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Синхронизация */}
       <View style={s.section}>
         <Text style={[s.sectionTitle, { color: C.muted }]}>Синхронизация</Text>
@@ -373,7 +469,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.3.0</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.4.0</Text>
       </View>
     </ScrollView>
   );

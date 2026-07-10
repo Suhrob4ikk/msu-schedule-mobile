@@ -16,6 +16,10 @@ import { useSyncStatus } from '../src/SyncContext';
 import { scheduleExamReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
 import { featuresUnlocked } from '../src/features';
+import { writeWidgetData } from '../src/widgetData';
+
+// Июль и август — каникулы: пустое расписание в это время не ошибка
+const isVacation = () => [6, 7].includes(new Date().getMonth());
 
 const TYPE_COLORS: Record<string, string> = {
   ЗАЧЕТ: '#d43a40', ЭКЗАМЕН: '#d43a40', ПРАКТИКА: '#5650d6', ПЗ: '#5650d6', ЛЕКЦИЯ: '#0e9b72',
@@ -116,8 +120,8 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
   useEffect(() => {
     if (showAttendance) {
       AsyncStorage.getItem(attKey).then(v => {
-        if (v === '1') setAttended(true);
-        else if (v === '0') setAttended(false);
+        if (v?.startsWith('1')) setAttended(true);
+        else if (v?.startsWith('0')) setAttended(false);
       });
     }
     if (showNotes) {
@@ -131,7 +135,8 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
       AsyncStorage.removeItem(attKey);
     } else {
       setAttended(value);
-      AsyncStorage.setItem(attKey, value ? '1' : '0');
+      // В значении храним и предмет — пригодится для статистики в кабинете
+      AsyncStorage.setItem(attKey, `${value ? '1' : '0'}|${lesson.subject}`);
     }
   };
 
@@ -185,16 +190,22 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
 
       {showNotes && (
         <View style={[cardStyles.notesRow, { borderTopColor: C.border }]}>
-          {editingNote || note ? (
+          {editingNote ? (
             <TextInput
               style={[cardStyles.noteInput, { backgroundColor: C.tag, borderColor: C.border, color: C.fg }]}
               placeholder="Заметка к паре..."
               placeholderTextColor={C.muted}
               multiline
+              autoFocus
               value={note}
               onChangeText={saveNote}
-              onBlur={() => { if (!note.trim()) setEditingNote(false); }}
+              onBlur={() => setEditingNote(false)}
             />
+          ) : note ? (
+            // Компактная строка-индикатор: заметка видна, тап — редактирование
+            <TouchableOpacity onPress={() => setEditingNote(true)} activeOpacity={0.7}>
+              <Text style={{ fontSize: 12.5, color: C.fg }} numberOfLines={2}>📝 {note}</Text>
+            </TouchableOpacity>
           ) : (
             <TouchableOpacity onPress={() => setEditingNote(true)}>
               <Text style={[cardStyles.addNoteText, { color: C.muted }]}>+ Добавить заметку</Text>
@@ -262,11 +273,14 @@ export default function ScheduleScreen() {
   const nextItem = nowItems.find(i => i.is_next);
   const currentItem = nowItems.find(i => i.is_current);
 
+  const [nowMs, setNowMs] = useState(Date.now());
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (!nextItem) { setCountdown(''); return; }
+    if (!nextItem && !currentItem) { setCountdown(''); return; }
     const tick = () => {
       const now = new Date();
+      setNowMs(now.getTime()); // тик для прогресса текущей пары
+      if (!nextItem) { setCountdown(''); return; }
       const [h, m] = nextItem.pair_time_start.split(':').map(Number);
       const target = new Date(now);
       target.setHours(h, m, 0, 0);
@@ -281,7 +295,7 @@ export default function ScheduleScreen() {
     tick();
     timerRef.current = setInterval(tick, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [nextItem]);
+  }, [nextItem, currentItem]);
 
   const weeksRef = useRef<WeekInfo[]>([]);
   useEffect(() => { weeksRef.current = weeks; }, [weeks]);
@@ -330,9 +344,10 @@ export default function ScheduleScreen() {
           `cache_schedule_${group.id}_${targetWeek.id}`,
           JSON.stringify(sched)
         );
-        // Напоминания о зачётах — только для МОЕЙ группы (не для просматриваемых чужих)
+        // Напоминания о зачётах и данные виджета — только для МОЕЙ группы
         if (group.id === myGroupIdRef.current) {
           scheduleExamReminders(sched, targetWeek.week_start).catch(() => null);
+          writeWidgetData(group, sched, targetWeek.week_start).catch(() => null);
         }
       }
     } catch {
@@ -467,6 +482,9 @@ export default function ScheduleScreen() {
     })
   ).current;
 
+  // Отметки и заметки — только на расписании СВОЕЙ группы (на чужих не нужны)
+  const isMyGroup = selectedGroup != null && myGroupId != null && selectedGroup.id === myGroupId;
+
   const filtered = selectedDay === 'all'
     ? lessons
     : lessons.filter(l => l.day_of_week === selectedDay);
@@ -589,6 +607,25 @@ export default function ScheduleScreen() {
                 {currentItem.teacher ? ` · ${currentItem.teacher}` : ''}
                 {currentItem.room ? ` · ауд. ${currentItem.room}` : ''}
               </Text>
+              {(() => {
+                // Прогресс пары: сколько прошло из 90 минут
+                const [sh, sm] = currentItem.pair_time_start.split(':').map(Number);
+                const [eh, em] = currentItem.pair_time_end.split(':').map(Number);
+                const st = new Date(nowMs); st.setHours(sh, sm, 0, 0);
+                const en = new Date(nowMs); en.setHours(eh, em, 0, 0);
+                const p = Math.min(1, Math.max(0, (nowMs - st.getTime()) / (en.getTime() - st.getTime())));
+                const left = Math.max(0, Math.ceil((en.getTime() - nowMs) / 60000));
+                return (
+                  <View style={{ marginTop: 8 }}>
+                    <View style={{ height: 5, borderRadius: 3, backgroundColor: C.card, overflow: 'hidden' }}>
+                      <View style={{ width: `${p * 100}%`, height: 5, borderRadius: 3, backgroundColor: C.green }} />
+                    </View>
+                    <Text style={{ fontSize: 11, color: C.muted, marginTop: 3, textAlign: 'right' }}>
+                      осталось {left} мин
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
           )}
           {nextItem && (
@@ -684,16 +721,27 @@ export default function ScheduleScreen() {
                 {day.charAt(0).toUpperCase() + day.slice(1)}
                 {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
               </Text>
-              {dayLessons.map(l => <LessonCard key={l.id} lesson={l} C={C} showAttendance={featureAttendance} showNotes={featureNotes} />)}
+              {dayLessons.map(l => <LessonCard key={l.id} lesson={l} C={C} showAttendance={featureAttendance && isMyGroup} showNotes={featureNotes && isMyGroup} />)}
             </View>
           ))}
 
           {selectedGroup && Object.keys(byDay).length === 0 && (
             <View style={s.emptyState}>
-              <Text style={[s.emptyTitle, { color: C.fg }]}>Занятий не найдено</Text>
-              <Text style={[s.emptyText, { color: C.muted }]}>
-                {selectedDay !== 'all' ? 'В этот день пар нет' : 'На этой неделе занятий нет'}
-              </Text>
+              {isVacation() ? (
+                <>
+                  <Text style={[s.emptyTitle, { color: C.fg }]}>Каникулы! 🏖</Text>
+                  <Text style={[s.emptyText, { color: C.muted, textAlign: 'center', paddingHorizontal: 24 }]}>
+                    Занятий нет — отдыхаем. Расписание появится ближе к 1 сентября.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[s.emptyTitle, { color: C.fg }]}>Занятий не найдено</Text>
+                  <Text style={[s.emptyText, { color: C.muted }]}>
+                    {selectedDay !== 'all' ? 'В этот день пар нет' : 'На этой неделе занятий нет'}
+                  </Text>
+                </>
+              )}
             </View>
           )}
           {!selectedGroup && (
