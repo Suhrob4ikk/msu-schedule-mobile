@@ -100,6 +100,8 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
   const accent = /зач|экз/i.test(lt) ? C.examAccent
     : /пз|практ/i.test(lt) ? C.practiceAccent
     : lt ? C.lectureAccent : C.border;
+  // На экзаменах/зачётах/консультациях посещаемость не отмечают
+  const attendanceApplicable = !/экзамен|зач|конс/i.test(lt);
 
   // Ключи НЕ по lesson.id (он меняется при каждой синхронизации), а по стабильным
   // признакам: посещаемость — на конкретную дату, заметка — к слоту день+пара.
@@ -163,7 +165,7 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
         )}
       </View>
 
-      {showAttendance && (
+      {showAttendance && attendanceApplicable && (
         <View style={[cardStyles.attRow, { borderTopColor: C.border }]}>
           <Text style={[cardStyles.attLabel, { color: C.muted }]}>Был?</Text>
           <TouchableOpacity

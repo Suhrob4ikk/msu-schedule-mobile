@@ -46,25 +46,21 @@ export default function GroupSelector({ groups, value, onChange, C, collapsible 
     if (collapsible) setExpanded(false);
   };
 
+  // Выбор в два шага: направление → курс (без автовыбора курса, иначе
+  // «ПМиИ 3 → ХФММ 2» требовал бы лишний круг через «изменить»).
   const onDir = (dir: string) => {
     if (dir === valueDir) {
-      setPendingDir(null);
-      if (collapsible) setExpanded(false); // клик по своему направлению — просто свернуть
-    } else {
-      setPendingDir(dir);
-      const ys = [...new Set(
-        groups.filter(g => shortGroupName(g.name) === dir).map(g => g.year)
-      )];
-
-      if (value?.year && ys.includes(value.year)) {
-        const g = groups.find(g => shortGroupName(g.name) === dir && g.year === value.year);
-        if (g) { pick(g); return; }
-      }
-
-      if (ys.length === 1) {
-        const g = groups.find(g => shortGroupName(g.name) === dir && g.year === ys[0]);
-        if (g) pick(g);
-      }
+      setPendingDir(null); // своё направление: показываем его курсы, текущий подсвечен
+      return;
+    }
+    setPendingDir(dir);
+    const ys = [...new Set(
+      groups.filter(g => shortGroupName(g.name) === dir).map(g => g.year)
+    )];
+    // Курс всего один — выбирать нечего, берём сразу
+    if (ys.length === 1) {
+      const g = groups.find(g => shortGroupName(g.name) === dir && g.year === ys[0]);
+      if (g) pick(g);
     }
   };
 
