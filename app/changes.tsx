@@ -27,6 +27,18 @@ function formatDate(iso: string): string {
   });
 }
 
+const CHANGE_DAY_OFFSET: Record<string, number> = {
+  понедельник: 0, вторник: 1, среда: 2, четверг: 3, пятница: 4, суббота: 5, воскресенье: 6,
+};
+
+// Точная дата изменения: начало недели + день («08.09»)
+function changeDate(c: { week_start?: string | null; day_of_week?: string | null }): string {
+  if (!c.week_start || !c.day_of_week) return '';
+  const d = new Date(c.week_start + 'T00:00:00');
+  d.setDate(d.getDate() + (CHANGE_DAY_OFFSET[c.day_of_week] ?? 0));
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function ChangesScreen() {
   const C = useTheme();
   const [changes, setChanges] = useState<Change[]>([]);
@@ -115,7 +127,7 @@ export default function ChangesScreen() {
             )}
             {item.day_of_week && item.pair_number && (
               <Text style={[s.meta, { color: C.muted }]}>
-                {item.day_of_week.charAt(0).toUpperCase() + item.day_of_week.slice(1)} · {item.pair_number} пара
+                {item.day_of_week.charAt(0).toUpperCase() + item.day_of_week.slice(1)}{changeDate(item) ? `, ${changeDate(item)}` : ''} · {item.pair_number} пара
               </Text>
             )}
 

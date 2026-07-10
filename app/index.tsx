@@ -15,6 +15,7 @@ import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
 import { scheduleExamReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
+import { Ionicons } from '@expo/vector-icons';
 import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
 
@@ -203,8 +204,13 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
             />
           ) : note ? (
             // Компактная строка-индикатор: заметка видна, тап — редактирование
-            <TouchableOpacity onPress={() => setEditingNote(true)} activeOpacity={0.7}>
-              <Text style={{ fontSize: 12.5, color: C.fg }} numberOfLines={2}>📝 {note}</Text>
+            <TouchableOpacity
+              onPress={() => setEditingNote(true)}
+              activeOpacity={0.7}
+              style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}
+            >
+              <Ionicons name="pencil" size={13} color={C.primary} style={{ marginTop: 1 }} />
+              <Text style={{ fontSize: 12.5, color: C.fg, flex: 1 }} numberOfLines={2}>{note}</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity onPress={() => setEditingNote(true)}>
@@ -727,9 +733,10 @@ export default function ScheduleScreen() {
 
           {selectedGroup && Object.keys(byDay).length === 0 && (
             <View style={s.emptyState}>
-              {isVacation() ? (
+              {isVacation() && lessons.length === 0 ? (
                 <>
-                  <Text style={[s.emptyTitle, { color: C.fg }]}>Каникулы! 🏖</Text>
+                  <Ionicons name="sunny-outline" size={44} color={C.primary} style={{ marginBottom: 10 }} />
+                  <Text style={[s.emptyTitle, { color: C.fg }]}>Каникулы!</Text>
                   <Text style={[s.emptyText, { color: C.muted, textAlign: 'center', paddingHorizontal: 24 }]}>
                     Занятий нет — отдыхаем. Расписание появится ближе к 1 сентября.
                   </Text>

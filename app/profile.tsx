@@ -14,7 +14,7 @@ import * as Notifications from 'expo-notifications';
 import { useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
 
-import { featuresUnlocked } from '../src/features';
+import { featuresUnlocked, daysUntilUnlock } from '../src/features';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts
 const FEATURES_LOCKED = !featuresUnlocked();
@@ -113,7 +113,7 @@ function FeatureToggle({ label, description, storageKey }: { label: string; desc
           )}
         </View>
         <Text style={[ft.desc, { color: C.muted }]}>
-          {FEATURES_LOCKED ? `${description} · откроется 1 сентября` : description}
+          {FEATURES_LOCKED ? `${description} · откроется 1 сентября, осталось ${daysUntilUnlock()} дн.` : description}
         </Text>
       </View>
       <View style={[ft.track, { backgroundColor: (!FEATURES_LOCKED && enabled) ? C.primary : C.border }]}>
@@ -469,7 +469,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.4.0</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.4.1</Text>
       </View>
     </ScrollView>
   );

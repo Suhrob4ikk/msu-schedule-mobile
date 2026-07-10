@@ -53,7 +53,7 @@ class ScheduleWidget : AppWidgetProvider() {
                     if (!found) {
                         val month = Calendar.getInstance().get(Calendar.MONTH)
                         if (month == Calendar.JULY || month == Calendar.AUGUST) {
-                            line1 = "Каникулы! 🏖"
+                            line1 = "Каникулы!"
                             line2 = "Расписание — к 1 сентября"
                         } else {
                             line1 = "Пар больше нет"
