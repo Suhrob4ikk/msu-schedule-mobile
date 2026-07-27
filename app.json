@@ -31,6 +31,8 @@
       "expo-status-bar"
     ],
     "extra": {
+      "apiUrl": "https://msu-schedule.onrender.com/api",
+      "webUrl": "https://frontend-ten-nu-80.vercel.app",
       "router": {},
       "eas": {
         "projectId": "5f760efa-bfd9-46cb-ad95-827a7ed60dba"

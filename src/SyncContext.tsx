@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { performFullSync, getLastSyncTime, shouldResync, formatSyncTime } from './syncService';
-import { clearApiCache } from './api';
+import { clearApiCache, API_BASE } from './api';
 
-const API_PING = 'https://msu-schedule-backend-production.up.railway.app/api/schedule/groups';
+const API_PING = `${API_BASE}/schedule/groups`;
 const PING_TIMEOUT_MS = 4000;
 const POLL_INTERVAL_MS = 15_000;
 

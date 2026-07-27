@@ -4,6 +4,7 @@ import {
   StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
@@ -18,6 +19,11 @@ import { featuresUnlocked, daysUntilUnlock } from '../src/features';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts
 const FEATURES_LOCKED = !featuresUnlocked();
+
+// Источник — app.json → expo.extra.webUrl (та же логика, что и API_BASE в src/api.ts)
+const WEB_URL =
+  (Constants.expoConfig?.extra?.webUrl as string | undefined) ??
+  'https://frontend-ten-nu-80.vercel.app';
 
 function NotificationRow() {
   const C = useTheme();
@@ -458,7 +464,7 @@ export default function ProfileScreen() {
 
       {/* Режим разработчика — открывает скрытую веб-панель /dev (вход по паролю) */}
       <TouchableOpacity
-        onPress={() => Linking.openURL('https://frontend-ten-nu-80.vercel.app/dev')}
+        onPress={() => Linking.openURL(`${WEB_URL}/dev`)}
         activeOpacity={0.6}
         style={{ alignSelf: 'center', paddingVertical: 8, marginBottom: 8 }}
       >

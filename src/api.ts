@@ -1,4 +1,10 @@
-const API_BASE = 'https://msu-schedule-backend-production.up.railway.app/api';
+import Constants from 'expo-constants';
+
+// Единственный источник URL бэкенда — app.json → expo.extra.apiUrl.
+// Литерал ниже — только страховка на случай, если extra не подхватился.
+export const API_BASE =
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
+  'https://msu-schedule.onrender.com/api';
 
 // Простой in-memory кэш: ключ → {данные, время}
 const _cache = new Map<string, { data: unknown; ts: number }>();
