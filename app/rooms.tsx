@@ -31,7 +31,10 @@ export default function RoomsScreen() {
     return jsDay >= 1 && jsDay <= 6 ? DAYS_ORDER[jsDay - 1] : 'понедельник';
   });
   const [pair, setPair] = useState('I');
-  const [rooms, setRooms] = useState<{ room_name: string; is_free: boolean; occupied_by?: string }[]>([]);
+  const [rooms, setRooms] = useState<{
+    room_name: string; is_free: boolean; occupied_by?: string;
+    occupied_list?: string[]; conflict?: boolean;
+  }[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -193,12 +196,26 @@ export default function RoomsScreen() {
           }
 
           <Text style={[s.countHeader, { color: '#dc2626', marginTop: 12 }]}>Занятых: {busy.length}</Text>
-          {busy.map(r => (
-            <View key={r.room_name} style={[s.roomCard, { backgroundColor: C.redBg, borderLeftColor: C.red }]}>
-              <Text style={[s.roomName, { color: C.fg }]}>{r.room_name}</Text>
-              {r.occupied_by && <Text style={[s.occupiedBy, { color: C.muted }]}>{r.occupied_by}</Text>}
-            </View>
-          ))}
+          {busy.map(r => {
+            const entries = r.occupied_list ?? (r.occupied_by ? [r.occupied_by] : []);
+            return (
+              <View key={r.room_name} style={[s.roomCard, { backgroundColor: C.redBg, borderLeftColor: C.red }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={[s.roomName, { color: C.fg }]}>{r.room_name}</Text>
+                  {r.conflict && (
+                    <View style={{ backgroundColor: '#dc2626', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                      <Text style={{ color: '#fff', fontSize: 9.5, fontWeight: '700' }}>
+                        {entries.length} группы одновременно
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {entries.map((e, i) => (
+                  <Text key={i} style={[s.occupiedBy, { color: C.muted }]}>{e}</Text>
+                ))}
+              </View>
+            );
+          })}
         </>
       )}
     </ScrollView>

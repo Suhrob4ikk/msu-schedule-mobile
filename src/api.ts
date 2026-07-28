@@ -216,7 +216,10 @@ export const api = {
   getTeacherSchedule: (id: number, weekStart?: string) =>
     get<Lesson[]>(`/schedule/teacher/${id}${weekStart ? `?week_start=${weekStart}` : ''}`),
   getFreeRooms: (day: string, pair: string, weekStart?: string) =>
-    get<{ room_name: string; is_free: boolean; occupied_by?: string }[]>(
+    get<{
+      room_name: string; is_free: boolean; occupied_by?: string;
+      occupied_list?: string[]; conflict?: boolean;
+    }[]>(
       `/schedule/free-rooms?day_of_week=${encodeURIComponent(day)}&pair_number=${pair}${weekStart ? `&week_start=${weekStart}` : ''}`
     ),
   getChanges: () => get<Change[]>('/schedule/changes'),
