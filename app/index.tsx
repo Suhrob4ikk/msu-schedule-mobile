@@ -8,7 +8,7 @@ import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   api, Group, Lesson, TodayItem, WeekInfo, Stats,
-  DAYS_ORDER, DAY_LABELS,
+  DAYS_ORDER, DAY_LABELS, breakLabel,
 } from '../src/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
@@ -691,12 +691,24 @@ export default function ScheduleScreen() {
           {nextItem && (
             <View style={[s.nowCard, { backgroundColor: C.blueBg, borderLeftColor: C.primary }]}>
               <View style={s.nowCardTop}>
-                <Text style={[s.nowTitle, { color: C.fg }]}>СЛЕДУЮЩАЯ</Text>
+                {/* Во время перемены важнее сказать «идёт перемена», чем «следующая» */}
+                <Text style={[s.nowTitle, { color: C.fg }]}>
+                  {nextItem.break_minutes != null
+                    ? breakLabel(nextItem.break_minutes).toUpperCase()
+                    : 'СЛЕДУЮЩАЯ'}
+                </Text>
                 <View style={[s.nowPairBadge, { backgroundColor: C.card }]}>
                   <Text style={[s.nowPairText, { color: C.primary }]}>{nextItem.pair_number} пара</Text>
                 </View>
                 {countdown ? <Text style={[s.countdown, { color: C.primary }]}>{countdown}</Text> : null}
               </View>
+              {nextItem.break_minutes != null && (
+                <Text style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>
+                  {nextItem.break_minutes <= 20
+                    ? 'Не уходи далеко — скоро начнётся:'
+                    : 'Дальше по расписанию:'}
+                </Text>
+              )}
               <Text style={[s.nowSubject, { color: C.fg }]}>{nextItem.subject}</Text>
               <Text style={[s.nowMeta, { color: C.muted }]}>
                 {nextItem.pair_time_start}–{nextItem.pair_time_end}

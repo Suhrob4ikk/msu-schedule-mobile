@@ -62,6 +62,17 @@ export interface TodayItem {
   is_current: boolean;
   is_next: boolean;
   minutes_until: number | null;
+  /** Длина идущей сейчас перемены в минутах. null — перемены нет. */
+  break_minutes: number | null;
+}
+
+/** Как назвать перерыв между парами: 15 минут, обед или «окно» на пол-дня. */
+export function breakLabel(minutes: number): string {
+  if (minutes <= 20) return `Перемена · ${minutes} мин`;
+  if (minutes <= 90) return `Большой перерыв · ${minutes} мин`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `Окно · ${h} ч${m ? ` ${m} мин` : ''}`;
 }
 
 export const DAYS_ORDER = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
