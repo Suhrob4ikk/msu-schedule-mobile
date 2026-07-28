@@ -18,6 +18,8 @@ import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
+import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson } from '../src/studyData';
+import FeatureHint from '../src/FeatureHint';
 
 // Июль и август — каникулы: пустое расписание в это время не ошибка
 const isVacation = () => [6, 7].includes(new Date().getMonth());
@@ -109,42 +111,65 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
   const attendanceApplicable = !/экзамен|зач|конс/i.test(lt);
 
   // Ключи НЕ по lesson.id (он меняется при каждой синхронизации), а по стабильным
-  // признакам: посещаемость — на конкретную дату, заметка — к слоту день+пара.
+  // признакам — см. src/studyData.ts.
   const gid = lesson.group?.id ?? 'g';
-  const attKey = `att2_${gid}_${lesson.lesson_date ?? lesson.day_of_week}_${lesson.pair_number}`;
-  const noteKey = `note2_${gid}_${lesson.day_of_week}_${lesson.pair_number}`;
+  const date = lesson.lesson_date;
+  const kSkip = date ? skipKey(gid, date, lesson.pair_number) : null;
+  const kWeekly = noteWeeklyKey(gid, lesson.day_of_week, lesson.pair_number);
+  const kDated = date ? noteDatedKey(gid, date, lesson.pair_number) : null;
 
-  const [attended, setAttended] = useState<boolean | null>(null);
+  const [skipped, setSkipped] = useState(false);
   const [note, setNote] = useState('');
+  const [repeatWeekly, setRepeatWeekly] = useState(true);
   const [editingNote, setEditingNote] = useState(false);
 
   useEffect(() => {
-    if (showAttendance) {
-      AsyncStorage.getItem(attKey).then(v => {
-        if (v?.startsWith('1')) setAttended(true);
-        else if (v?.startsWith('0')) setAttended(false);
-      });
+    if (showAttendance && kSkip) {
+      AsyncStorage.getItem(kSkip).then(v => setSkipped(v !== null));
     }
     if (showNotes) {
-      AsyncStorage.getItem(noteKey).then(v => { if (v) setNote(v); });
+      // Разовая заметка на эту дату важнее еженедельной
+      (async () => {
+        const dated = kDated ? await AsyncStorage.getItem(kDated) : null;
+        if (dated !== null) { setNote(dated); setRepeatWeekly(false); }
+        else { setNote((await AsyncStorage.getItem(kWeekly)) ?? ''); setRepeatWeekly(true); }
+      })();
     }
-  }, [attKey, noteKey, showAttendance, showNotes]);
+  }, [kSkip, kWeekly, kDated, showAttendance, showNotes]);
 
-  const markAttendance = (value: boolean) => {
-    if (attended === value) {
-      setAttended(null);
-      AsyncStorage.removeItem(attKey);
+  // Отмечать пропуск можно только у уже прошедшей пары
+  const canMarkSkip = attendanceApplicable && !!kSkip && isPastLesson(date);
+
+  const toggleSkip = () => {
+    if (!kSkip) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (skipped) {
+      setSkipped(false);
+      AsyncStorage.removeItem(kSkip);
     } else {
-      setAttended(value);
-      // В значении храним и предмет — пригодится для статистики в кабинете
-      AsyncStorage.setItem(attKey, `${value ? '1' : '0'}|${lesson.subject}`);
+      setSkipped(true);
+      // В значении — предмет, чтобы в кабинете считать пропуски по предметам
+      AsyncStorage.setItem(kSkip, lesson.subject);
     }
+  };
+
+  /** Пишем в один ключ и чистим второй, чтобы заметка не задвоилась. */
+  const persistNote = async (text: string, repeat: boolean) => {
+    if (kDated) await AsyncStorage.removeItem(kDated);
+    await AsyncStorage.removeItem(kWeekly);
+    if (!text.trim()) return;
+    await AsyncStorage.setItem(repeat || !kDated ? kWeekly : kDated, text);
   };
 
   const saveNote = (text: string) => {
     setNote(text);
-    if (text.trim()) AsyncStorage.setItem(noteKey, text);
-    else AsyncStorage.removeItem(noteKey);
+    persistNote(text, repeatWeekly);
+  };
+
+  const toggleRepeat = () => {
+    const next = !repeatWeekly;
+    setRepeatWeekly(next);
+    persistNote(note, next);
   };
 
   return (
@@ -171,20 +196,25 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
         )}
       </View>
 
-      {showAttendance && attendanceApplicable && (
+      {/* Пропуск: отмечаем только то, что пропустили */}
+      {showAttendance && canMarkSkip && (
         <View style={[cardStyles.attRow, { borderTopColor: C.border }]}>
-          <Text style={[cardStyles.attLabel, { color: C.muted }]}>Был?</Text>
           <TouchableOpacity
-            onPress={() => markAttendance(true)}
-            style={[cardStyles.attBtn, { backgroundColor: attended === true ? '#22c55e' : 'transparent', borderColor: attended === true ? '#22c55e' : C.border }]}
+            onPress={toggleSkip}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ selected: skipped }}
+            accessibilityLabel={skipped ? 'Пропуск отмечен, нажми чтобы убрать' : 'Отметить пропуск'}
+            style={[cardStyles.attBtn, {
+              backgroundColor: skipped ? '#ef4444' : 'transparent',
+              borderColor: skipped ? '#ef4444' : C.border,
+              flexDirection: 'row', alignItems: 'center', gap: 5,
+            }]}
           >
-            <Text style={[cardStyles.attBtnText, { color: attended === true ? '#fff' : C.muted }]}>✓ Был</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => markAttendance(false)}
-            style={[cardStyles.attBtn, { backgroundColor: attended === false ? '#ef4444' : 'transparent', borderColor: attended === false ? '#ef4444' : C.border }]}
-          >
-            <Text style={[cardStyles.attBtnText, { color: attended === false ? '#fff' : C.muted }]}>✗ Не был</Text>
+            {skipped && <Ionicons name="close-circle" size={13} color="#fff" />}
+            <Text style={[cardStyles.attBtnText, { color: skipped ? '#fff' : C.muted }]}>
+              {skipped ? 'Пропустил' : 'Отметить пропуск'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -192,16 +222,40 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
       {showNotes && (
         <View style={[cardStyles.notesRow, { borderTopColor: C.border }]}>
           {editingNote ? (
-            <TextInput
-              style={[cardStyles.noteInput, { backgroundColor: C.tag, borderColor: C.border, color: C.fg }]}
-              placeholder="Заметка к паре..."
-              placeholderTextColor={C.muted}
-              multiline
-              autoFocus
-              value={note}
-              onChangeText={saveNote}
-              onBlur={() => setEditingNote(false)}
-            />
+            <>
+              <TextInput
+                style={[cardStyles.noteInput, { backgroundColor: C.tag, borderColor: C.border, color: C.fg }]}
+                placeholder="Что задали? Что принести на пару?"
+                placeholderTextColor={C.muted}
+                multiline
+                autoFocus
+                value={note}
+                onChangeText={saveNote}
+                onBlur={() => setEditingNote(false)}
+              />
+              {/* Заметка либо висит на этой паре каждую неделю, либо только на эту дату */}
+              {kDated && (
+                <TouchableOpacity
+                  onPress={toggleRepeat}
+                  activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: repeatWeekly }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}
+                >
+                  <View style={{
+                    width: 15, height: 15, borderRadius: 4, borderWidth: 1,
+                    alignItems: 'center', justifyContent: 'center',
+                    borderColor: repeatWeekly ? C.primary : C.border,
+                    backgroundColor: repeatWeekly ? C.primary : 'transparent',
+                  }}>
+                    {repeatWeekly && <Ionicons name="checkmark" size={11} color="#fff" />}
+                  </View>
+                  <Text style={{ fontSize: 11.5, color: repeatWeekly ? C.primary : C.muted }}>
+                    Повторять каждую неделю
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
           ) : note ? (
             // Компактная строка-индикатор: заметка видна, тап — редактирование
             <TouchableOpacity
@@ -682,6 +736,11 @@ export default function ScheduleScreen() {
             </>
           )}
         </View>
+      )}
+
+      {/* Одноразовая подсказка — только когда функции включены и только своей группе */}
+      {isMyGroup && (featureAttendance || featureNotes) && (
+        <FeatureHint skips={featureAttendance} notes={featureNotes} />
       )}
 
       {/* Фильтр по дню */}

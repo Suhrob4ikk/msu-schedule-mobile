@@ -16,9 +16,13 @@ import { useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
 
 import { featuresUnlocked, daysUntilUnlock } from '../src/features';
+import { collectSkips, collectNotes, type SkipStats as SkipStatsType } from '../src/studyData';
 
-// Автооткрытие 1 сентября 2026 — см. src/features.ts
-const FEATURES_LOCKED = !featuresUnlocked();
+// Автооткрытие 1 сентября 2026 — см. src/features.ts.
+// ВАЖНО: не выносить в константу модуля — она вычислялась бы один раз при старте
+// приложения. Android держит приложение в памяти сутками, поэтому кабинет
+// показывал бы «закрыто» и после 1 сентября, пока приложение не выгрузят
+// полностью. Проверяем на каждый рендер экрана.
 
 // Источник — app.json → expo.extra.webUrl (та же логика, что и API_BASE в src/api.ts)
 const WEB_URL =
@@ -94,11 +98,12 @@ function NotificationRow() {
 function FeatureToggle({ label, description, storageKey }: { label: string; description: string; storageKey: string }) {
   const C = useTheme();
   const [enabled, setEnabled] = useState(false);
+  const locked = !featuresUnlocked();
   useEffect(() => {
     AsyncStorage.getItem(storageKey).then(v => setEnabled(v === '1'));
   }, [storageKey]);
   const toggle = async () => {
-    if (FEATURES_LOCKED) return;
+    if (locked) return;
     const next = !enabled;
     setEnabled(next);
     await AsyncStorage.setItem(storageKey, next ? '1' : '0');
@@ -106,24 +111,24 @@ function FeatureToggle({ label, description, storageKey }: { label: string; desc
   return (
     <TouchableOpacity
       onPress={toggle}
-      style={[ft.row, { backgroundColor: C.card, borderColor: C.border, opacity: FEATURES_LOCKED ? 0.6 : 1 }]}
-      activeOpacity={FEATURES_LOCKED ? 1 : 0.7}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border, opacity: locked ? 0.6 : 1 }]}
+      activeOpacity={locked ? 1 : 0.7}
     >
       <View style={ft.text}>
         <View style={ft.labelRow}>
           <Text style={[ft.label, { color: C.fg }]}>{label}</Text>
-          {FEATURES_LOCKED && (
+          {locked && (
             <View style={[ft.badge, { backgroundColor: C.tag }]}>
               <Text style={[ft.badgeText, { color: C.muted }]}>с 1 сентября</Text>
             </View>
           )}
         </View>
         <Text style={[ft.desc, { color: C.muted }]}>
-          {FEATURES_LOCKED ? `${description} · откроется 1 сентября, осталось ${daysUntilUnlock()} дн.` : description}
+          {locked ? `${description} · откроется 1 сентября, осталось ${daysUntilUnlock()} дн.` : description}
         </Text>
       </View>
-      <View style={[ft.track, { backgroundColor: (!FEATURES_LOCKED && enabled) ? C.primary : C.border }]}>
-        <View style={[ft.thumb, { transform: [{ translateX: (!FEATURES_LOCKED && enabled) ? 20 : 2 }] }]} />
+      <View style={[ft.track, { backgroundColor: (!locked && enabled) ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: (!locked && enabled) ? 20 : 2 }] }]} />
       </View>
     </TouchableOpacity>
   );
@@ -141,75 +146,63 @@ const ft = StyleSheet.create({
   thumb: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 },
 });
 
-// --- Статистика посещаемости и экспорт (из локальных отметок) ---
-async function collectAttendance() {
-  const keys = (await AsyncStorage.getAllKeys()).filter(k => k.startsWith('att2_'));
-  const rows = await AsyncStorage.multiGet(keys);
-  let attended = 0, missed = 0;
-  const bySubj = new Map<string, number>(); // предмет -> пропуски
-  for (const [, v] of rows) {
-    if (!v) continue;
-    const subj = v.includes('|') ? v.slice(v.indexOf('|') + 1) : '';
-    if (v.startsWith('1')) attended++;
-    else if (v.startsWith('0')) {
-      missed++;
-      if (subj) bySubj.set(subj, (bySubj.get(subj) ?? 0) + 1);
-    }
-  }
-  const topMissed = [...bySubj.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-  return { attended, missed, total: attended + missed, topMissed };
-}
-
-async function collectNotes(): Promise<Array<{ slot: string; text: string }>> {
-  const keys = (await AsyncStorage.getAllKeys()).filter(k => k.startsWith('note2_'));
-  const rows = await AsyncStorage.multiGet(keys);
-  const out: Array<{ slot: string; text: string }> = [];
-  for (const [k, v] of rows) {
-    if (!v || !v.trim()) continue;
-    const parts = k.split('_'); // note2, id группы, день, пара
-    out.push({ slot: (parts[2] ?? '') + ', ' + (parts[3] ?? '') + ' пара', text: v });
-  }
-  return out;
+/** Склонение: 1 пара, 2 пары, 5 пар */
+function pluralPairs(n: number): string {
+  const d10 = n % 10, d100 = n % 100;
+  if (d10 === 1 && d100 !== 11) return 'пара';
+  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'пары';
+  return 'пар';
 }
 
 async function exportMyData() {
-  const st = await collectAttendance();
+  const st = await collectSkips();
   const notes = await collectNotes();
   const lines: string[] = ['МГУ Расписание — мои данные', ''];
   if (st.total > 0) {
-    lines.push('Посещаемость: был на ' + st.attended + ' из ' + st.total + ' пар (' + Math.round((st.attended / st.total) * 100) + '%)');
-    if (st.topMissed.length) lines.push('Чаще пропускаю: ' + st.topMissed.map(([s2, n]) => s2 + ' (' + n + ')').join(', '));
+    lines.push(`Пропущено: ${st.total} ${pluralPairs(st.total)}`);
+    st.bySubject.forEach(([s2, n]) => lines.push(`  ${s2} — ${n}`));
     lines.push('');
   }
   if (notes.length > 0) {
     lines.push('Заметки к парам:');
     notes.forEach(n => lines.push('• ' + n.slot + ': ' + n.text));
   }
-  if (st.total === 0 && notes.length === 0) lines.push('Пока нет ни отметок, ни заметок.');
+  if (st.total === 0 && notes.length === 0) lines.push('Пока нет ни пропусков, ни заметок.');
   try { await Share.share({ message: lines.join('\n') }); } catch {}
 }
 
-function AttendanceStats() {
+function SkipStats() {
   const C = useTheme();
-  const [st, setSt] = useState<{ attended: number; total: number; topMissed: [string, number][] } | null>(null);
-  useEffect(() => { collectAttendance().then(setSt).catch(() => null); }, []);
-  if (!st || st.total === 0) return null;
-  const pct = Math.round((st.attended / st.total) * 100);
-  const good = pct >= 75;
+  const [st, setSt] = useState<SkipStatsType | null>(null);
+  useEffect(() => { collectSkips().then(setSt).catch(() => null); }, []);
+  if (!st) return null;
+
+  // Пропусков нет — это хорошая новость, показываем её, а не пустоту
+  if (st.total === 0) {
+    return (
+      <View style={[ft.row, { backgroundColor: C.card, borderColor: C.border, flexDirection: 'column', alignItems: 'stretch' }]}>
+        <Text style={[ft.label, { color: C.fg }]}>Пропуски</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>
+          Пока ни одного пропуска. Отмечай пропущенные пары в расписании — здесь будет видно, сколько их по каждому предмету.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[ft.row, { backgroundColor: C.card, borderColor: C.border, flexDirection: 'column', alignItems: 'stretch' }]}>
-      <Text style={[ft.label, { color: C.fg }]}>Моя посещаемость</Text>
+      <Text style={[ft.label, { color: C.fg }]}>Пропуски</Text>
       <Text style={[ft.desc, { color: C.muted }]}>
-        Был на {st.attended} из {st.total} отмеченных пар · <Text style={{ color: good ? C.primary : '#d43a40', fontWeight: '700' }}>{pct}%</Text>
+        Всего пропущено: <Text style={{ color: '#d43a40', fontWeight: '700' }}>{st.total} {pluralPairs(st.total)}</Text>
       </Text>
-      <View style={{ height: 6, borderRadius: 3, backgroundColor: C.tag, overflow: 'hidden', marginTop: 8 }}>
-        <View style={{ width: (pct + '%') as `${number}%`, height: 6, borderRadius: 3, backgroundColor: good ? C.primary : '#d43a40' }} />
+      <View style={{ marginTop: 10, gap: 4 }}>
+        {st.bySubject.map(([subject, n]) => (
+          <View key={subject} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+            <Text style={{ fontSize: 12, color: C.fg, flex: 1 }} numberOfLines={1}>{subject}</Text>
+            <Text style={{ fontSize: 12, color: C.muted }}>{n}</Text>
+          </View>
+        ))}
       </View>
-      {st.topMissed.length > 0 && (
-        <Text style={[ft.desc, { color: C.muted, marginTop: 6 }]}>
-          Чаще пропускаю: {st.topMissed.map(([s2, n]) => s2 + ' (' + n + ')').join(', ')}
-        </Text>
-      )}
     </View>
   );
 }
@@ -225,6 +218,9 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  // Считаем на каждый рендер, а не один раз при старте приложения — см.
+  // комментарий у импорта featuresUnlocked.
+  const featuresLocked = !featuresUnlocked();
 
   useEffect(() => {
     api.getGroups().then(setGroups).catch(() => {});
@@ -393,21 +389,21 @@ export default function ProfileScreen() {
         <Text style={[s.sectionTitle, { color: C.muted }]}>Дополнительные возможности</Text>
         <NotificationRow />
         <FeatureToggle
-          label="Посещаемость"
-          description="Отмечай, был ли ты на паре, и следи за статистикой семестра"
+          label="Пропуски"
+          description="Отмечай только пары, которые пропустил. Здесь будет видно, сколько пропусков накопилось по каждому предмету"
           storageKey="feature_attendance"
         />
         <FeatureToggle
           label="Заметки к парам"
-          description="Записывай задания и важное к каждой паре"
+          description="Домашка и что принести. Заметку можно закрепить за парой — тогда она появится в этот день каждую неделю"
           storageKey="feature_notes"
         />
       </View>
 
       {/* Статистика, экспорт и история изменений */}
       <View style={s.section}>
-        {!FEATURES_LOCKED && <AttendanceStats />}
-        {!FEATURES_LOCKED && (
+        {!featuresLocked && <SkipStats />}
+        {!featuresLocked && (
           <TouchableOpacity
             onPress={exportMyData}
             activeOpacity={0.7}
@@ -475,7 +471,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.4.2</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.5.0</Text>
       </View>
     </ScrollView>
   );

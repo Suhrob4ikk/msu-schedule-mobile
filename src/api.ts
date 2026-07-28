@@ -116,6 +116,12 @@ export interface WeekOption {
   is_latest: boolean;
 }
 
+export interface AppVersionInfo {
+  version: string;
+  download_url: string | null;
+  notes: string;
+}
+
 export function weekLabel(weekStart: string): string {
   const start = new Date(weekStart + 'T00:00:00');
   const end = new Date(start);
@@ -172,4 +178,6 @@ export const api = {
   registerUser: (deviceId: string, name: string, groupId: number) =>
     fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
+  // Кэш на час — совпадает с кэшем на бэкенде, релизы выходят не чаще
+  getLatestVersion: () => get<AppVersionInfo>('/app/version', 3600_000),
 };

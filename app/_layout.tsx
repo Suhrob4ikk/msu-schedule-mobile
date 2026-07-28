@@ -7,6 +7,7 @@ import OnboardingScreen from './onboarding';
 import { ThemeProvider, useTheme } from '../src/theme';
 import { SyncProvider, useSyncStatus } from '../src/SyncContext';
 import { setupNotifications } from '../src/examNotifications';
+import UpdateBanner from '../src/UpdateBanner';
 
 function SyncBanner() {
   const { isSyncing, syncProgress } = useSyncStatus();
@@ -41,6 +42,7 @@ function AppTabs() {
 
   return (
     <View style={{ flex: 1 }}>
+      <UpdateBanner />
       <SyncBanner />
       <Tabs
         screenOptions={{
