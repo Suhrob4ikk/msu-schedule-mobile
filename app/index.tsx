@@ -332,6 +332,8 @@ export default function ScheduleScreen() {
 
   const nextItem = nowItems.find(i => i.is_next);
   const currentItem = nowItems.find(i => i.is_current);
+  // На сегодня всё — бэкенд прислал первую пару следующего учебного дня
+  const tomorrowItem = nowItems.find(i => i.is_tomorrow);
 
   const [nowMs, setNowMs] = useState(Date.now());
   useEffect(() => {
@@ -650,6 +652,33 @@ export default function ScheduleScreen() {
       )}
 
       {/* Что идёт сейчас — показываем только когда есть текущая или следующая пара */}
+      {/* На сегодня занятия кончились — показываем ближайший учебный день */}
+      {selectedGroup && !loading && tomorrowItem && (
+        <View style={[s.nowCard, { backgroundColor: C.greenBg, borderLeftColor: C.green, marginBottom: 12 }]}>
+          <View style={s.nowCardTop}>
+            <Ionicons name="checkmark-circle" size={15} color={C.green} />
+            <Text style={[s.nowTitle, { color: C.fg }]}>НА СЕГОДНЯ ВСЁ</Text>
+            <View style={[s.nowPairBadge, { backgroundColor: C.card, marginLeft: 'auto' }]}>
+              <Text style={[s.nowPairText, { color: C.primary }]}>{tomorrowItem.pair_number} пара</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>
+            {tomorrowItem.day_label} в {tomorrowItem.pair_time_start} — первая пара:
+          </Text>
+          <Text style={[s.nowSubject, { color: C.fg }]}>{tomorrowItem.subject}</Text>
+          <View style={s.roomRow}>
+            {tomorrowItem.room && (
+              <View style={[s.roomChip, { backgroundColor: C.blueBg }]}>
+                <Text style={[s.roomChipText, { color: C.primary }]}>ауд. {tomorrowItem.room}</Text>
+              </View>
+            )}
+            {tomorrowItem.teacher && (
+              <Text style={[s.nowMeta, { color: C.muted }]}>{tomorrowItem.teacher}</Text>
+            )}
+          </View>
+        </View>
+      )}
+
       {selectedGroup && !loading && (currentItem || nextItem) && (
         <View style={s.nowRow}>
           {currentItem && (
@@ -710,10 +739,18 @@ export default function ScheduleScreen() {
                 </Text>
               )}
               <Text style={[s.nowSubject, { color: C.fg }]}>{nextItem.subject}</Text>
-              <Text style={[s.nowMeta, { color: C.muted }]}>
-                {nextItem.pair_time_start}–{nextItem.pair_time_end}
-                {nextItem.teacher ? ` · ${nextItem.teacher}` : ''}
-              </Text>
+              {/* Аудиторию — отдельно и крупно: на перемене это главный вопрос */}
+              <View style={s.roomRow}>
+                {nextItem.room && (
+                  <View style={[s.roomChip, { backgroundColor: C.card }]}>
+                    <Text style={[s.roomChipText, { color: C.primary }]}>ауд. {nextItem.room}</Text>
+                  </View>
+                )}
+                <Text style={[s.nowMeta, { color: C.muted }]}>
+                  {nextItem.pair_time_start}–{nextItem.pair_time_end}
+                  {nextItem.teacher ? ` · ${nextItem.teacher}` : ''}
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -877,6 +914,9 @@ const s = StyleSheet.create({
   countdown: { marginLeft: 'auto', fontSize: 18, fontWeight: '800' },
   nowSubject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   nowMeta: { fontSize: 12 },
+  roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+  roomChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
+  roomChipText: { fontSize: 13, fontWeight: '700' },
 
   dayBar: { marginBottom: 12 },
   dayBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginRight: 8, borderWidth: 1, alignItems: 'center' },

@@ -64,6 +64,9 @@ export interface TodayItem {
   minutes_until: number | null;
   /** Длина идущей сейчас перемены в минутах. null — перемены нет. */
   break_minutes: number | null;
+  /** Пара не сегодня: на сегодня занятия кончились. */
+  is_tomorrow: boolean;
+  day_label: string | null;   // «Завтра» / «В понедельник»
 }
 
 /** Как назвать перерыв между парами: 15 минут, обед или «окно» на пол-дня. */
@@ -189,6 +192,7 @@ export const api = {
   registerUser: (deviceId: string, name: string, groupId: number) =>
     fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
-  // Кэш на час — совпадает с кэшем на бэкенде, релизы выходят не чаще
-  getLatestVersion: () => get<AppVersionInfo>('/app/version', 3600_000),
+  // 5 минут — совпадает с кэшем на бэкенде, чтобы уведомление о новой
+  // версии доходило быстро, а не через час после релиза
+  getLatestVersion: () => get<AppVersionInfo>('/app/version', 300_000),
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, Linking, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Linking, StyleSheet, AppState, AppStateStatus } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,7 +32,7 @@ export default function UpdateBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    (async () => {
+    const check = async () => {
       try {
         const installed = Constants.expoConfig?.version;
         if (!installed) return;
@@ -45,7 +45,16 @@ export default function UpdateBanner() {
       } catch {
         // Нет сети или GitHub недоступен — баннер просто не показываем.
       }
-    })();
+    };
+
+    check();
+    // Проверяем ещё и при возврате в приложение: иначе уведомление о новой
+    // версии появилось бы только после полного перезапуска, а Android держит
+    // приложение в памяти сутками.
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') check();
+    });
+    return () => sub.remove();
   }, []);
 
   const dismiss = async () => {
