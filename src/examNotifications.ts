@@ -1,8 +1,12 @@
 /**
- * Локальные уведомления о зачётах и экзаменах.
+ * Локальные уведомления: зачёты/экзамены и напоминание перед парой.
  * Работают без интернета и без Expo Push Token — через нативный планировщик.
  *
  * Когда запускать: после загрузки расписания (useFocusEffect в index.tsx).
+ *
+ * Два независимых вида, у каждого свой переключатель и свой канал Android,
+ * чтобы человек мог оставить только то, что ему нужно. Отменяем всегда
+ * только «свои» уведомления — по полю data.type.
  */
 
 import * as Notifications from 'expo-notifications';
@@ -11,9 +15,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Локальный переключатель напоминаний (отдельно от системного разрешения).
 export const NOTIF_PREF_KEY = 'notif_enabled';
+// Напоминание перед парой — отдельно и ПО УМОЛЧАНИЮ ВЫКЛЮЧЕНО: это уведомления
+// по несколько раз в день, включать их за человека нельзя.
+export const LESSON_NOTIF_PREF_KEY = 'notif_lesson_enabled';
+export const MINUTES_BEFORE_LESSON = 10;
 
 const EXAM_KEYWORDS = ['зачет', 'зачёт', 'экзамен', 'экз'];
 const NOTIFICATION_CHANNEL = 'msu-exams';
+const LESSON_CHANNEL = 'msu-lessons';
 
 const DAY_OFFSETS: Record<string, number> = {
   понедельник: 0, вторник: 1, среда: 2, четверг: 3,
@@ -46,6 +55,14 @@ export async function setupNotifications(): Promise<void> {
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#2563EB',
     });
+    // Отдельный канал: человек может отключить напоминания перед парами
+    // в настройках Android, не трогая уведомления о зачётах.
+    await Notifications.setNotificationChannelAsync(LESSON_CHANNEL, {
+      name: 'Напоминания перед парой',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 150],
+      lightColor: '#0E9B72',
+    });
   }
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -73,6 +90,70 @@ export async function cancelExamReminders(): Promise<void> {
     if ((n.content.data?.type as string) === 'exam') {
       await Notifications.cancelScheduledNotificationAsync(n.identifier);
     }
+  }
+}
+
+/** Отменяет запланированные напоминания перед парами. */
+export async function cancelLessonReminders(): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of scheduled) {
+    if ((n.content.data?.type as string) === 'lesson') {
+      await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  }
+}
+
+type LessonLike = {
+  subject: string;
+  day_of_week: string;
+  pair_number: string;
+  lesson_date?: string | null;
+  room?: { name: string } | null;
+};
+
+/**
+ * Ставит напоминание за 10 минут до каждой будущей пары недели.
+ * По умолчанию выключено — включается переключателем в кабинете.
+ */
+export async function scheduleLessonReminders(
+  lessons: LessonLike[],
+  weekStart: string,
+): Promise<void> {
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') return;
+
+  const pref = await AsyncStorage.getItem(LESSON_NOTIF_PREF_KEY);
+  if (pref !== '1') { await cancelLessonReminders(); return; }
+
+  // Пересобираем весь набор: расписание могло измениться
+  await cancelLessonReminders();
+
+  const now = new Date();
+  for (const lesson of lessons) {
+    const time = PAIR_TIMES[lesson.pair_number];
+    if (!time) continue;
+
+    const day = getExamDate(lesson, weekStart);   // дата пары (та же логика)
+    const [h, m] = time.split(':').map(Number);
+    day.setHours(h, m, 0, 0);
+
+    const fireAt = new Date(day.getTime() - MINUTES_BEFORE_LESSON * 60000);
+    if (fireAt <= now) continue;   // пара уже началась или прошла
+
+    const where = lesson.room?.name ? `Ауд. ${lesson.room.name}` : null;
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `Через ${MINUTES_BEFORE_LESSON} минут — ${lesson.subject}`,
+        body: [where, `начало в ${time}`].filter(Boolean).join(' · '),
+        data: { type: 'lesson' },
+        sound: false,   // вибрация есть, звука нет — это подсказка, а не тревога
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: fireAt,
+        channelId: LESSON_CHANNEL,
+      },
+    });
   }
 }
 

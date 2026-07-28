@@ -8,12 +8,12 @@ import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   api, Group, Lesson, TodayItem, WeekInfo, Stats,
-  DAYS_ORDER, DAY_LABELS, breakLabel,
+  DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, humanDuration,
 } from '../src/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
-import { scheduleExamReminders } from '../src/examNotifications';
+import { scheduleExamReminders, scheduleLessonReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 import { featuresUnlocked } from '../src/features';
@@ -409,6 +409,7 @@ export default function ScheduleScreen() {
         // Напоминания о зачётах и данные виджета — только для МОЕЙ группы
         if (group.id === myGroupIdRef.current) {
           scheduleExamReminders(sched, targetWeek.week_start).catch(() => null);
+          scheduleLessonReminders(sched, targetWeek.week_start).catch(() => null);
           writeWidgetData(group, sched, targetWeek.week_start).catch(() => null);
         }
       }
@@ -751,6 +752,20 @@ export default function ScheduleScreen() {
                   {nextItem.teacher ? ` · ${nextItem.teacher}` : ''}
                 </Text>
               </View>
+              {/* Прогресс перемены — видно, сколько от неё осталось */}
+              {nextItem.break_minutes != null && nextItem.break_minutes > 0 && (() => {
+                const [bh, bm] = nextItem.pair_time_start.split(':').map(Number);
+                const start = new Date(nowMs);
+                start.setHours(bh, bm, 0, 0);
+                const leftMs = start.getTime() - nowMs;
+                const totalMs = nextItem.break_minutes * 60000;
+                const p = Math.min(1, Math.max(0, 1 - leftMs / totalMs));
+                return (
+                  <View style={{ marginTop: 8, height: 5, borderRadius: 3, backgroundColor: C.card, overflow: 'hidden' }}>
+                    <View style={{ width: `${p * 100}%`, height: 5, borderRadius: 3, backgroundColor: C.primary }} />
+                  </View>
+                );
+              })()}
             </View>
           )}
         </View>
@@ -835,7 +850,31 @@ export default function ScheduleScreen() {
                 {day.charAt(0).toUpperCase() + day.slice(1)}
                 {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
               </Text>
-              {dayLessons.map(l => <LessonCard key={l.id} lesson={l} C={C} showAttendance={featureAttendance && isMyGroup} showNotes={featureNotes && isMyGroup} />)}
+              {dayLessons.map((l, i) => {
+                // Окно = пропущенный слот пары. Обычный перерыв между соседними
+                // парами (включая обед III→IV) окном не считается.
+                const gap = i > 0 ? gapBetween(dayLessons[i - 1].pair_number, l.pair_number) : null;
+                return (
+                  <View key={l.id}>
+                    {gap && (
+                      <View style={s.gapRow}>
+                        <View style={[s.gapLine, { backgroundColor: C.border }]} />
+                        <Text style={[s.gapText, { color: C.muted }]}>
+                          окно {humanDuration(gap.minutes)} · свободн{gap.pairs.length > 1 ? 'ы' : 'а'}{' '}
+                          {gap.pairs.join(', ')} пар{gap.pairs.length > 1 ? 'ы' : 'а'}
+                        </Text>
+                        <View style={[s.gapLine, { backgroundColor: C.border }]} />
+                      </View>
+                    )}
+                    <LessonCard
+                      lesson={l}
+                      C={C}
+                      showAttendance={featureAttendance && isMyGroup}
+                      showNotes={featureNotes && isMyGroup}
+                    />
+                  </View>
+                );
+              })}
             </View>
           ))}
 
@@ -914,6 +953,9 @@ const s = StyleSheet.create({
   countdown: { marginLeft: 'auto', fontSize: 18, fontWeight: '800' },
   nowSubject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   nowMeta: { fontSize: 12 },
+  gapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6, paddingHorizontal: 2 },
+  gapLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  gapText: { fontSize: 11 },
   roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 },
   roomChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
   roomChipText: { fontSize: 13, fontWeight: '700' },

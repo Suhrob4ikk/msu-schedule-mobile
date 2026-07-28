@@ -69,6 +69,35 @@ export interface TodayItem {
   day_label: string | null;   // «Завтра» / «В понедельник»
 }
 
+/** Длительность по-человечески: «45 мин», «1 ч», «1 ч 45 мин». */
+export function humanDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (!h) return `${m} мин`;
+  return m ? `${h} ч ${m} мин` : `${h} ч`;
+}
+
+/**
+ * Окно между двумя парами одного дня — то есть ПРОПУЩЕННЫЙ слот пары
+ * (есть I и III, а II нет). Обычный перерыв между соседними парами,
+ * включая обеденный III→IV, окном не считается.
+ */
+export function gapBetween(prevPair: string, nextPair: string): { pairs: string[]; minutes: number } | null {
+  const i = PAIR_NUMBERS.indexOf(prevPair);
+  const j = PAIR_NUMBERS.indexOf(nextPair);
+  if (i < 0 || j < 0 || j - i <= 1) return null;
+
+  const end = PAIR_TIMES[prevPair]?.[1];
+  const start = PAIR_TIMES[nextPair]?.[0];
+  if (!end || !start) return null;
+
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  return { pairs: PAIR_NUMBERS.slice(i + 1, j), minutes: toMin(start) - toMin(end) };
+}
+
 /** Как назвать перерыв между парами: 15 минут, обед или «окно» на пол-дня. */
 export function breakLabel(minutes: number): string {
   if (minutes <= 20) return `Перемена · ${minutes} мин`;
@@ -79,6 +108,8 @@ export function breakLabel(minutes: number): string {
 }
 
 export const DAYS_ORDER = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+// Порядок пар — тот же, что в вебе (lib/api.ts) и в бэкенде
+export const PAIR_NUMBERS = ['I', 'II', 'III', 'IV', 'V'];
 
 export const PAIR_TIMES: Record<string, [string, string]> = {
   'I':   ['08:00', '09:30'],

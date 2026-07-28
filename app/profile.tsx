@@ -10,7 +10,10 @@ import { api, Group, shortGroupName } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
-import { requestNotificationPermission, cancelExamReminders, NOTIF_PREF_KEY } from '../src/examNotifications';
+import {
+  requestNotificationPermission, cancelExamReminders, cancelLessonReminders,
+  NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY, MINUTES_BEFORE_LESSON,
+} from '../src/examNotifications';
 import * as Notifications from 'expo-notifications';
 import { useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
@@ -90,6 +93,63 @@ function NotificationRow() {
       </View>
       <View style={[ft.track, { backgroundColor: isOn ? C.primary : C.border }]}>
         <View style={[ft.thumb, { transform: [{ translateX: isOn ? 20 : 2 }] }]} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/** Напоминание за 10 минут до пары. По умолчанию выключено — это уведомления
+ *  по несколько раз в день, включать их за человека нельзя. */
+function LessonReminderRow() {
+  const C = useTheme();
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(LESSON_NOTIF_PREF_KEY).then(v => setEnabled(v === '1'));
+  }, []);
+
+  const onToggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (enabled) {
+        setEnabled(false);
+        await AsyncStorage.setItem(LESSON_NOTIF_PREF_KEY, '0');
+        await cancelLessonReminders();
+      } else {
+        // Без системного разрешения включать нечего — сначала спрашиваем
+        const ok = await requestNotificationPermission();
+        if (!ok) {
+          Alert.alert('Нужно разрешение', 'Разреши уведомления в настройках телефона, иначе напоминания не придут.');
+          return;
+        }
+        setEnabled(true);
+        await AsyncStorage.setItem(LESSON_NOTIF_PREF_KEY, '1');
+        // Сами напоминания встанут при следующей загрузке расписания
+        Alert.alert('Готово', `Напомним за ${MINUTES_BEFORE_LESSON} минут до каждой пары. Открой расписание, чтобы напоминания встали.`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.7}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
+    >
+      <View style={ft.text}>
+        <Text style={[ft.label, { color: C.fg }]}>Напоминать перед парой</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>
+          {enabled
+            ? `Придёт за ${MINUTES_BEFORE_LESSON} минут до начала — с предметом и аудиторией`
+            : `Уведомление за ${MINUTES_BEFORE_LESSON} минут до каждой пары`}
+        </Text>
+      </View>
+      <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
       </View>
     </TouchableOpacity>
   );
@@ -388,6 +448,7 @@ export default function ProfileScreen() {
       <View style={s.section}>
         <Text style={[s.sectionTitle, { color: C.muted }]}>Дополнительные возможности</Text>
         <NotificationRow />
+        <LessonReminderRow />
         <FeatureToggle
           label="Пропуски"
           description="Отмечай только пары, которые пропустил. Здесь будет видно, сколько пропусков накопилось по каждому предмету"
@@ -471,7 +532,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.6.1</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.7.0</Text>
       </View>
     </ScrollView>
   );
