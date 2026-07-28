@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Linking, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,8 +20,14 @@ function isNewer(a: string, b: string): boolean {
   return false;
 }
 
+/**
+ * Плавающая карточка «доступно обновление» — внизу, над панелью вкладок.
+ * Наверх её ставить нельзя: там системная строка (часы, батарея), баннер
+ * налезал бы на неё и сдвигал всё приложение вниз.
+ */
 export default function UpdateBanner() {
   const C = useTheme();
+  const insets = useSafeAreaInsets();
   const [info, setInfo] = useState<{ version: string; download_url: string | null } | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -33,14 +40,10 @@ export default function UpdateBanner() {
         if (!latest?.version || !isNewer(latest.version, installed)) return;
 
         const dismissedVersion = await AsyncStorage.getItem(DISMISSED_KEY);
-        if (dismissedVersion === latest.version) {
-          setDismissed(true);
-          return;
-        }
+        if (dismissedVersion === latest.version) { setDismissed(true); return; }
         setInfo(latest);
       } catch {
-        // Нет сети или GitHub недоступен — баннер просто не показываем,
-        // это не критичная функция.
+        // Нет сети или GitHub недоступен — баннер просто не показываем.
       }
     })();
   }, []);
@@ -52,31 +55,61 @@ export default function UpdateBanner() {
 
   if (!info || dismissed) return null;
 
+  // высота панели вкладок (60) + системный отступ снизу + зазор
+  const bottom = 60 + insets.bottom + 12;
+
   return (
-    <View style={[styles.row, { backgroundColor: C.primary }]}>
-      <Ionicons name="arrow-up-circle-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-      <Text style={styles.text}>
-        Доступна версия {info.version} — обнови приложение
-      </Text>
-      {info.download_url && (
-        <TouchableOpacity onPress={() => Linking.openURL(info.download_url!)} style={styles.btn}>
-          <Text style={styles.btnText}>Скачать</Text>
+    <View style={[s.wrap, { bottom }]} pointerEvents="box-none">
+      <View style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
+        <View style={[s.iconBox, { backgroundColor: C.primary }]}>
+          <Ionicons name="arrow-up" size={15} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.title, { color: C.fg }]} numberOfLines={1}>
+            Версия {info.version}
+          </Text>
+          <Text style={[s.sub, { color: C.muted }]} numberOfLines={1}>
+            Доступно обновление
+          </Text>
+        </View>
+        {info.download_url && (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(info.download_url!)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Скачать версию ${info.version}`}
+            style={[s.btn, { backgroundColor: C.primary }]}
+          >
+            <Text style={s.btnText}>Скачать</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          onPress={dismiss}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Скрыть уведомление об обновлении"
+          style={s.close}
+        >
+          <Ionicons name="close" size={16} color={C.muted} />
         </TouchableOpacity>
-      )}
-      <TouchableOpacity onPress={dismiss} style={styles.close} hitSlop={8}>
-        <Ionicons name="close" size={16} color="rgba(255,255,255,0.8)" />
-      </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 8, paddingHorizontal: 12,
+const s = StyleSheet.create({
+  wrap: { position: 'absolute', left: 12, right: 12 },
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 14, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 12,
+    // тень, чтобы карточка читалась поверх расписания
+    elevation: 6, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
-  text: { flex: 1, color: '#fff', fontSize: 12.5, fontWeight: '600' },
-  btn: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
-  btnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  close: { marginLeft: 8, padding: 2 },
+  iconBox: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 13.5, fontWeight: '700' },
+  sub: { fontSize: 11.5, marginTop: 1 },
+  btn: { borderRadius: 9, paddingHorizontal: 14, paddingVertical: 7 },
+  btnText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+  close: { padding: 2 },
 });

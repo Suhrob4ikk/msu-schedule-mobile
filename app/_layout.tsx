@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,9 +13,11 @@ import UpdateBanner from '../src/UpdateBanner';
 function SyncBanner() {
   const { isSyncing, syncProgress } = useSyncStatus();
   const C = useTheme();
+  const insets = useSafeAreaInsets();
   if (!isSyncing) return null;
   return (
-    <View style={[styles.syncBanner, { backgroundColor: C.primary }]}>
+    // paddingTop с системным отступом — иначе текст залезает под часы и батарею
+    <View style={[styles.syncBanner, { backgroundColor: C.primary, paddingTop: insets.top + 6 }]}>
       <Text style={styles.syncText}>
         {syncProgress || 'Синхронизация...'}
       </Text>
@@ -42,7 +45,6 @@ function AppTabs() {
 
   return (
     <View style={{ flex: 1 }}>
-      <UpdateBanner />
       <SyncBanner />
       <Tabs
         screenOptions={{
@@ -103,6 +105,8 @@ function AppTabs() {
         />
         <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
       </Tabs>
+      {/* Плавающая карточка обновления — поверх вкладок, поэтому после <Tabs> */}
+      <UpdateBanner />
     </View>
   );
 }
