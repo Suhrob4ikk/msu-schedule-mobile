@@ -18,7 +18,7 @@ import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
-import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson } from '../src/studyData';
+import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson, todayIso } from '../src/studyData';
 import FeatureHint from '../src/FeatureHint';
 
 // Июль и август — каникулы: пустое расписание в это время не ошибка
@@ -71,6 +71,218 @@ function getDayDate(dayName: string, weekStart: string): string {
   return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   ТАЙМЛАЙН ДНЯ
+   Слева время и «рельса» с точками-станциями: прошедшие пары приглушены,
+   текущая горит пульсирующей точкой, окна разрывают линию пунктиром, между
+   парами едет маркер текущего времени. Смысл не в красоте — окна и перемены
+   видно глазами, не читая текст. То же самое сделано на сайте.
+
+   Три колонки вместо абсолютных отрицательных отступов: на Android так
+   надёжнее — вылезающие за границы родителя элементы там иногда обрезаются.
+   ───────────────────────────────────────────────────────────────────────── */
+const TIME_W = 36;  // колонка со временем
+const RAIL_W = 22;  // колонка с линией и точками
+
+/** Минуты от начала суток из строки «08:30». */
+const toMin = (t: string): number => {
+  const [h, m] = t.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+type LessonState = 'past' | 'current' | 'future';
+
+/** Точка идущей пары: кольцо расходится под точкой. */
+function PulseDot({ C }: { C: ReturnType<typeof useTheme> }) {
+  const v = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.timing(v, { toValue: 1, duration: 1800, useNativeDriver: true })
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [v]);
+
+  return (
+    <View style={{ width: 12, height: 12, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View
+        style={{
+          position: 'absolute', width: 12, height: 12, borderRadius: 6,
+          backgroundColor: C.primary,
+          transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] }) }],
+          opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
+        }}
+      />
+      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: C.primary }} />
+    </View>
+  );
+}
+
+/**
+ * Колонка-рельса: сплошная или пунктирная линия во всю высоту строки.
+ * Вынесена на верхний уровень намеренно: объявленный внутри DayTimeline
+ * компонент пересоздавался бы при каждом тике таймера, React считал бы его
+ * новым типом и размонтировал поддерево — пульсация точки сбрасывалась бы.
+ */
+function Rail({ C, dashed, children }: {
+  C: ReturnType<typeof useTheme>;
+  dashed?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <View style={{ width: RAIL_W, alignItems: 'center' }}>
+      {dashed ? (
+        // Пунктир набран короткими штрихами, а не borderStyle: 'dashed':
+        // вертикальный dashed-бордюр Android рисует непредсказуемо.
+        // Лишние штрихи обрезает overflow, поэтому высота строки не важна.
+        <View style={{ position: 'absolute', left: 10, top: 0, bottom: 0, width: 2, overflow: 'hidden' }}>
+          {Array.from({ length: 14 }).map((_, k) => (
+            <View
+              key={k}
+              style={{ width: 2, height: 4, marginBottom: 3, borderRadius: 1, backgroundColor: C.border }}
+            />
+          ))}
+        </View>
+      ) : (
+        <View
+          style={{ position: 'absolute', left: 10, top: 0, bottom: 0, width: 2, backgroundColor: C.border }}
+        />
+      )}
+      {children}
+    </View>
+  );
+}
+
+function DayTimeline({
+  lessons, C, todayDate, nowMinutes, dimPast, showAttendance, showNotes,
+}: {
+  lessons: Lesson[];
+  C: ReturnType<typeof useTheme>;
+  /** Сегодняшняя дата YYYY-MM-DD */
+  todayDate: string;
+  /** Минуты от полуночи */
+  nowMinutes: number;
+  /** Приглушать отработанные пары. Только для текущей недели — в архивной
+   *  прошло всё, и приглушённым стал бы весь экран. */
+  dimPast: boolean;
+  showAttendance?: boolean;
+  showNotes?: boolean;
+}) {
+  const states: LessonState[] = lessons.map(l => {
+    if (!l.lesson_date) return 'future';
+    if (l.lesson_date < todayDate) return 'past';
+    if (l.lesson_date > todayDate) return 'future';
+    if (nowMinutes >= toMin(l.pair_time_end)) return 'past';
+    if (nowMinutes >= toMin(l.pair_time_start)) return 'current';
+    return 'future';
+  });
+
+  // Перед какой парой встанет маркер «сейчас». Только МЕЖДУ парами: про
+  // «день не начался» и «на сегодня всё» и так говорят карточки наверху.
+  const isToday = lessons[0]?.lesson_date === todayDate;
+  const markerIdx = (() => {
+    if (!isToday || states.includes('current')) return -1;
+    const idx = lessons.findIndex(l => toMin(l.pair_time_start) > nowMinutes);
+    return idx > 0 ? idx : -1;
+  })();
+
+  const nowLabel = `${pad2(Math.floor(nowMinutes / 60))}:${pad2(nowMinutes % 60)}`;
+
+  return (
+    <View>
+      {lessons.map((l, i) => {
+        const gap = i > 0 ? gapBetween(lessons[i - 1].pair_number, l.pair_number) : null;
+        const state = states[i];
+
+        return (
+          <View key={l.id}>
+            {gap && (
+              <View style={{ flexDirection: 'row' }}>
+                <View style={{ width: TIME_W }} />
+                <Rail C={C} dashed />
+                <View style={{ flex: 1, paddingVertical: 7, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 11, color: C.muted }}>
+                    окно {humanDuration(gap.minutes)} · свободн{gap.pairs.length > 1 ? 'ы' : 'а'}{' '}
+                    {gap.pairs.join(', ')} пар{gap.pairs.length > 1 ? 'ы' : 'а'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {markerIdx === i && (
+              <View style={{ flexDirection: 'row' }}>
+                <View style={{ width: TIME_W, alignItems: 'flex-end', paddingRight: 6, paddingTop: 4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary }}>{nowLabel}</Text>
+                </View>
+                <Rail C={C}>
+                  <View
+                    style={{
+                      marginTop: 6, width: 8, height: 8, borderRadius: 4,
+                      backgroundColor: C.primary,
+                    }}
+                  />
+                </Rail>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 4 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: C.primary, opacity: 0.35 }} />
+                  <Text style={{ fontSize: 11, color: C.muted }}>сейчас</Text>
+                </View>
+              </View>
+            )}
+
+            <View
+              style={{
+                flexDirection: 'row',
+                opacity: dimPast && state === 'past' ? 0.5 : 1,
+              }}
+            >
+              {/* Время живёт здесь, поэтому в карточке его прячем (compactTime) */}
+              <View style={{ width: TIME_W, alignItems: 'flex-end', paddingRight: 6, paddingTop: 17 }}>
+                <Text
+                  style={{
+                    fontSize: 11, fontWeight: '600',
+                    color: state === 'current' ? C.primary : C.fg,
+                  }}
+                >
+                  {l.pair_time_start}
+                </Text>
+                <Text style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>{l.pair_time_end}</Text>
+              </View>
+              <Rail C={C}>
+                <View style={{ marginTop: 19 }}>
+                  {state === 'current' ? (
+                    <PulseDot C={C} />
+                  ) : (
+                    <View
+                      style={{
+                        width: 12, height: 12, borderRadius: 6, borderWidth: 2,
+                        borderColor: state === 'past' ? C.border : C.primary,
+                        backgroundColor: state === 'past' ? C.border : C.card,
+                      }}
+                    />
+                  )}
+                </View>
+              </Rail>
+              <View style={{ flex: 1 }}>
+                <LessonCard
+                  lesson={l}
+                  C={C}
+                  compactTime
+                  current={state === 'current'}
+                  showAttendance={showAttendance}
+                  showNotes={showNotes}
+                />
+              </View>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function SkeletonCard({ C }: { C: ReturnType<typeof useTheme> }) {
   const opacity = useRef(new Animated.Value(0.5)).current;
 
@@ -94,11 +306,15 @@ function SkeletonCard({ C }: { C: ReturnType<typeof useTheme> }) {
   );
 }
 
-function LessonCard({ lesson, C, showAttendance, showNotes }: {
+function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current }: {
   lesson: Lesson;
   C: ReturnType<typeof useTheme>;
   showAttendance?: boolean;
   showNotes?: boolean;
+  /** Внутри таймлайна время показано на рельсе слева — здесь не дублируем. */
+  compactTime?: boolean;
+  /** Пара идёт прямо сейчас — подсвечиваем рамку. */
+  current?: boolean;
 }) {
   const color = lesson.lesson_type ? (TYPE_COLORS[lesson.lesson_type] || '#3b82f6') : '#6b7280';
   const label = lesson.lesson_type ? (TYPE_LABELS[lesson.lesson_type] || lesson.lesson_type) : null;
@@ -173,11 +389,12 @@ function LessonCard({ lesson, C, showAttendance, showNotes }: {
   };
 
   return (
-    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderLeftWidth: 4, borderLeftColor: accent }]}>
+    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: current ? C.primary : C.border, borderLeftWidth: 4, borderLeftColor: accent }]}>
       <View style={cardStyles.header}>
         <View style={[cardStyles.pairBadge, { backgroundColor: C.blueBg }]}>
           <Text style={[cardStyles.pairText, { color: C.primary }]}>
-            {lesson.pair_number} пара · {lesson.pair_time_start}–{lesson.pair_time_end}
+            {lesson.pair_number} пара
+            {!compactTime && ` · ${lesson.pair_time_start}–${lesson.pair_time_end}`}
           </Text>
         </View>
         {label && (
@@ -316,6 +533,20 @@ export default function ScheduleScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Текущая дата и время в минутах — для таймлайна (что прошло, где маркер
+  // «сейчас»). Обновляем раз в полминуты: маркер двигается по минутам.
+  const [nowTick, setNowTick] = useState(() => {
+    const d = new Date();
+    return { date: todayIso(), minutes: d.getHours() * 60 + d.getMinutes() };
+  });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = new Date();
+      setNowTick({ date: todayIso(), minutes: d.getHours() * 60 + d.getMinutes() });
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
   const [isOffline, setIsOffline] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [countdown, setCountdown] = useState('');
@@ -816,7 +1047,10 @@ export default function ScheduleScreen() {
             return (
               <TouchableOpacity
                 key={day}
-                onPress={() => setSelectedDay(day)}
+                onPress={() => {
+                  if (selectedDay !== day) Haptics.selectionAsync();
+                  setSelectedDay(day);
+                }}
                 style={[
                   s.dayBtn,
                   { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border },
@@ -846,35 +1080,30 @@ export default function ScheduleScreen() {
         <View {...panResponder.panHandlers}>
           {Object.entries(byDay).map(([day, dayLessons]) => (
             <View key={day}>
-              <Text style={[s.dayHeader, { color: C.primary }]}>
-                {day.charAt(0).toUpperCase() + day.slice(1)}
-                {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
-              </Text>
-              {dayLessons.map((l, i) => {
-                // Окно = пропущенный слот пары. Обычный перерыв между соседними
-                // парами (включая обед III→IV) окном не считается.
-                const gap = i > 0 ? gapBetween(dayLessons[i - 1].pair_number, l.pair_number) : null;
-                return (
-                  <View key={l.id}>
-                    {gap && (
-                      <View style={s.gapRow}>
-                        <View style={[s.gapLine, { backgroundColor: C.border }]} />
-                        <Text style={[s.gapText, { color: C.muted }]}>
-                          окно {humanDuration(gap.minutes)} · свободн{gap.pairs.length > 1 ? 'ы' : 'а'}{' '}
-                          {gap.pairs.join(', ')} пар{gap.pairs.length > 1 ? 'ы' : 'а'}
-                        </Text>
-                        <View style={[s.gapLine, { backgroundColor: C.border }]} />
-                      </View>
-                    )}
-                    <LessonCard
-                      lesson={l}
-                      C={C}
-                      showAttendance={featureAttendance && isMyGroup}
-                      showNotes={featureNotes && isMyGroup}
-                    />
+              {/* Отступы держит строка, у самого текста они сняты — иначе
+                  плашка «сегодня» выравнивалась бы по краю отступа, не по тексту */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4, marginBottom: 8 }}>
+                <Text style={[s.dayHeader, { color: C.primary, marginTop: 0, marginBottom: 0 }]}>
+                  {day.charAt(0).toUpperCase() + day.slice(1)}
+                  {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
+                </Text>
+                {dayLessons[0]?.lesson_date === nowTick.date && (
+                  <View style={{ backgroundColor: C.blueBg, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 9.5, fontWeight: '800', color: C.primary, letterSpacing: 0.4 }}>
+                      СЕГОДНЯ
+                    </Text>
                   </View>
-                );
-              })}
+                )}
+              </View>
+              <DayTimeline
+                lessons={dayLessons}
+                C={C}
+                todayDate={nowTick.date}
+                nowMinutes={nowTick.minutes}
+                dimPast={selectedWeek ? isCurrentWeek(selectedWeek.week_start) : false}
+                showAttendance={featureAttendance && isMyGroup}
+                showNotes={featureNotes && isMyGroup}
+              />
             </View>
           ))}
 
@@ -953,9 +1182,6 @@ const s = StyleSheet.create({
   countdown: { marginLeft: 'auto', fontSize: 18, fontWeight: '800' },
   nowSubject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   nowMeta: { fontSize: 12 },
-  gapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6, paddingHorizontal: 2 },
-  gapLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  gapText: { fontSize: 11 },
   roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 },
   roomChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
   roomChipText: { fontSize: 13, fontWeight: '700' },
