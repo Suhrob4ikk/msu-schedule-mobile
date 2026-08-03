@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocalSearchParams, router } from 'expo-router';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek } from '../src/api';
@@ -31,6 +32,19 @@ export default function RoomsScreen() {
     return jsDay >= 1 && jsDay <= 6 ? DAYS_ORDER[jsDay - 1] : 'понедельник';
   });
   const [pair, setPair] = useState('I');
+
+  // Переход из расписания по тапу на аудиторию: «кто ещё занят в это время».
+  // Параметры приходят из app/index.tsx (router.push с day и pair).
+  const params = useLocalSearchParams<{ day?: string; pair?: string }>();
+  useEffect(() => {
+    if (!params.day && !params.pair) return;
+    if (params.day && DAYS.includes(params.day)) setDay(params.day);
+    if (params.pair && PAIR_TIMES[params.pair]) setPair(params.pair);
+    // Гасим сразу после использования: иначе повторный тап по той же аудитории
+    // не изменил бы параметры и день с парой не переключились бы обратно.
+    router.setParams({ day: '', pair: '' });
+  }, [params.day, params.pair]);
+
   const [rooms, setRooms] = useState<{
     room_name: string; is_free: boolean; occupied_by?: string;
     occupied_list?: string[]; conflict?: boolean;
@@ -108,7 +122,7 @@ export default function RoomsScreen() {
     <ScrollView
       style={[s.container, { backgroundColor: C.bg }]}
       contentContainerStyle={s.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} progressBackgroundColor={C.card} />}
     >
       {isOffline && (
         <View style={s.offlineBanner}>

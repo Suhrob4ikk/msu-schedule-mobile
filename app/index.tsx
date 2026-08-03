@@ -4,7 +4,7 @@ import {
   StyleSheet, StatusBar, RefreshControl, PanResponder, Animated, TextInput,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   api, Group, Lesson, TodayItem, WeekInfo, Stats,
@@ -270,6 +270,7 @@ function DayTimeline({
                   lesson={l}
                   C={C}
                   compactTime
+                  links
                   current={state === 'current'}
                   showAttendance={showAttendance}
                   showNotes={showNotes}
@@ -306,7 +307,7 @@ function SkeletonCard({ C }: { C: ReturnType<typeof useTheme> }) {
   );
 }
 
-function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current }: {
+function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current, links }: {
   lesson: Lesson;
   C: ReturnType<typeof useTheme>;
   showAttendance?: boolean;
@@ -315,6 +316,10 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
   compactTime?: boolean;
   /** Пара идёт прямо сейчас — подсвечиваем рамку. */
   current?: boolean;
+  /** Делать ФИО и аудиторию тапабельными: ФИО → расписание преподавателя,
+   *  аудитория → кто ещё занят в это время. Включаем только в расписании
+   *  группы: на экране преподавателя ссылка вела бы на него же. */
+  links?: boolean;
 }) {
   const color = lesson.lesson_type ? (TYPE_COLORS[lesson.lesson_type] || '#3b82f6') : '#6b7280';
   const label = lesson.lesson_type ? (TYPE_LABELS[lesson.lesson_type] || lesson.lesson_type) : null;
@@ -405,11 +410,49 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
       </View>
       <Text style={[cardStyles.subject, { color: C.fg }]}>{lesson.subject}</Text>
       <View style={cardStyles.meta}>
+        {/* ФИО и аудитория — быстрые переходы. Тапабельны только они, а не вся
+            карточка: внутри неё есть кнопка пропуска и поле заметки, и тап по
+            карточке целиком превратился бы в угадайку «куда я нажал». */}
         {lesson.teacher && (
-          <Text style={[cardStyles.metaText, { color: C.muted }]}>Преп.: {lesson.teacher.name}</Text>
+          links ? (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push({ pathname: '/teachers', params: { teacher: String(lesson.teacher!.id) } });
+              }}
+              accessibilityRole="link"
+              accessibilityLabel={`Расписание преподавателя ${lesson.teacher.name}`}
+              hitSlop={6}
+            >
+              <Text style={[cardStyles.metaText, cardStyles.metaLink, { color: C.primary }]}>
+                Преп.: {lesson.teacher.name}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[cardStyles.metaText, { color: C.muted }]}>Преп.: {lesson.teacher.name}</Text>
+          )
         )}
         {lesson.room && (
-          <Text style={[cardStyles.metaText, { color: C.muted }]}>Ауд. {lesson.room.name}</Text>
+          links ? (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push({
+                  pathname: '/rooms',
+                  params: { day: lesson.day_of_week, pair: lesson.pair_number },
+                });
+              }}
+              accessibilityRole="link"
+              accessibilityLabel="Кто ещё занят в это время"
+              hitSlop={6}
+            >
+              <Text style={[cardStyles.metaText, cardStyles.metaLink, { color: C.primary }]}>
+                Ауд. {lesson.room.name}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[cardStyles.metaText, { color: C.muted }]}>Ауд. {lesson.room.name}</Text>
+          )
         )}
       </View>
 
@@ -504,6 +547,8 @@ const cardStyles = StyleSheet.create({
   subject: { fontSize: 15.5, fontWeight: '700', marginBottom: 4 },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   metaText: { fontSize: 13 },
+  // Пунктирное подчёркивание — намёк, что это ссылка, а не просто текст
+  metaLink: { textDecorationLine: 'underline', textDecorationStyle: 'dotted' },
   attRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5 },
   attLabel: { fontSize: 12, marginRight: 4 },
   attBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
@@ -804,7 +849,7 @@ export default function ScheduleScreen() {
           refreshing={refreshing}
           onRefresh={onRefresh}
           tintColor={C.primary}
-          colors={[C.primary]}
+          colors={[C.primary]} progressBackgroundColor={C.card}
         />
       }
     >

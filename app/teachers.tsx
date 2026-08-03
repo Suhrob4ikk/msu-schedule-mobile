@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocalSearchParams, router } from 'expo-router';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, ScrollView, RefreshControl,
@@ -98,6 +99,24 @@ export default function TeachersScreen() {
   };
 
   useEffect(() => { loadTeachersList(); }, []);
+
+  // Переход из расписания по тапу на ФИО: открываем сразу расписание этого
+  // преподавателя. Ждём загрузки списка — имя известно только из него.
+  const params = useLocalSearchParams<{ teacher?: string }>();
+  const [pendingTeacherId, setPendingTeacherId] = useState<number | null>(null);
+  useEffect(() => {
+    const id = Number(params.teacher);
+    if (id) setPendingTeacherId(id);
+  }, [params.teacher]);
+  useEffect(() => {
+    if (pendingTeacherId === null || teachers.length === 0) return;
+    const t = teachers.find(x => x.id === pendingTeacherId);
+    setPendingTeacherId(null);
+    // Параметр гасим сразу после использования. Иначе он остался бы в маршруте:
+    // повторный тап по тому же ФИО не изменил бы его и экран не открылся бы.
+    router.setParams({ teacher: '' });
+    if (t) loadTeacher(t);
+  }, [pendingTeacherId, teachers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When internet comes back — silently refresh
   useEffect(() => {
@@ -209,7 +228,7 @@ export default function TeachersScreen() {
             keyExtractor={([day]) => day}
             contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
             refreshControl={
-              <RefreshControl refreshing={refreshingSched} onRefresh={onRefreshSchedule} tintColor={C.primary} colors={[C.primary]} />
+              <RefreshControl refreshing={refreshingSched} onRefresh={onRefreshSchedule} tintColor={C.primary} colors={[C.primary]} progressBackgroundColor={C.card} />
             }
             renderItem={({ item: [day, dl] }) => (
               <View>
@@ -275,7 +294,7 @@ export default function TeachersScreen() {
           keyExtractor={t => t.name}
           contentContainerStyle={{ paddingBottom: 40 }}
           refreshControl={
-            <RefreshControl refreshing={refreshingList} onRefresh={onRefreshList} tintColor={C.primary} colors={[C.primary]} />
+            <RefreshControl refreshing={refreshingList} onRefresh={onRefreshList} tintColor={C.primary} colors={[C.primary]} progressBackgroundColor={C.card} />
           }
           renderItem={({ item }) => (
             <TouchableOpacity

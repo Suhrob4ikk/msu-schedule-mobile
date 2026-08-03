@@ -81,7 +81,7 @@ export default function ChangesScreen() {
           refreshing={refreshing}
           onRefresh={onRefresh}
           tintColor={C.primary}
-          colors={[C.primary]}
+          colors={[C.primary]} progressBackgroundColor={C.card}
         />
       }
       ListHeaderComponent={
