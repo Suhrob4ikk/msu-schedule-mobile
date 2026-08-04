@@ -39,3 +39,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Результаты сборки локальных нативных модулей (modules/*). Сами исходники
+# модулей в репозитории нужны, а build/ — нет: там ещё и пути такой длины,
+# что git на Windows отказывается их индексировать («Filename too long»).
+modules/*/android/build/
+modules/*/android/.gradle/
+modules/*/android/.cxx/

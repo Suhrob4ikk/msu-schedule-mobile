@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["tj.msu.schedule.live.LiveLessonModule"]
+  }
+}

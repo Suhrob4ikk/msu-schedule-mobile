@@ -1,0 +1,23 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Ресивер должен переподнимать будильник после перезагрузки телефона -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <!-- Плашка в статус-баре Android 16 (на старых версиях просто игнорируется) -->
+  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+  <application>
+    <!--
+      Манифест библиотеки склеивается с манифестом приложения автоматически,
+      поэтому android/app/src/main/AndroidManifest.xml править НЕ нужно —
+      и правки не потеряются при expo prebuild.
+    -->
+    <receiver
+      android:name="tj.msu.schedule.live.LiveLessonReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

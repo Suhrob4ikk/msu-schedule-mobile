@@ -1,0 +1,20 @@
+// Локальный нативный модуль. Всю обвязку (compileSdk, Kotlin, зависимость на
+// expo-modules-core) берёт на себя expo-module-gradle-plugin — как в любом
+// модуле из node_modules, поэтому версии всегда совпадают с версиями Expo SDK.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'tj.msu.schedule.live'
+version = '1.0.0'
+
+android {
+  namespace "tj.msu.schedule.live"
+  // expo-module-gradle-plugin требует их явно, иначе конфигурация проекта
+  // падает с «android.defaultConfig.versionName is not defined».
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}

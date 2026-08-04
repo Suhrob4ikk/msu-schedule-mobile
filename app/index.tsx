@@ -18,6 +18,7 @@ import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
+import { refreshLiveLesson } from '../src/liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson, todayIso } from '../src/studyData';
 import FeatureHint from '../src/FeatureHint';
 
@@ -686,7 +687,14 @@ export default function ScheduleScreen() {
         if (group.id === myGroupIdRef.current) {
           scheduleExamReminders(sched, targetWeek.week_start).catch(() => null);
           scheduleLessonReminders(sched, targetWeek.week_start).catch(() => null);
-          writeWidgetData(group, sched, targetWeek.week_start).catch(() => null);
+          // Виджет и постоянное уведомление показывают «что происходит
+          // сейчас», поэтому кормим их только текущей неделей: иначе
+          // достаточно было заглянуть в архив, чтобы они опустели.
+          if (isCurrentWeek(targetWeek.week_start)) {
+            writeWidgetData(group, sched, targetWeek.week_start)
+              .then(() => refreshLiveLesson())
+              .catch(() => null);
+          }
         }
       }
     } catch {

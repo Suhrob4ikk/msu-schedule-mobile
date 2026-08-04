@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, AppState, AppStateStatus } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import OnboardingScreen from './onboarding';
 import { ThemeProvider, useTheme } from '../src/theme';
 import { SyncProvider, useSyncStatus } from '../src/SyncContext';
 import { setupNotifications } from '../src/examNotifications';
+import { refreshLiveLesson } from '../src/liveLesson';
 import UpdateBanner from '../src/UpdateBanner';
 
 function SyncBanner() {
@@ -35,6 +36,17 @@ function AppTabs() {
       setNeedsOnboarding(!id);
       setReady(true);
     });
+  }, []);
+
+  // Страховка для строки «идёт пара»: обычно её пересобирает будильник на
+  // границе пары, но в глубоком сне Android может задержать его на минуты.
+  // При возврате в приложение пересобираем сразу.
+  useEffect(() => {
+    refreshLiveLesson();
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') refreshLiveLesson();
+    });
+    return () => sub.remove();
   }, []);
 
   if (!ready) return null;

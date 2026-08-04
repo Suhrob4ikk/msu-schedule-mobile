@@ -20,6 +20,7 @@ import { formatSyncTime } from '../src/syncService';
 
 import { featuresUnlocked, daysUntilUnlock } from '../src/features';
 import { collectSkips, collectNotes, type SkipStats as SkipStatsType } from '../src/studyData';
+import { isLiveLessonEnabled, setLiveLessonEnabled } from '../src/liveLesson';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts.
 // ВАЖНО: не выносить в константу модуля — она вычислялась бы один раз при старте
@@ -146,6 +147,59 @@ function LessonReminderRow() {
           {enabled
             ? `Придёт за ${MINUTES_BEFORE_LESSON} минут до начала — с предметом и аудиторией`
             : `Уведомление за ${MINUTES_BEFORE_LESSON} минут до каждой пары`}
+        </Text>
+      </View>
+      <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/** Постоянная строка «идёт пара» в шторке и в статус-баре. Тоже по умолчанию
+ *  выключено: висящее уведомление без спроса — навязчиво. */
+function LiveLessonRow() {
+  const C = useTheme();
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    isLiveLessonEnabled().then(setEnabled);
+  }, []);
+
+  const onToggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const want = !enabled;
+      // Вернёт false, если в разрешении на уведомления отказали
+      const result = await setLiveLessonEnabled(want);
+      setEnabled(result);
+      if (want && !result) {
+        Alert.alert('Нужно разрешение', 'Разреши уведомления в настройках телефона, иначе строка не появится.');
+      } else if (want) {
+        Alert.alert(
+          'Готово',
+          'Пока идёт пара, в шторке будет строка с предметом, аудиторией и отсчётом до конца. Появится с началом ближайшей пары.',
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.7}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
+    >
+      <View style={ft.text}>
+        <Text style={[ft.label, { color: C.fg }]}>Показывать текущую пару</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>
+          {enabled
+            ? 'Предмет, аудитория и отсчёт до конца пары — видно, не открывая приложение'
+            : 'Строка в шторке уведомлений, пока идёт пара'}
         </Text>
       </View>
       <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
@@ -449,6 +503,7 @@ export default function ProfileScreen() {
         <Text style={[s.sectionTitle, { color: C.muted }]}>Дополнительные возможности</Text>
         <NotificationRow />
         <LessonReminderRow />
+        <LiveLessonRow />
         <FeatureToggle
           label="Пропуски"
           description="Отмечай только пары, которые пропустил. Здесь будет видно, сколько пропусков накопилось по каждому предмету"
@@ -532,7 +587,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.8.0</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.0</Text>
       </View>
     </ScrollView>
   );
