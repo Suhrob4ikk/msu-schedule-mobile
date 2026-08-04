@@ -9,6 +9,7 @@ import { api, Group, shortGroupName } from '../src/api';
 import GroupSelector from '../src/GroupSelector';
 import { useTheme } from '../src/theme';
 import { requestNotificationPermission } from '../src/examNotifications';
+import { markGroupChosen } from '../src/features';
 
 type Props = { onDone?: () => void };
 
@@ -39,6 +40,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
     if (!selected) return;
     setSaving(true);
     await AsyncStorage.setItem('selected_group_id', String(selected.id));
+    await markGroupChosen(); // новичку про смену курса напоминать не нужно
     await AsyncStorage.setItem('user_name', name.trim());
     let deviceId = await AsyncStorage.getItem('msu_device_id');
     if (!deviceId) {

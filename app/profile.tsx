@@ -18,7 +18,7 @@ import * as Notifications from 'expo-notifications';
 import { useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
 
-import { featuresUnlocked, daysUntilUnlock } from '../src/features';
+import { featuresUnlocked, daysUntilUnlock, markGroupChosen } from '../src/features';
 import { collectSkips, collectNotes, type SkipStats as SkipStatsType } from '../src/studyData';
 import { isLiveLessonEnabled, setLiveLessonEnabled } from '../src/liveLesson';
 
@@ -362,6 +362,9 @@ export default function ProfileScreen() {
     setSaving(true);
     await AsyncStorage.setItem('user_name', name.trim());
     await AsyncStorage.setItem('selected_group_id', String(selectedGroupId));
+    // Отмечаем момент выбора: по нему решаем, спрашивать ли про курс после
+    // смены учебного года (новичков спрашивать не нужно).
+    await markGroupChosen();
     // Сменили СВОЮ группу — сбрасываем «какую смотрю», чтобы расписание открылось на новой
     await AsyncStorage.removeItem('schedule_view_group_id');
 

@@ -21,6 +21,7 @@ import { writeWidgetData } from '../src/widgetData';
 import { refreshLiveLesson } from '../src/liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson, todayIso } from '../src/studyData';
 import FeatureHint from '../src/FeatureHint';
+import CourseCheckBanner from '../src/CourseCheckBanner';
 
 // Июль и август — каникулы: пустое расписание в это время не ошибка
 const isVacation = () => [6, 7].includes(new Date().getMonth());
@@ -869,6 +870,9 @@ export default function ScheduleScreen() {
           <Text style={s.offlineText}>{offlineBannerText}</Text>
         </View>
       )}
+
+      {/* Новый учебный год — курс не сдвигается сам, просим проверить */}
+      <CourseCheckBanner />
 
       {/* Подсказка — только до выбора группы */}
       {!selectedGroup && (
