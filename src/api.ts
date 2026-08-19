@@ -189,7 +189,10 @@ export interface WeekOption {
 export interface AppVersionInfo {
   version: string;
   download_url: string | null;
+  /** Заметки всех релизов новее установленного, если передали installed. */
   notes: string;
+  /** Сколько версий пропущено. 0 — установлена последняя (или installed не передали). */
+  missed_count: number;
 }
 
 export interface FreeRoom {
@@ -275,6 +278,11 @@ export const api = {
     fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
   // 5 минут — совпадает с кэшем на бэкенде, чтобы уведомление о новой
-  // версии доходило быстро, а не через час после релиза
-  getLatestVersion: () => get<AppVersionInfo>('/app/version', 300_000),
+  // версии доходило быстро, а не через час после релиза.
+  // installed — своя версия: бэкенд вернёт, что нового именно с неё.
+  getLatestVersion: (installed?: string) =>
+    get<AppVersionInfo>(
+      `/app/version${installed ? `?installed=${encodeURIComponent(installed)}` : ''}`,
+      300_000,
+    ),
 };

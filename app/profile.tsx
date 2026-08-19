@@ -635,7 +635,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.8</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.9</Text>
       </View>
     </ScrollView>
   );
