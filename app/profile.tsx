@@ -21,6 +21,7 @@ import { formatSyncTime } from '../src/syncService';
 import { featuresUnlocked, daysUntilUnlock, markGroupChosen } from '../src/features';
 import { collectSkips, collectNotes, type SkipStats as SkipStatsType } from '../src/studyData';
 import { isLiveLessonEnabled, setLiveLessonEnabled } from '../src/liveLesson';
+import InviteCard from '../src/InviteCard';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts.
 // ВАЖНО: не выносить в константу модуля — она вычислялась бы один раз при старте
@@ -521,6 +522,7 @@ export default function ProfileScreen() {
 
       {/* Статистика, экспорт и история изменений */}
       <View style={s.section}>
+        <InviteCard C={C} />
         {!featuresLocked && <SkipStats />}
         {!featuresLocked && (
           <TouchableOpacity
@@ -590,7 +592,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.5</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.6</Text>
       </View>
     </ScrollView>
   );
