@@ -2,14 +2,17 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   StyleSheet, StatusBar, RefreshControl, PanResponder, Animated, TextInput,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import {
   api, Group, Lesson, TodayItem, WeekInfo, Stats,
-  DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, humanDuration,
+  DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, humanDuration, shortGroupName,
 } from '../src/api';
+import ScheduleShareCard from '../src/ScheduleShareCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
@@ -844,6 +847,27 @@ export default function ScheduleScreen() {
     return acc;
   }, {} as Record<string, Lesson[]>);
 
+  const shareCardRef = useRef<View>(null);
+  const [sharingImg, setSharingImg] = useState(false);
+  const handleShareImage = async () => {
+    if (!selectedGroup || sharingImg) return;
+    if (Object.keys(byDay).length === 0) {
+      Alert.alert('Нет пар', 'Выберите день или неделю с занятиями.');
+      return;
+    }
+    setSharingImg(true);
+    try {
+      const uri = await captureRef(shareCardRef, { format: 'png', quality: 1 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Расписание' });
+      }
+    } catch {
+      Alert.alert('Ошибка', 'Не получилось создать картинку. Попробуйте ещё раз.');
+    } finally {
+      setSharingImg(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -890,6 +914,36 @@ export default function ScheduleScreen() {
           <GroupSelector groups={groups} value={selectedGroup} onChange={loadGroup} C={C} collapsible />
         )}
       </View>
+
+      {/* Поделиться расписанием картинкой */}
+      {selectedGroup && Object.keys(byDay).length > 0 && (
+        <TouchableOpacity
+          onPress={handleShareImage}
+          disabled={sharingImg}
+          activeOpacity={0.7}
+          style={[s.backToMine, {
+            backgroundColor: C.card, borderColor: C.border, opacity: sharingImg ? 0.6 : 1,
+            flexDirection: 'row', justifyContent: 'center',
+          }]}
+        >
+          <Ionicons name="share-outline" size={15} color={C.muted} style={{ marginRight: 6 }} />
+          <Text style={{ color: C.muted, fontSize: 14, fontWeight: '600' }}>
+            {sharingImg ? 'Готовим картинку...' : 'Поделиться картинкой'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Невидимая карточка для снимка — за пределами экрана, но смонтирована */}
+      {selectedGroup && (
+        <View style={{ position: 'absolute', left: -9999, top: 0 }} pointerEvents="none">
+          <ScheduleShareCard
+            ref={shareCardRef}
+            groupLabel={`${shortGroupName(selectedGroup.name)} · ${selectedGroup.year} курс`}
+            weekLabel={selectedWeek ? weekRangeStr(selectedWeek.week_start) : ''}
+            lessonsByDay={byDay}
+          />
+        </View>
+      )}
 
       {/* Смотрим чужую группу — кнопка возврата к своей */}
       {selectedGroup && myGroupId != null && selectedGroup.id !== myGroupId && (

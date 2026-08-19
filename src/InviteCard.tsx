@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Share, StyleSheet } from 'react-native';
+import Constants from 'expo-constants';
 import QRCode from 'react-native-qrcode-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './theme';
 
-// Единственный источник правды на вебе — та же ссылка, что и в API_BASE
-// (см. api.ts), только без /api и другого хоста.
-const WEB_URL = 'https://frontend-ten-nu-80.vercel.app';
+// Единственный источник — app.json → expo.extra.webUrl (как API_BASE в api.ts).
+const WEB_URL =
+  (Constants.expoConfig?.extra?.webUrl as string | undefined) ??
+  'https://frontend-ten-nu-80.vercel.app';
 
 /**
  * QR-код + ссылка на сайт — самый быстрый способ позвать одногруппников.
