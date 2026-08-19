@@ -98,6 +98,30 @@ export function gapBetween(prevPair: string, nextPair: string): { pairs: string[
   return { pairs: PAIR_NUMBERS.slice(i + 1, j), minutes: toMin(start) - toMin(end) };
 }
 
+/**
+ * Какая пара идёт прямо сейчас — для кнопки «свободно сейчас».
+ *
+ * Если пара идёт — возвращаем её; если сейчас перемена или утро — ближайшую
+ * следующую сегодня. Вечером и в воскресенье возвращаем null: показывать
+ * «свободно сейчас» уже нечего, занятий в этот момент нет.
+ * Дублируется в вебе (lib/api.ts).
+ */
+export function currentSlot(now = new Date()): { day: string; pair: string } | null {
+  const jsDay = now.getDay();               // 0=вс … 6=сб
+  if (jsDay === 0) return null;             // воскресенье — пар нет
+  const day = DAYS_ORDER[jsDay - 1];
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  for (const pair of PAIR_NUMBERS) {
+    // Идёт сейчас — или ещё не началась (значит, ближайшая)
+    if (minutes <= toMin(PAIR_TIMES[pair][1])) return { day, pair };
+  }
+  return null;                              // занятия на сегодня кончились
+}
+
 /** Как назвать перерыв между парами: 15 минут, обед или «окно» на пол-дня. */
 export function breakLabel(minutes: number): string {
   if (minutes <= 20) return `Перемена · ${minutes} мин`;

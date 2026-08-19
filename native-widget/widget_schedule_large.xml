@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Увеличенный размер виджета: та же шапка, что и в компактном (общие id —
+     ScheduleWidget заполняет оба варианта одинаковым кодом), плюс список
+     оставшихся пар на сегодня. Появляется, когда пользователь растягивает
+     виджет на рабочем столе выше ~180dp (см. ScheduleWidget.pickLayout). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.06"
+                android:textColor="#2DD4A7"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="МГУ Расписание" />
+
+            <TextView
+                android:id="@+id/widget_line1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#E7EAEE"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="Откройте приложение" />
+
+            <TextView
+                android:id="@+id/widget_line2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="12sp"
+                android:textColor="#8B94A3"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="чтобы загрузить расписание" />
+
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_ring"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="10dp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="8dp"
+        android:background="#22304A" />
+
+    <TextView
+        android:id="@+id/widget_extra_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.06"
+        android:textColor="#8B94A3"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone"
+        android:text="СЕГОДНЯ ЕЩЁ" />
+
+    <TextView
+        android:id="@+id/widget_extra1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="3dp"
+        android:textSize="12sp"
+        android:textColor="#C7CCD6"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+    <TextView
+        android:id="@+id/widget_extra2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="3dp"
+        android:textSize="12sp"
+        android:textColor="#C7CCD6"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+    <TextView
+        android:id="@+id/widget_extra3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="3dp"
+        android:textSize="12sp"
+        android:textColor="#C7CCD6"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+    <TextView
+        android:id="@+id/widget_extra4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="3dp"
+        android:textSize="12sp"
+        android:textColor="#C7CCD6"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+</LinearLayout>

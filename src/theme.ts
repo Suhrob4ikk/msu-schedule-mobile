@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ThemeReveal from './ThemeReveal';
 
 // Дизайн-система «Academic Emerald». Значения совпадают 1-в-1 с веб (globals.css).
 export const lightColors = {
@@ -54,50 +56,91 @@ export const darkColors = {
 export type Colors = typeof lightColors;
 
 export type ThemeMode = 'light' | 'dark';
+/** Настройка пользователя: явная тема или «как в системе». */
+export type ThemePref = ThemeMode | 'system';
 
 interface ThemeCtxType {
   colors: Colors;
+  /** Тема, которая показывается сейчас (system уже разрешён в light/dark). */
   mode: ThemeMode;
-  toggle: () => void;
+  /** Что выбрал пользователь — для галочки в настройках. */
+  pref: ThemePref;
+  /** origin — точка нажатия, от неё расходится круг новой темы (необязательно). */
+  toggle: (origin?: { x: number; y: number }) => void;
+  setPref: (pref: ThemePref) => void;
 }
 
 const ThemeCtx = createContext<ThemeCtxType>({
   colors: lightColors,
   mode: 'light',
+  pref: 'system',
   toggle: () => {},
+  setPref: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>('light');
+  // Пока настройка не прочитана из хранилища — идём за системой: так первый
+  // кадр совпадает с тем, что человек ожидает увидеть, и не мигает.
+  const system: ThemeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const [pref, setPrefState] = useState<ThemePref>('system');
+  const mode: ThemeMode = pref === 'system' ? system : pref;
+
+  // Пока круг растёт, тема ещё старая — переключаем её в момент, когда он
+  // накрыл экран (см. ThemeReveal). Без origin меняем сразу, без анимации.
+  const [reveal, setReveal] = useState<{ x: number; y: number; color: string } | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem('msu_theme').then(v => {
-      if (v === 'dark') setMode('dark');
+      if (v === 'dark' || v === 'light') setPrefState(v);
+      // Всё остальное (включая пусто и 'system') — «как в системе»
     });
   }, []);
 
-  const toggle = () => {
-    setMode(prev => {
-      const next: ThemeMode = prev === 'light' ? 'dark' : 'light';
-      AsyncStorage.setItem('msu_theme', next);
-      return next;
-    });
-  };
+  const setPref = useCallback((next: ThemePref) => {
+    setPrefState(next);
+    AsyncStorage.setItem('msu_theme', next);
+  }, []);
+
+  // Кнопка «Светлая/Тёмная тема» ставит тему явно, отключая режим «как в
+  // системе» — вернуть его можно переключателем в настройках.
+  const applyNext = useCallback(() => {
+    setPref(mode === 'light' ? 'dark' : 'light');
+  }, [mode, setPref]);
+
+  const toggle = useCallback((origin?: { x: number; y: number }) => {
+    if (!origin) { applyNext(); return; }
+    const nextColors = mode === 'light' ? darkColors : lightColors;
+    setReveal({ x: origin.x, y: origin.y, color: nextColors.bg });
+  }, [mode, applyNext]);
+
+  const onCovered = useCallback(() => {
+    applyNext();
+    setReveal(null);
+  }, [applyNext]);
 
   const value: ThemeCtxType = {
     colors: mode === 'dark' ? darkColors : lightColors,
     mode,
+    pref,
     toggle,
+    setPref,
   };
 
-  return React.createElement(ThemeCtx.Provider, { value }, children);
+  return React.createElement(
+    ThemeCtx.Provider,
+    { value },
+    children,
+    reveal
+      ? React.createElement(ThemeReveal, { key: 'reveal', ...reveal, onCovered })
+      : null,
+  );
 }
 
 export function useTheme(): Colors {
   return useContext(ThemeCtx).colors;
 }
 
-export function useThemeMode(): { mode: ThemeMode; toggle: () => void } {
-  const { mode, toggle } = useContext(ThemeCtx);
-  return { mode, toggle };
+export function useThemeMode(): Pick<ThemeCtxType, 'mode' | 'pref' | 'toggle' | 'setPref'> {
+  const { mode, pref, toggle, setPref } = useContext(ThemeCtx);
+  return { mode, pref, toggle, setPref };
 }

@@ -751,19 +751,22 @@ export default function ScheduleScreen() {
     loadSchedule(selectedGroup, week.id);
   }, [selectedGroup, selectedWeek, loadSchedule]);
 
-  const switchWeekByOffset = useCallback((offset: number) => {
-    if (!selectedGroup || weeks.length === 0) return;
-    const currentIdx = weeks.findIndex(w => w.id === selectedWeek?.id);
-    const nextIdx = currentIdx + offset;
-    if (nextIdx >= 0 && nextIdx < weeks.length) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      switchWeek(weeks[nextIdx]);
-    }
-  }, [selectedGroup, weeks, selectedWeek, switchWeek]);
+  // Свайп листает ДНИ (как на сайте); недели переключаются кнопками сверху.
+  // Новый день выезжает с той стороны, куда тянули.
+  const slideX = useRef(new Animated.Value(0)).current;
+  const switchDayByOffset = useCallback((offset: 1 | -1) => {
+    const order = ['all', ...DAYS_ORDER];
+    const idx = order.indexOf(selectedDay);
+    const next = order[idx + offset];
+    if (idx < 0 || !next) return;   // край списка — дальше листать некуда
+    Haptics.selectionAsync();
+    setSelectedDay(next);
+    slideX.setValue(offset === 1 ? 24 : -24);
+    Animated.timing(slideX, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+  }, [selectedDay, slideX]);
 
-  // Ref для PanResponder (фиксим stale closure)
-  const switchWeekByOffsetRef = useRef(switchWeekByOffset);
-  useEffect(() => { switchWeekByOffsetRef.current = switchWeekByOffset; }, [switchWeekByOffset]);
+  const switchDayByOffsetRef = useRef(switchDayByOffset);
+  useEffect(() => { switchDayByOffsetRef.current = switchDayByOffset; }, [switchDayByOffset]);
 
   const onRefresh = useCallback(() => {
     if (!selectedGroup) return;
@@ -822,14 +825,14 @@ export default function ScheduleScreen() {
     }, [groupsLoaded, groups, selectedGroup, loadGroup])
   );
 
-  // Свайп для переключения недели (через ref, чтобы не было stale closure)
+  // Свайп по расписанию (через ref, чтобы не было stale closure)
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gs) =>
         Math.abs(gs.dx) > 25 && Math.abs(gs.dy) < Math.abs(gs.dx),
       onPanResponderRelease: (_, gs) => {
-        if (gs.dx < -40) switchWeekByOffsetRef.current(1);
-        else if (gs.dx > 40) switchWeekByOffsetRef.current(-1);
+        if (gs.dx < -40) switchDayByOffsetRef.current(1);
+        else if (gs.dx > 40) switchDayByOffsetRef.current(-1);
       },
     })
   ).current;
@@ -902,7 +905,7 @@ export default function ScheduleScreen() {
       {/* Подсказка — только до выбора группы */}
       {!selectedGroup && (
         <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
-          <Text style={[s.hintText, { color: C.muted }]}>Выберите группу ниже и нажмите на день недели. Листайте недели свайпом.</Text>
+          <Text style={[s.hintText, { color: C.muted }]}>Выберите группу ниже и нажмите на день недели. Листайте дни свайпом.</Text>
         </View>
       )}
 
@@ -967,7 +970,7 @@ export default function ScheduleScreen() {
       {selectedGroup && weeks.length > 1 && (
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: C.muted }]}>
-            Неделя{selectedWeek ? ` · ${weekRangeStr(selectedWeek.week_start)}` : ''} · свайп для переключения
+            Неделя{selectedWeek ? ` · ${weekRangeStr(selectedWeek.week_start)}` : ''}
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {weeks.map(w => {
@@ -1195,9 +1198,9 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {/* Расписание — со свайпом для переключения недель */}
+      {/* Расписание — со свайпом для переключения дней */}
       {!loading && (
-        <View {...panResponder.panHandlers}>
+        <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateX: slideX }] }}>
           {Object.entries(byDay).map(([day, dayLessons]) => (
             <View key={day}>
               {/* Отступы держит строка, у самого текста они сняты — иначе
@@ -1253,7 +1256,7 @@ export default function ScheduleScreen() {
               <Text style={[s.emptyText, { color: C.muted }]}>Чтобы увидеть расписание</Text>
             </View>
           )}
-        </View>
+        </Animated.View>
       )}
     </ScrollView>
     </KeyboardAvoidingView>

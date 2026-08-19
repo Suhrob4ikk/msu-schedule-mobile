@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek } from '../src/api';
+import { api, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek, currentSlot } from '../src/api';
 import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
 
@@ -50,6 +50,8 @@ export default function RoomsScreen() {
     occupied_list?: string[]; conflict?: boolean;
   }[]>([]);
   const [loading, setLoading] = useState(false);
+  // «Свободно сейчас» нажали вечером или в воскресенье — показываем пояснение
+  const [noSlotHint, setNoSlotHint] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -128,6 +130,26 @@ export default function RoomsScreen() {
         <View style={s.offlineBanner}>
           <Text style={s.offlineText}>{offlineBannerText}</Text>
         </View>
+      )}
+
+      {/* Быстрый переход к текущей паре — самый частый вопрос «где сейчас свободно» */}
+      <TouchableOpacity
+        onPress={() => {
+          const slot = currentSlot();
+          if (!slot) { setNoSlotHint(true); return; }
+          setNoSlotHint(false);
+          setDay(slot.day);
+          setPair(slot.pair);
+        }}
+        activeOpacity={0.85}
+        style={[s.nowBtn, { backgroundColor: C.primary }]}
+      >
+        <Text style={s.nowBtnText}>Свободно прямо сейчас</Text>
+      </TouchableOpacity>
+      {noSlotHint && (
+        <Text style={[s.nowHint, { color: C.muted }]}>
+          Сейчас занятий нет — вечер или выходной. Выбери день и пару вручную.
+        </Text>
       )}
 
       {/* День */}
@@ -244,6 +266,9 @@ const s = StyleSheet.create({
   offlineText: { fontSize: 12, color: '#fff', fontWeight: '600', textAlign: 'center' },
 
   sectionLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  nowBtn: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 14 },
+  nowBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  nowHint: { fontSize: 12, marginTop: -8, marginBottom: 14 },
 
   chipBar: { flexGrow: 0, marginBottom: 12 },
   chipContent: { paddingRight: 4, paddingBottom: 2 },

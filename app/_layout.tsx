@@ -105,6 +105,7 @@ function AppTabs() {
           }}
         />
         <Tabs.Screen name="changes" options={{ href: null, title: 'Изменения расписания' }} />
+        <Tabs.Screen name="compare" options={{ href: null, title: 'Сравнить с группой' }} />
         <Tabs.Screen
           name="profile"
           options={{

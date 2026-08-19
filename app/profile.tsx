@@ -324,7 +324,7 @@ function SkipStats() {
 
 export default function ProfileScreen() {
   const C = useTheme();
-  const { mode, toggle } = useThemeMode();
+  const { mode, pref, toggle, setPref } = useThemeMode();
   const { isSyncing, syncProgress, lastSyncTime, triggerSync } = useSyncStatus();
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -487,7 +487,11 @@ export default function ProfileScreen() {
 
       {/* Переключение темы */}
       <TouchableOpacity
-        onPress={toggle}
+        onPress={e => {
+          // Круг новой темы расходится от точки касания (как на сайте)
+          const { pageX, pageY } = e.nativeEvent;
+          toggle({ x: pageX, y: pageY });
+        }}
         style={[s.themeBtn, { backgroundColor: C.card, borderColor: C.border }]}
         activeOpacity={0.7}
       >
@@ -501,6 +505,37 @@ export default function ProfileScreen() {
           {mode === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
         </Text>
       </TouchableOpacity>
+
+      {/* Тема: явная или «как в системе» (кнопка выше ставит явную) */}
+      <View style={[s.themePrefRow, { backgroundColor: C.card, borderColor: C.border }]}>
+        <Text style={[s.themePrefLabel, { color: C.muted }]}>
+          Тема · «как в системе» темнеет вместе с телефоном
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+          {([
+            { value: 'system', label: 'Как в системе' },
+            { value: 'light', label: 'Светлая' },
+            { value: 'dark', label: 'Тёмная' },
+          ] as const).map(o => {
+            const active = pref === o.value;
+            return (
+              <TouchableOpacity
+                key={o.value}
+                onPress={() => setPref(o.value)}
+                activeOpacity={0.7}
+                style={[s.themePrefChip, {
+                  backgroundColor: active ? C.primary : C.tag,
+                  borderColor: active ? C.primary : C.border,
+                }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : C.fg }}>
+                  {o.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
 
       {/* Дополнительные возможности */}
       <View style={s.section}>
@@ -534,6 +569,14 @@ export default function ProfileScreen() {
             <Text style={[s.changeBtnText, { color: C.muted }]}>Поделиться заметками и посещаемостью</Text>
           </TouchableOpacity>
         )}
+        <TouchableOpacity
+          onPress={() => router.push('/compare')}
+          activeOpacity={0.7}
+          style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 10 }]}
+        >
+          <Ionicons name="people-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
+          <Text style={[s.changeBtnText, { color: C.muted }]}>Сравнить с другой группой</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push('/changes')}
           activeOpacity={0.7}
@@ -592,7 +635,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.7</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.8</Text>
       </View>
     </ScrollView>
   );
@@ -628,9 +671,12 @@ const s = StyleSheet.create({
   hintText: { fontSize: 12, lineHeight: 17 },
   themeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 12, paddingVertical: 14, marginBottom: 24, borderWidth: 0.5,
+    borderRadius: 12, paddingVertical: 14, marginBottom: 10, borderWidth: 0.5,
   },
   themeBtnText: { fontSize: 15, fontWeight: '600' },
+  themePrefRow: { borderRadius: 12, padding: 14, marginBottom: 24, borderWidth: 0.5 },
+  themePrefLabel: { fontSize: 12 },
+  themePrefChip: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },
 
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 },

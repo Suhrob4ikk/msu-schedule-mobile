@@ -10,10 +10,18 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+private data class LessonItem(
+    val start: Long, val end: Long, val subject: String, val room: String, val label: String,
+)
 
 /**
  * Виджет «Следующая пара» на рабочий стол.
@@ -22,6 +30,11 @@ import java.util.Calendar
  * "widget_data"; здесь читаем их напрямую из базы RKStorage — без
  * дополнительных нативных модулей. Обновляется системой раз в 30 минут
  * (updatePeriodMillis) и при каждом добавлении виджета.
+ *
+ * Два макета: компактный (widget_schedule) и увеличенный (widget_schedule_large)
+ * со списком оставшихся пар на сегодня — выбирается по текущему размеру
+ * виджета (onAppWidgetOptionsChanged срабатывает, когда пользователь тянет
+ * за край виджета на рабочем столе).
  */
 class ScheduleWidget : AppWidgetProvider() {
 
@@ -29,48 +42,69 @@ class ScheduleWidget : AppWidgetProvider() {
         for (id in appWidgetIds) updateWidget(context, appWidgetManager, id)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, newOptions: Bundle,
+    ) {
+        updateWidget(context, appWidgetManager, appWidgetId)
+    }
+
     companion object {
+        // Выше этой высоты (в dp, задаёт лаунчер при ресайзе) — расширенный макет.
+        private const val LARGE_MIN_HEIGHT_DP = 180
+
         fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
-            val views = RemoteViews(context.packageName, R.layout.widget_schedule)
+            val large = isLargeSize(manager, widgetId)
+            val layoutId = if (large) R.layout.widget_schedule_large else R.layout.widget_schedule
+            val views = RemoteViews(context.packageName, layoutId)
+
             var group = "МГУ Расписание"
             var line1 = "Откройте приложение"
             var line2 = "чтобы загрузить расписание"
             var ringProgress: Float? = null
+            var upcoming: List<LessonItem> = emptyList()
 
             try {
                 val json = readWidgetData(context)
                 if (json != null) {
                     val o = JSONObject(json)
                     group = o.optString("group", group)
-                    val lessons = o.getJSONArray("lessons")
+                    val arr = o.getJSONArray("lessons")
+                    val items = (0 until arr.length()).map { i ->
+                        val l = arr.getJSONObject(i)
+                        LessonItem(
+                            start = l.getLong("startAt"),
+                            end = l.getLong("endAt"),
+                            subject = l.getString("subject"),
+                            room = l.optString("room", ""),
+                            label = l.getString("label"),
+                        )
+                    }
                     val now = System.currentTimeMillis()
                     var found = false
                     // Конец последней уже прошедшей пары — начало перемены,
                     // нужен, чтобы посчитать долю оставшегося времени перемены.
                     var lastEnd = -1L
-                    for (i in 0 until lessons.length()) {
-                        val l = lessons.getJSONObject(i)
-                        val start = l.getLong("startAt")
-                        val end = l.getLong("endAt")
-                        if (end <= now) {
-                            lastEnd = end
+                    var shownIndex = -1
+                    for ((i, l) in items.withIndex()) {
+                        if (l.end <= now) {
+                            lastEnd = l.end
                             continue
                         }
-                        val room = l.optString("room", "")
-                        if (start <= now) {
-                            line1 = "Сейчас: " + l.getString("subject")
-                            line2 = l.getString("label") + (if (room.isNotEmpty()) " · ауд. $room" else "")
-                            ringProgress = ((end - now).toFloat() / (end - start).toFloat()).coerceIn(0f, 1f)
+                        if (l.start <= now) {
+                            line1 = "Сейчас: " + l.subject
+                            line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
+                            ringProgress = ((l.end - now).toFloat() / (l.end - l.start).toFloat()).coerceIn(0f, 1f)
                         } else {
-                            line1 = "Далее: " + l.getString("subject")
-                            line2 = l.getString("label") + (if (room.isNotEmpty()) " · ауд. $room" else "")
+                            line1 = "Далее: " + l.subject
+                            line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
                             // Кольцо перемены — только если известно, когда она началась
                             // (то есть до неё в списке была ещё не закончившаяся пара сегодня).
-                            if (lastEnd in 0 until start) {
-                                ringProgress = ((start - now).toFloat() / (start - lastEnd).toFloat()).coerceIn(0f, 1f)
+                            if (lastEnd in 0 until l.start) {
+                                ringProgress = ((l.start - now).toFloat() / (l.start - lastEnd).toFloat()).coerceIn(0f, 1f)
                             }
                         }
                         found = true
+                        shownIndex = i
                         break
                     }
                     if (!found) {
@@ -82,6 +116,10 @@ class ScheduleWidget : AppWidgetProvider() {
                             line1 = "Пар больше нет"
                             line2 = "Хорошего отдыха!"
                         }
+                    } else if (large) {
+                        // Расширенный макет: ещё до 4 пар на сегодня после уже показанной.
+                        val dayEnd = endOfDay(now)
+                        upcoming = items.drop(shownIndex + 1).filter { it.start in now..dayEnd }.take(4)
                     }
                 }
             } catch (_: Exception) {
@@ -99,6 +137,23 @@ class ScheduleWidget : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_ring, View.GONE)
             }
 
+            if (large) {
+                val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
+                val rowIds = listOf(R.id.widget_extra1, R.id.widget_extra2, R.id.widget_extra3, R.id.widget_extra4)
+                views.setViewVisibility(R.id.widget_extra_title, if (upcoming.isEmpty()) View.GONE else View.VISIBLE)
+                for ((i, rowId) in rowIds.withIndex()) {
+                    val item = upcoming.getOrNull(i)
+                    if (item != null) {
+                        val time = timeFmt.format(Date(item.start))
+                        val text = "$time · ${item.subject}" + (if (item.room.isNotEmpty()) " · ауд. ${item.room}" else "")
+                        views.setTextViewText(rowId, text)
+                        views.setViewVisibility(rowId, View.VISIBLE)
+                    } else {
+                        views.setViewVisibility(rowId, View.GONE)
+                    }
+                }
+            }
+
             // Тап по виджету открывает приложение
             val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
             if (launch != null) {
@@ -110,6 +165,26 @@ class ScheduleWidget : AppWidgetProvider() {
             }
 
             manager.updateAppWidget(widgetId, views)
+        }
+
+        /** Пользователь растянул виджет выше LARGE_MIN_HEIGHT_DP — показываем список пар. */
+        private fun isLargeSize(manager: AppWidgetManager, widgetId: Int): Boolean {
+            return try {
+                val options = manager.getAppWidgetOptions(widgetId)
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) >= LARGE_MIN_HEIGHT_DP
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        private fun endOfDay(ms: Long): Long {
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = ms
+            cal.set(Calendar.HOUR_OF_DAY, 23)
+            cal.set(Calendar.MINUTE, 59)
+            cal.set(Calendar.SECOND, 59)
+            cal.set(Calendar.MILLISECOND, 999)
+            return cal.timeInMillis
         }
 
         /**
