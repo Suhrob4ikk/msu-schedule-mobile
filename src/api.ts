@@ -167,6 +167,26 @@ export interface AppVersionInfo {
   notes: string;
 }
 
+export interface FreeRoom {
+  room_name: string;
+  is_free: boolean;
+  occupied_by?: string;
+  occupied_list?: string[];
+  conflict?: boolean;
+}
+
+/** Всё для офлайн-кэша одним ответом — см. backend/app/api/routes/schedule.py::bulk_sync. */
+export interface BulkSyncData {
+  groups: Group[];
+  weeks_all: WeekOption[];
+  group_weeks: Record<string, WeekInfo[]>;
+  schedules: Record<string, Lesson[]>;
+  teachers_by_week: Record<string, Teacher[]>;
+  teacher_schedules: Record<string, Lesson[]>;
+  free_rooms: Record<string, FreeRoom[]>;
+  generated_at: string;
+}
+
 export function weekLabel(weekStart: string): string {
   const start = new Date(weekStart + 'T00:00:00');
   const end = new Date(start);
@@ -223,6 +243,8 @@ export const api = {
       `/schedule/free-rooms?day_of_week=${encodeURIComponent(day)}&pair_number=${pair}${weekStart ? `&week_start=${weekStart}` : ''}`
     ),
   getChanges: () => get<Change[]>('/schedule/changes'),
+  // ttl=0 — полная синхронизация всегда должна тянуть свежие данные, не из кэша
+  getBulkSync: () => get<BulkSyncData>('/schedule/bulk-sync', 0),
   registerUser: (deviceId: string, name: string, groupId: number) =>
     fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
