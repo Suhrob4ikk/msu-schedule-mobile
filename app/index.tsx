@@ -15,6 +15,7 @@ import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
 import { scheduleExamReminders, scheduleLessonReminders } from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
+import RadialProgress from '../src/RadialProgress';
 import { Ionicons } from '@expo/vector-icons';
 import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
@@ -986,76 +987,84 @@ export default function ScheduleScreen() {
                 {currentItem.room ? ` · ауд. ${currentItem.room}` : ''}
               </Text>
               {(() => {
-                // Прогресс пары: сколько прошло из 90 минут
+                // Прогресс пары: сколько прошло из 90 минут — тающее кольцо вместо полоски
                 const [sh, sm] = currentItem.pair_time_start.split(':').map(Number);
                 const [eh, em] = currentItem.pair_time_end.split(':').map(Number);
                 const st = new Date(nowMs); st.setHours(sh, sm, 0, 0);
                 const en = new Date(nowMs); en.setHours(eh, em, 0, 0);
-                const p = Math.min(1, Math.max(0, (nowMs - st.getTime()) / (en.getTime() - st.getTime())));
+                const p = (nowMs - st.getTime()) / (en.getTime() - st.getTime());
                 const left = Math.max(0, Math.ceil((en.getTime() - nowMs) / 60000));
                 return (
-                  <View style={{ marginTop: 8 }}>
-                    <View style={{ height: 5, borderRadius: 3, backgroundColor: C.card, overflow: 'hidden' }}>
-                      <View style={{ width: `${p * 100}%`, height: 5, borderRadius: 3, backgroundColor: C.green }} />
-                    </View>
-                    <Text style={{ fontSize: 11, color: C.muted, marginTop: 3, textAlign: 'right' }}>
-                      осталось {left} мин
+                  <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <RadialProgress progress={1 - p} size={34} stroke={3.5} color={C.green} track={C.card}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: C.green }}>{left}</Text>
+                    </RadialProgress>
+                    <Text style={{ fontSize: 12, color: C.muted, flex: 1 }}>
+                      осталось <Text style={{ color: C.fg, fontWeight: '700' }}>{left} мин</Text> до конца пары
                     </Text>
                   </View>
                 );
               })()}
             </View>
           )}
-          {nextItem && (
-            <View style={[s.nowCard, { backgroundColor: C.blueBg, borderLeftColor: C.primary }]}>
-              <View style={s.nowCardTop}>
-                {/* Во время перемены важнее сказать «идёт перемена», чем «следующая» */}
-                <Text style={[s.nowTitle, { color: C.fg }]}>
-                  {nextItem.break_minutes != null
-                    ? breakLabel(nextItem.break_minutes).toUpperCase()
-                    : 'СЛЕДУЮЩАЯ'}
-                </Text>
-                <View style={[s.nowPairBadge, { backgroundColor: C.card }]}>
-                  <Text style={[s.nowPairText, { color: C.primary }]}>{nextItem.pair_number} пара</Text>
+          {nextItem && (() => {
+            // Прогресс перемены — тает по мере приближения к следующей паре
+            let breakProgress: number | null = null;
+            if (nextItem.break_minutes != null && nextItem.break_minutes > 0) {
+              const [bh, bm] = nextItem.pair_time_start.split(':').map(Number);
+              const start = new Date(nowMs);
+              start.setHours(bh, bm, 0, 0);
+              const leftMs = start.getTime() - nowMs;
+              const totalMs = nextItem.break_minutes * 60000;
+              breakProgress = Math.min(1, Math.max(0, leftMs / totalMs));
+            }
+            return (
+              <View style={[s.nowCard, { backgroundColor: C.blueBg, borderLeftColor: C.primary }]}>
+                <View style={s.nowCardTop}>
+                  {/* Во время перемены важнее сказать «идёт перемена», чем «следующая» */}
+                  <Text style={[s.nowTitle, { color: C.fg }]}>
+                    {nextItem.break_minutes != null
+                      ? breakLabel(nextItem.break_minutes).toUpperCase()
+                      : 'СЛЕДУЮЩАЯ'}
+                  </Text>
+                  <View style={[s.nowPairBadge, { backgroundColor: C.card }]}>
+                    <Text style={[s.nowPairText, { color: C.primary }]}>{nextItem.pair_number} пара</Text>
+                  </View>
+                  {countdown ? (
+                    breakProgress != null ? (
+                      <View style={{ marginLeft: 'auto' }}>
+                        <RadialProgress progress={breakProgress} size={46} stroke={4} color={C.primary} track={C.card}>
+                          <Text style={{ fontSize: 10.5, fontWeight: '800', color: C.primary }}>{countdown}</Text>
+                        </RadialProgress>
+                      </View>
+                    ) : (
+                      <Text style={[s.countdown, { color: C.primary }]}>{countdown}</Text>
+                    )
+                  ) : null}
                 </View>
-                {countdown ? <Text style={[s.countdown, { color: C.primary }]}>{countdown}</Text> : null}
-              </View>
-              {nextItem.break_minutes != null && (
-                <Text style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>
-                  {nextItem.break_minutes <= 20
-                    ? 'Не уходи далеко — скоро начнётся:'
-                    : 'Дальше по расписанию:'}
-                </Text>
-              )}
-              <Text style={[s.nowSubject, { color: C.fg }]}>{nextItem.subject}</Text>
-              {/* Аудиторию — отдельно и крупно: на перемене это главный вопрос */}
-              <View style={s.roomRow}>
-                {nextItem.room && (
-                  <View style={[s.roomChip, { backgroundColor: C.card }]}>
-                    <Text style={[s.roomChipText, { color: C.primary }]}>ауд. {nextItem.room}</Text>
-                  </View>
+                {nextItem.break_minutes != null && (
+                  <Text style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>
+                    {nextItem.break_minutes <= 20
+                      ? 'Не уходи далеко — скоро начнётся:'
+                      : 'Дальше по расписанию:'}
+                  </Text>
                 )}
-                <Text style={[s.nowMeta, { color: C.muted }]}>
-                  {nextItem.pair_time_start}–{nextItem.pair_time_end}
-                  {nextItem.teacher ? ` · ${nextItem.teacher}` : ''}
-                </Text>
+                <Text style={[s.nowSubject, { color: C.fg }]}>{nextItem.subject}</Text>
+                {/* Аудиторию — отдельно и крупно: на перемене это главный вопрос */}
+                <View style={s.roomRow}>
+                  {nextItem.room && (
+                    <View style={[s.roomChip, { backgroundColor: C.card }]}>
+                      <Text style={[s.roomChipText, { color: C.primary }]}>ауд. {nextItem.room}</Text>
+                    </View>
+                  )}
+                  <Text style={[s.nowMeta, { color: C.muted }]}>
+                    {nextItem.pair_time_start}–{nextItem.pair_time_end}
+                    {nextItem.teacher ? ` · ${nextItem.teacher}` : ''}
+                  </Text>
+                </View>
               </View>
-              {/* Прогресс перемены — видно, сколько от неё осталось */}
-              {nextItem.break_minutes != null && nextItem.break_minutes > 0 && (() => {
-                const [bh, bm] = nextItem.pair_time_start.split(':').map(Number);
-                const start = new Date(nowMs);
-                start.setHours(bh, bm, 0, 0);
-                const leftMs = start.getTime() - nowMs;
-                const totalMs = nextItem.break_minutes * 60000;
-                const p = Math.min(1, Math.max(0, 1 - leftMs / totalMs));
-                return (
-                  <View style={{ marginTop: 8, height: 5, borderRadius: 3, backgroundColor: C.card, overflow: 'hidden' }}>
-                    <View style={{ width: `${p * 100}%`, height: 5, borderRadius: 3, backgroundColor: C.primary }} />
-                  </View>
-                );
-              })()}
-            </View>
-          )}
+            );
+          })()}
         </View>
       )}
 
