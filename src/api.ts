@@ -137,6 +137,7 @@ export interface Change {
   faculty_code: string;
   change_type: string;
   group_name: string | null;
+  group_id: number | null;
   day_of_week: string | null;
   pair_number: string | null;
   old_value: string | null;
@@ -242,7 +243,8 @@ export const api = {
     }[]>(
       `/schedule/free-rooms?day_of_week=${encodeURIComponent(day)}&pair_number=${pair}${weekStart ? `&week_start=${weekStart}` : ''}`
     ),
-  getChanges: () => get<Change[]>('/schedule/changes'),
+  getChanges: (groupId?: number) =>
+    get<Change[]>(`/schedule/changes${groupId ? `?group_id=${groupId}` : ''}`),
   // ttl=0 — полная синхронизация всегда должна тянуть свежие данные, не из кэша
   getBulkSync: () => get<BulkSyncData>('/schedule/bulk-sync', 0),
   registerUser: (deviceId: string, name: string, groupId: number) =>

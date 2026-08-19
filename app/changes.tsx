@@ -3,7 +3,8 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
-import { api, Change } from '../src/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api, Change, shortGroupName } from '../src/api';
 import { useTheme } from '../src/theme';
 
 const CHANGE_TYPE_LABELS: Record<string, string> = {
@@ -46,10 +47,14 @@ export default function ChangesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const [profileGroupId, setProfileGroupId] = useState<number | null>(null);
+  const [profileGroupLabel, setProfileGroupLabel] = useState('');
+  const [onlyMine, setOnlyMine] = useState(false);
+
+  const load = async (groupId: number | null) => {
     setError(null);
     try {
-      const data = await api.getChanges();
+      const data = await api.getChanges(groupId ?? undefined);
       setChanges(data);
     } catch {
       setError('Не удалось загрузить изменения');
@@ -59,8 +64,27 @@ export default function ChangesScreen() {
     }
   };
 
-  useEffect(() => { load(); }, []);
-  const onRefresh = () => { setRefreshing(true); load(); };
+  useEffect(() => {
+    (async () => {
+      const saved = await AsyncStorage.getItem('selected_group_id');
+      let id: number | null = null;
+      if (saved) {
+        id = Number(saved);
+        setProfileGroupId(id);
+        setOnlyMine(true); // группа выбрана — по умолчанию фильтруем на неё
+        try {
+          const groups = await api.getGroups();
+          const g = groups.find(x => x.id === id);
+          if (g) setProfileGroupLabel(`${shortGroupName(g.name)} · ${g.year} курс`);
+        } catch {}
+      }
+      load(id);
+    })();
+  }, []);
+
+  const selectMine = () => { setOnlyMine(true); load(profileGroupId); };
+  const selectAll = () => { setOnlyMine(false); load(null); };
+  const onRefresh = () => { setRefreshing(true); load(onlyMine ? profileGroupId : null); };
 
   if (loading) {
     return (
@@ -88,20 +112,42 @@ export default function ChangesScreen() {
         <View style={s.header}>
           <Text style={[s.headerTitle, { color: C.fg }]}>История изменений</Text>
           <Text style={[s.headerSub, { color: C.muted }]}>Здесь видно что изменилось в расписании с последнего обновления.</Text>
+          {profileGroupId != null && (
+            <View style={s.filterRow}>
+              <TouchableOpacity
+                onPress={selectMine}
+                style={[s.filterChip, { backgroundColor: onlyMine ? C.primary : C.card, borderColor: onlyMine ? C.primary : C.border }]}
+              >
+                <Text style={[s.filterText, { color: onlyMine ? '#fff' : C.fg }]}>
+                  Моя группа{profileGroupLabel ? ` · ${profileGroupLabel}` : ''}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={selectAll}
+                style={[s.filterChip, { backgroundColor: !onlyMine ? C.primary : C.card, borderColor: !onlyMine ? C.primary : C.border }]}
+              >
+                <Text style={[s.filterText, { color: !onlyMine ? '#fff' : C.fg }]}>Все факультеты</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       }
       ListEmptyComponent={
         error ? (
           <View style={s.center}>
             <Text style={s.error}>{error}</Text>
-            <TouchableOpacity onPress={load} style={[s.retryBtn, { backgroundColor: C.primary }]}>
+            <TouchableOpacity onPress={() => load(onlyMine ? profileGroupId : null)} style={[s.retryBtn, { backgroundColor: C.primary }]}>
               <Text style={s.retryText}>Повторить</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={s.center}>
-            <Text style={[s.empty, { color: C.muted }]}>Изменений пока нет</Text>
-            <Text style={[s.emptySub, { color: C.muted }]}>Они появятся после первого обновления</Text>
+            <Text style={[s.empty, { color: C.muted }]}>
+              {onlyMine ? 'У твоей группы изменений пока нет' : 'Изменений пока нет'}
+            </Text>
+            <Text style={[s.emptySub, { color: C.muted }]}>
+              {onlyMine ? 'Старые записи видно только во «Все факультеты»' : 'Они появятся после первого обновления'}
+            </Text>
           </View>
         )
       }
@@ -176,6 +222,9 @@ const s = StyleSheet.create({
   header: { marginBottom: 16 },
   headerTitle: { fontSize: 20, fontWeight: '700' },
   headerSub: { fontSize: 12, marginTop: 2 },
+  filterRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
+  filterText: { fontSize: 12, fontWeight: '600' },
   card: { borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, elevation: 1, shadowOpacity: 0.04, shadowRadius: 3 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
   typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
