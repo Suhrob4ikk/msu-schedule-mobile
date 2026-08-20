@@ -324,7 +324,7 @@ function SkipStats() {
 
 export default function ProfileScreen() {
   const C = useTheme();
-  const { mode, pref, toggle, setPref } = useThemeMode();
+  const { mode, pref, choose } = useThemeMode();
   const { isSyncing, syncProgress, lastSyncTime, triggerSync } = useSyncStatus();
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -485,33 +485,17 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Переключение темы */}
-      <TouchableOpacity
-        onPress={e => {
-          // Круг новой темы расходится от точки касания (как на сайте)
-          const { pageX, pageY } = e.nativeEvent;
-          toggle({ x: pageX, y: pageY });
-        }}
-        style={[s.themeBtn, { backgroundColor: C.card, borderColor: C.border }]}
-        activeOpacity={0.7}
-      >
-        <Ionicons
-          name={mode === 'dark' ? 'sunny-outline' : 'moon-outline'}
-          size={18}
-          color={C.fg}
-          style={{ marginRight: 8 }}
-        />
-        <Text style={[s.themeBtnText, { color: C.fg }]}>
-          {mode === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Тема: явная или «как в системе» (кнопка выше ставит явную) */}
+      {/* Тема — один переключатель на всё: «как в системе» темнеет вместе
+          с телефоном, «Светлая»/«Тёмная» ставят её явно. Круг новой темы
+          расходится от нажатого чипа (как на сайте). */}
       <View style={[s.themePrefRow, { backgroundColor: C.card, borderColor: C.border }]}>
-        <Text style={[s.themePrefLabel, { color: C.muted }]}>
-          Тема · «как в системе» темнеет вместе с телефоном
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Ionicons name={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} size={16} color={C.muted} />
+          <Text style={[s.themePrefLabel, { color: C.muted }]}>
+            Тема · «как в системе» темнеет вместе с телефоном
+          </Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
           {([
             { value: 'system', label: 'Как в системе' },
             { value: 'light', label: 'Светлая' },
@@ -521,7 +505,10 @@ export default function ProfileScreen() {
             return (
               <TouchableOpacity
                 key={o.value}
-                onPress={() => setPref(o.value)}
+                onPress={e => {
+                  const { pageX, pageY } = e.nativeEvent;
+                  choose(o.value, { x: pageX, y: pageY });
+                }}
                 activeOpacity={0.7}
                 style={[s.themePrefChip, {
                   backgroundColor: active ? C.primary : C.tag,
@@ -635,7 +622,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.9</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.10</Text>
       </View>
     </ScrollView>
   );
@@ -669,11 +656,6 @@ const s = StyleSheet.create({
 
   hint: { borderRadius: 8, padding: 10, marginTop: 16, marginBottom: 4 },
   hintText: { fontSize: 12, lineHeight: 17 },
-  themeBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 12, paddingVertical: 14, marginBottom: 10, borderWidth: 0.5,
-  },
-  themeBtnText: { fontSize: 15, fontWeight: '600' },
   themePrefRow: { borderRadius: 12, padding: 14, marginBottom: 24, borderWidth: 0.5 },
   themePrefLabel: { fontSize: 12 },
   themePrefChip: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, borderWidth: 1 },

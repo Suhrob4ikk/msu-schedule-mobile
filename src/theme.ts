@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ThemeReveal from './ThemeReveal';
@@ -65,17 +65,22 @@ interface ThemeCtxType {
   mode: ThemeMode;
   /** Что выбрал пользователь — для галочки в настройках. */
   pref: ThemePref;
-  /** origin — точка нажатия, от неё расходится круг новой темы (необязательно). */
-  toggle: (origin?: { x: number; y: number }) => void;
-  setPref: (pref: ThemePref) => void;
+  /**
+   * Ставит тему. С origin (точка нажатия) и только если это реально меняет
+   * картинку на экране — расходится круг новой темы; иначе применяется
+   * сразу. Единственный способ сменить тему во всём приложении — раньше
+   * рядом жили две независимые кнопки (общий toggle + чипы выбора),
+   * что на экране кабинета читалось как два разных переключателя одного
+   * и того же значения.
+   */
+  choose: (pref: ThemePref, origin?: { x: number; y: number }) => void;
 }
 
 const ThemeCtx = createContext<ThemeCtxType>({
   colors: lightColors,
   mode: 'light',
   pref: 'system',
-  toggle: () => {},
-  setPref: () => {},
+  choose: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -88,42 +93,43 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Пока круг растёт, тема ещё старая — переключаем её в момент, когда он
   // накрыл экран (см. ThemeReveal). Без origin меняем сразу, без анимации.
   const [reveal, setReveal] = useState<{ x: number; y: number; color: string } | null>(null);
+  // Что применить, когда круг накроет экран — обычный useState тут не подойдёт:
+  // onCovered читает значение в отдельном колбэке, а не в этом рендере.
+  const pendingPref = useRef<ThemePref>('system');
 
   useEffect(() => {
     AsyncStorage.getItem('msu_theme').then(v => {
-      if (v === 'dark' || v === 'light') setPrefState(v);
-      // Всё остальное (включая пусто и 'system') — «как в системе»
+      if (v === 'dark' || v === 'light' || v === 'system') setPrefState(v);
     });
   }, []);
 
-  const setPref = useCallback((next: ThemePref) => {
+  const applyPref = useCallback((next: ThemePref) => {
     setPrefState(next);
     AsyncStorage.setItem('msu_theme', next);
   }, []);
 
-  // Кнопка «Светлая/Тёмная тема» ставит тему явно, отключая режим «как в
-  // системе» — вернуть его можно переключателем в настройках.
-  const applyNext = useCallback(() => {
-    setPref(mode === 'light' ? 'dark' : 'light');
-  }, [mode, setPref]);
-
-  const toggle = useCallback((origin?: { x: number; y: number }) => {
-    if (!origin) { applyNext(); return; }
-    const nextColors = mode === 'light' ? darkColors : lightColors;
+  const choose = useCallback((next: ThemePref, origin?: { x: number; y: number }) => {
+    const nextMode: ThemeMode = next === 'system' ? system : next;
+    // Без точки нажатия или без видимой смены цвета — анимировать нечего
+    if (!origin || nextMode === mode) {
+      applyPref(next);
+      return;
+    }
+    pendingPref.current = next;
+    const nextColors = nextMode === 'dark' ? darkColors : lightColors;
     setReveal({ x: origin.x, y: origin.y, color: nextColors.bg });
-  }, [mode, applyNext]);
+  }, [mode, system, applyPref]);
 
   const onCovered = useCallback(() => {
-    applyNext();
+    applyPref(pendingPref.current);
     setReveal(null);
-  }, [applyNext]);
+  }, [applyPref]);
 
   const value: ThemeCtxType = {
     colors: mode === 'dark' ? darkColors : lightColors,
     mode,
     pref,
-    toggle,
-    setPref,
+    choose,
   };
 
   return React.createElement(
@@ -140,7 +146,7 @@ export function useTheme(): Colors {
   return useContext(ThemeCtx).colors;
 }
 
-export function useThemeMode(): Pick<ThemeCtxType, 'mode' | 'pref' | 'toggle' | 'setPref'> {
-  const { mode, pref, toggle, setPref } = useContext(ThemeCtx);
-  return { mode, pref, toggle, setPref };
+export function useThemeMode(): Pick<ThemeCtxType, 'mode' | 'pref' | 'choose'> {
+  const { mode, pref, choose } = useContext(ThemeCtx);
+  return { mode, pref, choose };
 }
