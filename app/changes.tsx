@@ -116,6 +116,7 @@ export default function ChangesScreen() {
             <View style={s.filterRow}>
               <TouchableOpacity
                 onPress={selectMine}
+                activeOpacity={0.7}
                 style={[s.filterChip, { backgroundColor: onlyMine ? C.primary : C.card, borderColor: onlyMine ? C.primary : C.border }]}
               >
                 <Text style={[s.filterText, { color: onlyMine ? '#fff' : C.fg }]}>
@@ -124,6 +125,7 @@ export default function ChangesScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={selectAll}
+                activeOpacity={0.7}
                 style={[s.filterChip, { backgroundColor: !onlyMine ? C.primary : C.card, borderColor: !onlyMine ? C.primary : C.border }]}
               >
                 <Text style={[s.filterText, { color: !onlyMine ? '#fff' : C.fg }]}>Все факультеты</Text>

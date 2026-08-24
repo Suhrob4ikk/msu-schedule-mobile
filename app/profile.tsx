@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
@@ -506,6 +507,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 key={o.value}
                 onPress={e => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   const { pageX, pageY } = e.nativeEvent;
                   choose(o.value, { x: pageX, y: pageY });
                 }}
@@ -622,7 +624,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.10</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.11</Text>
       </View>
     </ScrollView>
   );

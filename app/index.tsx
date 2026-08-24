@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, StatusBar, RefreshControl, PanResponder, Animated, TextInput,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform, Alert, LayoutAnimation, UIManager,
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -29,6 +29,16 @@ import CourseCheckBanner from '../src/CourseCheckBanner';
 
 // Июль и август — каникулы: пустое расписание в это время не ошибка
 const isVacation = () => [6, 7].includes(new Date().getMonth());
+
+// На старой архитектуре Android LayoutAnimation работает только после этого
+// вызова; на новой (Fabric, включена по умолчанию в этом проекте) метод
+// может отсутствовать — проверяем перед вызовом, чтобы не упасть.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Порядок листания свайпом/кнопками: «вся неделя» → пн → вт → …
+const DAY_SWIPE_ORDER = ['all', ...DAYS_ORDER];
 
 const TYPE_COLORS: Record<string, string> = {
   ЗАЧЕТ: '#d43a40', ЭКЗАМЕН: '#d43a40', ПРАКТИКА: '#5650d6', ПЗ: '#5650d6', ЛЕКЦИЯ: '#0e9b72',
@@ -313,6 +323,35 @@ function SkeletonCard({ C }: { C: ReturnType<typeof useTheme> }) {
   );
 }
 
+/** Заглушка выбора группы на время первой загрузки списка групп — форма
+ *  повторяет GroupSelector (подпись + ряд пилюль-направлений), чтобы не
+ *  смешивать на одном экране два разных языка загрузки (спиннер + skeleton). */
+function GroupSelectorSkeleton({ C }: { C: ReturnType<typeof useTheme> }) {
+  const opacity = useRef(new Animated.Value(0.5)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.5, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View style={{ opacity }}>
+      <View style={{ height: 11, width: 96, borderRadius: 4, backgroundColor: C.border, marginBottom: 10 }} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {[64, 58, 76, 50, 70, 56].map((w, i) => (
+          <View key={i} style={{ height: 42, width: w, borderRadius: 14, backgroundColor: C.border }} />
+        ))}
+      </View>
+    </Animated.View>
+  );
+}
+
 function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current, links }: {
   lesson: Lesson;
   C: ReturnType<typeof useTheme>;
@@ -349,6 +388,18 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
   const [note, setNote] = useState('');
   const [repeatWeekly, setRepeatWeekly] = useState(true);
   const [editingNote, setEditingNote] = useState(false);
+
+  // Галочка «повторять каждую неделю» не просто появляется/пропадает —
+  // выскакивает с лёгким перелётом, чтобы подтверждение ощущалось.
+  const checkScale = useRef(new Animated.Value(repeatWeekly ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.spring(checkScale, {
+      toValue: repeatWeekly ? 1 : 0,
+      friction: 5,
+      tension: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [repeatWeekly, checkScale]);
 
   useEffect(() => {
     if (showAttendance && kSkip) {
@@ -465,23 +516,23 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
       {/* Пропуск: отмечаем только то, что пропустили */}
       {showAttendance && canMarkSkip && (
         <View style={[cardStyles.attRow, { borderTopColor: C.border }]}>
-          <TouchableOpacity
+          <Pressable
             onPress={toggleSkip}
-            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityState={{ selected: skipped }}
             accessibilityLabel={skipped ? 'Пропуск отмечен, нажми чтобы убрать' : 'Отметить пропуск'}
-            style={[cardStyles.attBtn, {
+            style={({ pressed }) => [cardStyles.attBtn, {
               backgroundColor: skipped ? '#ef4444' : 'transparent',
               borderColor: skipped ? '#ef4444' : C.border,
               flexDirection: 'row', alignItems: 'center', gap: 5,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
             }]}
           >
             {skipped && <Ionicons name="close-circle" size={13} color="#fff" />}
             <Text style={[cardStyles.attBtnText, { color: skipped ? '#fff' : C.muted }]}>
               {skipped ? 'Пропустил' : 'Отметить пропуск'}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
 
@@ -501,12 +552,14 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
               />
               {/* Заметка либо висит на этой паре каждую неделю, либо только на эту дату */}
               {kDated && (
-                <TouchableOpacity
+                <Pressable
                   onPress={toggleRepeat}
-                  activeOpacity={0.7}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: repeatWeekly }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  })}
                 >
                   <View style={{
                     width: 15, height: 15, borderRadius: 4, borderWidth: 1,
@@ -514,28 +567,35 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
                     borderColor: repeatWeekly ? C.primary : C.border,
                     backgroundColor: repeatWeekly ? C.primary : 'transparent',
                   }}>
-                    {repeatWeekly && <Ionicons name="checkmark" size={11} color="#fff" />}
+                    <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+                      <Ionicons name="checkmark" size={11} color="#fff" />
+                    </Animated.View>
                   </View>
                   <Text style={{ fontSize: 11.5, color: repeatWeekly ? C.primary : C.muted }}>
                     Повторять каждую неделю
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               )}
             </>
           ) : note ? (
             // Компактная строка-индикатор: заметка видна, тап — редактирование
-            <TouchableOpacity
-              onPress={() => setEditingNote(true)}
-              activeOpacity={0.7}
-              style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setEditingNote(true); }}
+              style={({ pressed }) => ({
+                flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
+              })}
             >
               <Ionicons name="pencil" size={13} color={C.primary} style={{ marginTop: 1 }} />
               <Text style={{ fontSize: 12.5, color: C.fg, flex: 1 }} numberOfLines={2}>{note}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ) : (
-            <TouchableOpacity onPress={() => setEditingNote(true)}>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setEditingNote(true); }}
+              style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.96 : 1 }] })}
+            >
               <Text style={[cardStyles.addNoteText, { color: C.muted }]}>+ Добавить заметку</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
         </View>
       )}
@@ -702,6 +762,7 @@ export default function ScheduleScreen() {
           }
         }
       }
+      return true;
     } catch {
       let wks = weeksRef.current;
       if (wks.length === 0) {
@@ -725,6 +786,7 @@ export default function ScheduleScreen() {
       } else {
         setError('Нет соединения с сервером');
       }
+      return false;
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -755,9 +817,8 @@ export default function ScheduleScreen() {
   // Новый день выезжает с той стороны, куда тянули.
   const slideX = useRef(new Animated.Value(0)).current;
   const switchDayByOffset = useCallback((offset: 1 | -1) => {
-    const order = ['all', ...DAYS_ORDER];
-    const idx = order.indexOf(selectedDay);
-    const next = order[idx + offset];
+    const idx = DAY_SWIPE_ORDER.indexOf(selectedDay);
+    const next = DAY_SWIPE_ORDER[idx + offset];
     if (idx < 0 || !next) return;   // край списка — дальше листать некуда
     Haptics.selectionAsync();
     setSelectedDay(next);
@@ -767,12 +828,31 @@ export default function ScheduleScreen() {
 
   const switchDayByOffsetRef = useRef(switchDayByOffset);
   useEffect(() => { switchDayByOffsetRef.current = switchDayByOffset; }, [switchDayByOffset]);
+  // Для панжеста: та же проблема устаревшего closure, что и у switchDayByOffset выше.
+  const selectedDayRef = useRef(selectedDay);
+  useEffect(() => { selectedDayRef.current = selectedDay; }, [selectedDay]);
+
+  // Подтверждение после pull-to-refresh: без него неясно, обновилось ли
+  // что-то на самом деле, особенно пока бэкенд просыпается (холодный старт
+  // Render — 600–1300мс). Показываем только на настоящем успехе, не на
+  // офлайн-фолбэке — иначе «Обновлено» было бы неправдой.
+  const [refreshToast, setRefreshToast] = useState(false);
+  const refreshToastOpacity = useRef(new Animated.Value(0)).current;
+  const showRefreshToast = useCallback(() => {
+    setRefreshToast(true);
+    refreshToastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(refreshToastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(1400),
+      Animated.timing(refreshToastOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start(({ finished }) => { if (finished) setRefreshToast(false); });
+  }, [refreshToastOpacity]);
 
   const onRefresh = useCallback(() => {
     if (!selectedGroup) return;
     setRefreshing(true);
-    loadSchedule(selectedGroup, selectedWeek?.id, true);
-  }, [selectedGroup, selectedWeek, loadSchedule]);
+    loadSchedule(selectedGroup, selectedWeek?.id, true).then(ok => { if (ok) showRefreshToast(); });
+  }, [selectedGroup, selectedWeek, loadSchedule, showRefreshToast]);
 
   // Когда интернет появился — тихо обновляем данные и снимаем офлайн-баннер
   useEffect(() => {
@@ -825,14 +905,34 @@ export default function ScheduleScreen() {
     }, [groupsLoaded, groups, selectedGroup, loadGroup])
   );
 
-  // Свайп по расписанию (через ref, чтобы не было stale closure)
+  // Свайп по расписанию (через ref, чтобы не было stale closure).
+  // Карточки едут за пальцем в реальном времени (onPanResponderMove), а не
+  // только «щёлкают» по отпусканию — так жест ощущается отзывчивым. На
+  // границе списка (первый/последний день) — резиновое сопротивление
+  // вместо тишины: палец тянет, экран чуть поддаётся и не пускает дальше.
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gs) =>
         Math.abs(gs.dx) > 25 && Math.abs(gs.dy) < Math.abs(gs.dx),
+      onPanResponderMove: (_, gs) => {
+        const idx = DAY_SWIPE_ORDER.indexOf(selectedDayRef.current);
+        let dx = gs.dx;
+        if (dx > 0 && idx <= 0) dx *= 0.3;                          // край: «Вся неделя»
+        if (dx < 0 && idx === DAY_SWIPE_ORDER.length - 1) dx *= 0.3; // край: последний день
+        slideX.setValue(dx);
+      },
       onPanResponderRelease: (_, gs) => {
-        if (gs.dx < -40) switchDayByOffsetRef.current(1);
-        else if (gs.dx > 40) switchDayByOffsetRef.current(-1);
+        const idx = DAY_SWIPE_ORDER.indexOf(selectedDayRef.current);
+        const canNext = gs.dx < -40 && idx < DAY_SWIPE_ORDER.length - 1;
+        const canPrev = gs.dx > 40 && idx > 0;
+        if (canNext) switchDayByOffsetRef.current(1);
+        else if (canPrev) switchDayByOffsetRef.current(-1);
+        // Порог не пройден или граница — плавно возвращаем на место, иначе
+        // slideX так и останется сдвинутым, а следующий день «прыгнет».
+        else Animated.spring(slideX, { toValue: 0, useNativeDriver: true, friction: 7, tension: 80 }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(slideX, { toValue: 0, useNativeDriver: true, friction: 7, tension: 80 }).start();
       },
     })
   ).current;
@@ -850,6 +950,24 @@ export default function ScheduleScreen() {
     return acc;
   }, {} as Record<string, Lesson[]>);
 
+  // Автопрокрутка к сегодняшнему дню в режиме «Вся неделя»: координаты
+  // берём из onLayout блока дня (см. рендер ниже), scrollRef — сам скролл.
+  const scrollRef = useRef<ScrollView>(null);
+  const todayYRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (selectedDay !== 'all' || loading) return;
+    const hasToday = Object.values(byDay).some(dl => dl[0]?.lesson_date === nowTick.date);
+    if (!hasToday) return;
+    // onLayout ещё не успел отработать в этот же тик — ждём кадр.
+    const id = setTimeout(() => {
+      if (todayYRef.current != null) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, todayYRef.current - 8), animated: true });
+      }
+    }, 50);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, loading]);
+
   const shareCardRef = useRef<View>(null);
   const [sharingImg, setSharingImg] = useState(false);
   const handleShareImage = async () => {
@@ -863,6 +981,7 @@ export default function ScheduleScreen() {
       const uri = await captureRef(shareCardRef, { format: 'png', quality: 1 });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Расписание' });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
       Alert.alert('Ошибка', 'Не получилось создать картинку. Попробуйте ещё раз.');
@@ -878,6 +997,7 @@ export default function ScheduleScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
     <ScrollView
+      ref={scrollRef}
       style={[s.container, { backgroundColor: C.bg }]}
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
@@ -912,7 +1032,7 @@ export default function ScheduleScreen() {
       {/* Выбор группы */}
       <View style={[s.groupCard, { backgroundColor: C.card, borderColor: C.border }]}>
         {!groupsLoaded ? (
-          <ActivityIndicator color={C.primary} />
+          <GroupSelectorSkeleton C={C} />
         ) : (
           <GroupSelector groups={groups} value={selectedGroup} onChange={loadGroup} C={C} collapsible />
         )}
@@ -1054,10 +1174,10 @@ export default function ScheduleScreen() {
                 return (
                   <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <RadialProgress progress={1 - p} size={34} stroke={3.5} color={C.green} track={C.card}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: C.green }}>{left}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: C.green, fontVariant: ['tabular-nums'] }}>{left}</Text>
                     </RadialProgress>
                     <Text style={{ fontSize: 12, color: C.muted, flex: 1 }}>
-                      осталось <Text style={{ color: C.fg, fontWeight: '700' }}>{left} мин</Text> до конца пары
+                      осталось <Text style={{ color: C.fg, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{left} мин</Text> до конца пары
                     </Text>
                   </View>
                 );
@@ -1091,7 +1211,7 @@ export default function ScheduleScreen() {
                     breakProgress != null ? (
                       <View style={{ marginLeft: 'auto' }}>
                         <RadialProgress progress={breakProgress} size={46} stroke={4} color={C.primary} track={C.card}>
-                          <Text style={{ fontSize: 10.5, fontWeight: '800', color: C.primary }}>{countdown}</Text>
+                          <Text style={{ fontSize: 10.5, fontWeight: '800', color: C.primary, fontVariant: ['tabular-nums'] }}>{countdown}</Text>
                         </RadialProgress>
                       </View>
                     ) : (
@@ -1164,14 +1284,18 @@ export default function ScheduleScreen() {
       {/* Фильтр по дню */}
       {selectedGroup && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.dayBar}>
-          {['all', ...DAYS_ORDER].map(day => {
+          {DAY_SWIPE_ORDER.map(day => {
             const active = selectedDay === day;
             const hasLessons = day !== 'all' && lessons.some(l => l.day_of_week === day);
             return (
               <TouchableOpacity
                 key={day}
                 onPress={() => {
-                  if (selectedDay !== day) Haptics.selectionAsync();
+                  if (selectedDay === day) return;
+                  Haptics.selectionAsync();
+                  // Карточки пар нового дня появляются каскадом, а не скачком —
+                  // тот же приём, что уже есть у веба (см. audit 1.2).
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                   setSelectedDay(day);
                 }}
                 style={[
@@ -1201,34 +1325,42 @@ export default function ScheduleScreen() {
       {/* Расписание — со свайпом для переключения дней */}
       {!loading && (
         <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateX: slideX }] }}>
-          {Object.entries(byDay).map(([day, dayLessons]) => (
-            <View key={day}>
-              {/* Отступы держит строка, у самого текста они сняты — иначе
-                  плашка «сегодня» выравнивалась бы по краю отступа, не по тексту */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4, marginBottom: 8 }}>
-                <Text style={[s.dayHeader, { color: C.primary, marginTop: 0, marginBottom: 0 }]}>
-                  {day.charAt(0).toUpperCase() + day.slice(1)}
-                  {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
-                </Text>
-                {dayLessons[0]?.lesson_date === nowTick.date && (
-                  <View style={{ backgroundColor: C.blueBg, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 9.5, fontWeight: '800', color: C.primary, letterSpacing: 0.4 }}>
-                      СЕГОДНЯ
-                    </Text>
-                  </View>
-                )}
+          {Object.entries(byDay).map(([day, dayLessons]) => {
+            const isToday = dayLessons[0]?.lesson_date === nowTick.date;
+            return (
+              <View
+                key={day}
+                // Координата нужна только для автопрокрутки к сегодняшнему
+                // дню в режиме «Вся неделя» — см. эффект выше по коду.
+                onLayout={isToday ? (e) => { todayYRef.current = e.nativeEvent.layout.y; } : undefined}
+              >
+                {/* Отступы держит строка, у самого текста они сняты — иначе
+                    плашка «сегодня» выравнивалась бы по краю отступа, не по тексту */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4, marginBottom: 8 }}>
+                  <Text style={[s.dayHeader, { color: C.primary, marginTop: 0, marginBottom: 0 }]}>
+                    {day.charAt(0).toUpperCase() + day.slice(1)}
+                    {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
+                  </Text>
+                  {isToday && (
+                    <View style={{ backgroundColor: C.blueBg, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 9.5, fontWeight: '800', color: C.primary, letterSpacing: 0.4 }}>
+                        СЕГОДНЯ
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <DayTimeline
+                  lessons={dayLessons}
+                  C={C}
+                  todayDate={nowTick.date}
+                  nowMinutes={nowTick.minutes}
+                  dimPast={selectedWeek ? isCurrentWeek(selectedWeek.week_start) : false}
+                  showAttendance={featureAttendance && isMyGroup}
+                  showNotes={featureNotes && isMyGroup}
+                />
               </View>
-              <DayTimeline
-                lessons={dayLessons}
-                C={C}
-                todayDate={nowTick.date}
-                nowMinutes={nowTick.minutes}
-                dimPast={selectedWeek ? isCurrentWeek(selectedWeek.week_start) : false}
-                showAttendance={featureAttendance && isMyGroup}
-                showNotes={featureNotes && isMyGroup}
-              />
-            </View>
-          ))}
+            );
+          })}
 
           {selectedGroup && Object.keys(byDay).length === 0 && (
             <View style={s.emptyState}>
@@ -1259,6 +1391,21 @@ export default function ScheduleScreen() {
         </Animated.View>
       )}
     </ScrollView>
+
+    {/* Подтверждение после pull-to-refresh — гаснет само, ничего нажимать не нужно */}
+    {refreshToast && (
+      <View pointerEvents="none" style={{ position: 'absolute', top: 14, left: 0, right: 0, alignItems: 'center' }}>
+        <Animated.View
+          style={{
+            opacity: refreshToastOpacity,
+            backgroundColor: C.primary, borderRadius: 999,
+            paddingHorizontal: 14, paddingVertical: 7,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 12.5, fontWeight: '700' }}>✓ Обновлено</Text>
+        </Animated.View>
+      </View>
+    )}
     </KeyboardAvoidingView>
   );
 }
@@ -1302,7 +1449,7 @@ const s = StyleSheet.create({
   nowTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   nowPairBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   nowPairText: { fontSize: 11, fontWeight: '600' },
-  countdown: { marginLeft: 'auto', fontSize: 18, fontWeight: '800' },
+  countdown: { marginLeft: 'auto', fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   nowSubject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   nowMeta: { fontSize: 12 },
   roomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 },
@@ -1331,7 +1478,7 @@ const s = StyleSheet.create({
     borderRadius: 12, borderWidth: 0.5, paddingVertical: 12, marginBottom: 12,
   },
   statItem: { alignItems: 'center', flex: 1 },
-  statNum: { fontSize: 22, fontWeight: '700' },
+  statNum: { fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] },
   statLabel: { fontSize: 10, marginTop: 2 },
   statDivider: { width: 0.5, height: 32 },
 });

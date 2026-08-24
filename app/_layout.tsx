@@ -60,6 +60,7 @@ function AppTabs() {
       <SyncBanner />
       <Tabs
         screenOptions={{
+          animation: 'fade',
           tabBarActiveTintColor: C.primary,
           tabBarInactiveTintColor: C.muted,
           tabBarStyle: {
