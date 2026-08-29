@@ -9,10 +9,27 @@ export const API_BASE =
 // Простой in-memory кэш: ключ → {данные, время}
 const _cache = new Map<string, { data: unknown; ts: number }>();
 
+// Без тайм-аута fetch на плохой сети мог висеть бесконечно — ни ошибки,
+// ни повторной попытки, экран просто не показывает содержимое (тот же
+// фикс сделан на сайте, см. frontend/src/lib/api.ts).
+const FETCH_TIMEOUT_MS = 15_000;
+
 async function get<T>(path: string, ttl = 180_000): Promise<T> {
   const hit = _cache.get(path);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
-  const res = await fetch(`${API_BASE}${path}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('Сервер не отвечает — проверьте соединение');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data: T = await res.json();
   _cache.set(path, { data, ts: Date.now() });
