@@ -8,6 +8,11 @@ export const API_BASE =
 
 // Простой in-memory кэш: ключ → {данные, время}
 const _cache = new Map<string, { data: unknown; ts: number }>();
+// Запросы, которые прямо сейчас в полёте. Нужны, потому что один и тот же
+// путь спрашивают сразу несколько экранов (список групп — расписание, кабинет
+// и изменения одновременно при старте). Без этого уходило три одинаковых
+// запроса вместо одного.
+const _inflight = new Map<string, Promise<unknown>>();
 
 // Без тайм-аута fetch на плохой сети мог висеть бесконечно — ни ошибки,
 // ни повторной попытки, экран просто не показывает содержимое (тот же
@@ -17,26 +22,36 @@ const FETCH_TIMEOUT_MS = 15_000;
 async function get<T>(path: string, ttl = 180_000): Promise<T> {
   const hit = _cache.get(path);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
-  } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error('Сервер не отвечает — проверьте соединение');
+
+  const running = _inflight.get(path);
+  if (running) return running as Promise<T>;
+
+  const p = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        throw new Error('Сервер не отвечает — проверьте соединение');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data: T = await res.json();
-  _cache.set(path, { data, ts: Date.now() });
-  return data;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data: T = await res.json();
+    // ttl=0 — ответ, который никогда не переиспользуется (bulk-sync, несколько
+    // мегабайт). Держать его в памяти всё время работы приложения незачем.
+    if (ttl > 0) _cache.set(path, { data, ts: Date.now() });
+    return data;
+  })().finally(() => { _inflight.delete(path); });
+
+  _inflight.set(path, p);
+  return p;
 }
 
-/** Сбрасывает in-memory кэш — чтобы ручная синхронизация тянула свежие данные. */
 export function clearApiCache(): void {
   _cache.clear();
 }

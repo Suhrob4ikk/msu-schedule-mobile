@@ -373,7 +373,22 @@ export default function ProfileScreen() {
   const featuresLocked = !featuresUnlocked();
 
   useEffect(() => {
-    api.getGroups().then(setGroups).catch(() => {});
+    // Список групп — сначала с диска (иначе в офлайне выбор группы пустой),
+    // затем свежий с сервера.
+    (async () => {
+      try {
+        const cached = await AsyncStorage.getItem('cache_groups');
+        if (cached) {
+          const gs: Group[] = JSON.parse(cached);
+          if (gs.length) setGroups(gs);
+        }
+      } catch { /* битый кэш — подождём сервер */ }
+      try {
+        const gs = await api.getGroups();
+        setGroups(gs);
+        AsyncStorage.setItem('cache_groups', JSON.stringify(gs)).catch(() => null);
+      } catch { /* офлайн — остаёмся на кэше */ }
+    })();
     AsyncStorage.multiGet(['user_name', 'selected_group_id']).then(pairs => {
       const n = pairs.find(([k]) => k === 'user_name')?.[1];
       const gid = pairs.find(([k]) => k === 'selected_group_id')?.[1];
@@ -659,7 +674,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.13</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.14</Text>
       </View>
     </ScrollView>
   );

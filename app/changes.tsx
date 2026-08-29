@@ -51,15 +51,30 @@ export default function ChangesScreen() {
   const [profileGroupLabel, setProfileGroupLabel] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
 
-  const load = async (groupId: number | null) => {
+  const load = async (groupId: number | null, silent = false) => {
     setError(null);
+    const cacheKey = `cache_changes_${groupId ?? 'all'}`;
+
+    // Лента изменений тоже сохраняется на устройстве: без этого экран в
+    // офлайне был просто ошибкой, а при живой сети — спиннером на всё время
+    // ответа спящего Render.
+    let fromCache = false;
+    if (!silent) {
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached) { setChanges(JSON.parse(cached)); fromCache = true; }
+      } catch { /* битый кэш — подождём сервер */ }
+      if (fromCache) setLoading(false);
+    }
+
     try {
       const data = await api.getChanges(groupId ?? undefined);
       setChanges(data);
+      AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => null);
       // Отмечаем момент просмотра — по нему в кабинете гаснет бейдж «новое».
       if (data[0]?.detected_at) await AsyncStorage.setItem('changes_last_seen', data[0].detected_at);
     } catch {
-      setError('Не удалось загрузить изменения');
+      if (!fromCache) setError('Не удалось загрузить изменения');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -74,19 +89,25 @@ export default function ChangesScreen() {
         id = Number(saved);
         setProfileGroupId(id);
         setOnlyMine(true); // группа выбрана — по умолчанию фильтруем на неё
-        try {
-          const groups = await api.getGroups();
-          const g = groups.find(x => x.id === id);
-          if (g) setProfileGroupLabel(`${shortGroupName(g.name)} · ${g.year} курс`);
-        } catch {}
       }
+      // Ленту грузим сразу. Раньше здесь сначала ЖДАЛИ список групп ради
+      // подписи над фильтром — из-за этого сам список изменений появлялся
+      // на один round-trip позже, чем мог бы.
       load(id);
+      if (id !== null) {
+        api.getGroups()
+          .then(groups => {
+            const g = groups.find(x => x.id === id);
+            if (g) setProfileGroupLabel(`${shortGroupName(g.name)} · ${g.year} курс`);
+          })
+          .catch(() => null);
+      }
     })();
   }, []);
 
   const selectMine = () => { setOnlyMine(true); load(profileGroupId); };
   const selectAll = () => { setOnlyMine(false); load(null); };
-  const onRefresh = () => { setRefreshing(true); load(onlyMine ? profileGroupId : null); };
+  const onRefresh = () => { setRefreshing(true); load(onlyMine ? profileGroupId : null, true); };
 
   if (loading) {
     return (

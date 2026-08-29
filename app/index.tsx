@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, StatusBar, RefreshControl, PanResponder, Animated, TextInput,
-  KeyboardAvoidingView, Platform, Alert, LayoutAnimation, UIManager,
+  KeyboardAvoidingView, Platform, Alert, LayoutAnimation, UIManager, useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -25,11 +25,9 @@ import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
 import { refreshLiveLesson } from '../src/liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson, todayIso } from '../src/studyData';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FeatureHint from '../src/FeatureHint';
 import CourseCheckBanner from '../src/CourseCheckBanner';
-
-// Июль и август — каникулы: пустое расписание в это время не ошибка
-const isVacation = () => [6, 7].includes(new Date().getMonth());
 
 // На старой архитектуре Android LayoutAnimation работает только после этого
 // вызова; на новой (Fabric, включена по умолчанию в этом проекте) метод
@@ -79,13 +77,28 @@ function isCurrentWeek(weekStart: string): boolean {
   return today >= start && today <= end;
 }
 
-function getDayDate(dayName: string, weekStart: string): string {
-  const start = new Date(weekStart + 'T00:00:00');
+function dayDateObj(dayName: string, weekStart: string): Date | null {
   const idx = DAYS_ORDER.indexOf(dayName);
-  if (idx === -1) return '';
-  const d = new Date(start);
-  d.setDate(start.getDate() + idx);
-  return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+  if (idx === -1 || !weekStart) return null;
+  const d = new Date(weekStart + 'T00:00:00');
+  d.setDate(d.getDate() + idx);
+  return d;
+}
+
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+function getDayDate(dayName: string, weekStart: string): string {
+  const d = dayDateObj(dayName, weekStart);
+  return d ? `${d.getDate()} ${MONTHS_GEN[d.getMonth()]}` : '';
+}
+
+/** Сегодняшний ли день недели в этой конкретной неделе — для отметки на
+ *  пилюле фильтра, даже когда у дня нет ни одной пары. */
+function isTodayDay(dayName: string, weekStart: string): boolean {
+  const d = dayDateObj(dayName, weekStart);
+  if (!d) return false;
+  const t = new Date();
+  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -625,6 +638,34 @@ const cardStyles = StyleSheet.create({
   addNoteText: { fontSize: 12 },
 });
 
+/**
+ * Какую неделю показывать: явно запрошенную → ту, что смотрели → текущую по
+ * календарю → последнюю. Вынесено из loadSchedule, потому что тот же выбор
+ * нужен и при отрисовке из офлайн-кэша, до всякой сети.
+ */
+function pickWeek(
+  wks: WeekInfo[],
+  weekId?: number,
+  preferredStart?: string,
+): WeekInfo | null {
+  if (!wks.length) return null;
+  if (weekId) {
+    const byId = wks.find(w => w.id === weekId);
+    if (byId) return byId;
+  }
+  if (preferredStart) {
+    const byStart = wks.find(w => w.week_start === preferredStart);
+    if (byStart) return byStart;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const current = wks.find(w => {
+    const end = new Date(w.week_start + 'T00:00:00');
+    end.setDate(end.getDate() + 6);
+    return today >= w.week_start && today <= end.toISOString().slice(0, 10);
+  });
+  return current ?? wks.find(w => w.is_latest) ?? wks[0];
+}
+
 export default function ScheduleScreen() {
   const C = useTheme();
   const { offlineBannerText, onlineAt } = useSyncStatus();
@@ -661,6 +702,7 @@ export default function ScheduleScreen() {
   }, []);
   const [isOffline, setIsOffline] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
+  const groupsLoadedRef = useRef(false);
   const [countdown, setCountdown] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Ref to current group+week for use in the online-recovery effect
@@ -704,42 +746,88 @@ export default function ScheduleScreen() {
 
   const weeksRef = useRef<WeekInfo[]>([]);
   useEffect(() => { weeksRef.current = weeks; }, [weeks]);
+  // Пользователь сам переключил неделю кнопками? Пока нет — неделю всегда
+  // выбираем по сегодняшней дате. Иначе экран, нарисованный по кэшу недельной
+  // давности, «прилипал» бы к прошлой неделе: свежий список пришёл, а мы ищем
+  // в нём ту же неделю, что показали из кэша.
+  const userPickedWeekRef = useRef(false);
+  const lessonsRef = useRef<Lesson[]>([]);
+  useEffect(() => { lessonsRef.current = lessons; }, [lessons]);
+
+  const preferredWeekStart = useCallback(
+    () => (userPickedWeekRef.current ? selectedWeekRef.current?.week_start : undefined),
+    [],
+  );
+
+  /**
+   * Мгновенная отрисовка из офлайн-кэша: те же ключи AsyncStorage, что
+   * заполняет полная синхронизация (syncService.ts). Раньше кэш читался
+   * только когда сеть УЖЕ упала — то есть после 15 секунд ожидания, а на
+   * спящем Render и того дольше. Теперь наоборот: сначала показываем то,
+   * что есть, потом молча обновляем.
+   */
+  const paintFromCache = useCallback(async (group: Group, weekId?: number): Promise<WeekInfo | null> => {
+    try {
+      const rawWeeks = await AsyncStorage.getItem(`cache_weeks_${group.id}`);
+      if (!rawWeeks) return null;
+      const wks: WeekInfo[] = JSON.parse(rawWeeks);
+      if (!wks.length) return null;
+      const target = pickWeek(wks, weekId, preferredWeekStart());
+      if (!target) return null;
+      const rawSched = await AsyncStorage.getItem(`cache_schedule_${group.id}_${target.id}`);
+      if (!rawSched) return null;
+      setWeeks(wks);
+      weeksRef.current = wks;
+      setSelectedWeek(target);
+      setLessons(JSON.parse(rawSched));
+      return target;
+    } catch {
+      return null;
+    }
+  }, [preferredWeekStart]);
 
   const loadSchedule = useCallback(async (group: Group, weekId?: number, silent = false) => {
-    if (!silent) setLoading(true);
     setError(null);
     setIsOffline(false);
 
-    try {
-      let wks = weeksRef.current;
-      if (wks.length === 0 || selectedGroup?.id !== group.id) {
-        wks = await api.getGroupWeeks(group.id);
-        setWeeks(wks);
-        weeksRef.current = wks;
-        await AsyncStorage.setItem(`cache_weeks_${group.id}`, JSON.stringify(wks));
-      }
+    // 1. Сначала — то, что уже лежит на устройстве. Экран заполняется за
+    //    миллисекунды, а не за время ответа сервера.
+    let cachedWeek: WeekInfo | null = null;
+    if (!silent) {
+      cachedWeek = await paintFromCache(group, weekId);
+      setLoading(!cachedWeek);
+    }
 
-      let targetWeek: WeekInfo | undefined;
-      if (weekId) {
-        targetWeek = wks.find(w => w.id === weekId);
-      } else if (selectedWeekRef.current) {
-        targetWeek = wks.find(w => w.week_start === selectedWeekRef.current!.week_start);
-      }
-      if (!targetWeek) {
-        const today = new Date().toISOString().slice(0, 10);
-        targetWeek = wks.find(w => {
-          const end = new Date(w.week_start + 'T00:00:00');
-          end.setDate(end.getDate() + 6);
-          return today >= w.week_start && today <= end.toISOString().slice(0, 10);
-        }) ?? wks.find(w => w.is_latest) ?? wks[0];
-      }
+    try {
+      // 2. Свежие данные. Если неделя уже известна из кэша, расписание
+      //    запрашивается ПАРАЛЛЕЛЬНО со списком недель, а не после него —
+      //    минус один round-trip на каждое открытие экрана.
+      const weeksPromise = api.getGroupWeeks(group.id);
+      const fastSchedule = cachedWeek ? api.getGroupSchedule(group.id, cachedWeek.id) : null;
+      const nowPromise = api.getNow(group.id);
+      const statsPromise = api.getStats(group.id).catch(() => null);
+      // Запросы уходят до того, как мы решим, кого ждать. Пустой catch —
+      // страховка от «unhandled promise rejection», сам результат он не съедает:
+      // Promise.all ниже всё равно увидит отказ.
+      nowPromise.catch(() => null);
+      fastSchedule?.catch(() => null);
+
+      const wks = await weeksPromise;
+      setWeeks(wks);
+      weeksRef.current = wks;
+      AsyncStorage.setItem(`cache_weeks_${group.id}`, JSON.stringify(wks)).catch(() => null);
+
+      const targetWeek = pickWeek(wks, weekId, preferredWeekStart());
       if (targetWeek) setSelectedWeek(targetWeek);
 
-      const [sched, now, st] = await Promise.all([
-        api.getGroupSchedule(group.id, targetWeek?.id),
-        api.getNow(group.id),
-        api.getStats(group.id).catch(() => null),
-      ]);
+      // Сервер подтвердил ту же неделю, что была в кэше — используем уже
+      // летящий запрос; если неделя другая, спрашиваем заново.
+      const schedPromise =
+        fastSchedule && targetWeek && targetWeek.id === cachedWeek?.id
+          ? fastSchedule
+          : api.getGroupSchedule(group.id, targetWeek?.id);
+
+      const [sched, now, st] = await Promise.all([schedPromise, nowPromise, statsPromise]);
       setLessons(sched);
       setNowItems(now);
       if (st) setStats(st);
@@ -765,6 +853,12 @@ export default function ScheduleScreen() {
       }
       return true;
     } catch {
+      // Сети нет. Если экран уже нарисован из кэша — просто помечаем офлайн
+      // и ничего не портим.
+      if (cachedWeek) {
+        setIsOffline(true);
+        return false;
+      }
       let wks = weeksRef.current;
       if (wks.length === 0) {
         const cachedWks = await AsyncStorage.getItem(`cache_weeks_${group.id}`);
@@ -774,17 +868,16 @@ export default function ScheduleScreen() {
           weeksRef.current = wks;
         }
       }
-      const targetWeek = wks.find(w => w.id === weekId) ?? wks.find(w => w.is_latest);
-      if (targetWeek) {
-        const cached = await AsyncStorage.getItem(`cache_schedule_${group.id}_${targetWeek.id}`);
-        if (cached) {
-          setLessons(JSON.parse(cached));
-          setSelectedWeek(targetWeek);
-          setIsOffline(true);
-        } else {
-          setError('Нет соединения с сервером');
-        }
-      } else {
+      const targetWeek = pickWeek(wks, weekId, preferredWeekStart());
+      const cached = targetWeek
+        ? await AsyncStorage.getItem(`cache_schedule_${group.id}_${targetWeek.id}`)
+        : null;
+      if (targetWeek && cached) {
+        setLessons(JSON.parse(cached));
+        setSelectedWeek(targetWeek);
+        setIsOffline(true);
+      } else if (!silent || lessonsRef.current.length === 0) {
+        // При тихом обновлении молчим — но только если на экране что-то есть.
         setError('Нет соединения с сервером');
       }
       return false;
@@ -792,7 +885,7 @@ export default function ScheduleScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedGroup]);
+  }, [paintFromCache, preferredWeekStart]);
 
   const loadGroup = useCallback(async (group: Group, haptic = true) => {
     if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -808,6 +901,7 @@ export default function ScheduleScreen() {
 
   const switchWeek = useCallback((week: WeekInfo) => {
     if (!selectedGroup || selectedWeek?.id === week.id) return;
+    userPickedWeekRef.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedWeek(week);
     setSelectedDay('all');
@@ -863,24 +957,36 @@ export default function ScheduleScreen() {
     if (g) loadSchedule(g, w?.id, true);
   }, [onlineAt]);
 
-  // Загружаем группы (с кэшем для офлайн)
+  // Загружаем группы — сначала из кэша, потом с сервера.
+  // Порядок важен: пока список групп не загружен, useFocusEffect ниже не
+  // начинает грузить расписание. Раньше это значило, что на холодном старте
+  // экран ждал ответа сервера дважды подряд; теперь список берётся с диска
+  // мгновенно, а свежий подъезжает следом.
   useEffect(() => {
-    api.getGroups()
-      .then(gs => {
-        setGroups(gs);
-        setGroupsLoaded(true);
-        AsyncStorage.setItem('cache_groups', JSON.stringify(gs));
-      })
-      .catch(async () => {
+    let cancelled = false;
+    (async () => {
+      try {
         const cached = await AsyncStorage.getItem('cache_groups');
-        if (cached) {
-          setGroups(JSON.parse(cached));
-          setGroupsLoaded(true);
-          setIsOffline(true);
-        } else {
-          setError('Нет соединения с сервером');
+        if (cached && !cancelled) {
+          const gs: Group[] = JSON.parse(cached);
+          if (gs.length) { setGroups(gs); groupsLoadedRef.current = true; setGroupsLoaded(true); }
         }
-      });
+      } catch { /* битый кэш — просто подождём сервер */ }
+
+      try {
+        const gs = await api.getGroups();
+        if (cancelled) return;
+        setGroups(gs);
+        groupsLoadedRef.current = true;
+        setGroupsLoaded(true);
+        AsyncStorage.setItem('cache_groups', JSON.stringify(gs)).catch(() => null);
+      } catch {
+        if (cancelled) return;
+        if (groupsLoadedRef.current) setIsOffline(true);
+        else setError('Нет соединения с сервером');
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // При фокусе — загружаем сохранённую группу и фичи-флаги
@@ -955,6 +1061,8 @@ export default function ScheduleScreen() {
   // берём из onLayout блока дня (см. рендер ниже), scrollRef — сам скролл.
   const scrollRef = useRef<ScrollView>(null);
   const todayYRef = useRef<number | null>(null);
+  const { height: winHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   useEffect(() => {
     if (selectedDay !== 'all' || loading) return;
     const hasToday = Object.values(byDay).some(dl => dl[0]?.lesson_date === nowTick.date);
@@ -968,6 +1076,26 @@ export default function ScheduleScreen() {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDay, loading]);
+
+  // Липкий заголовок дня в режиме «Вся неделя»: у ScrollView в RN нет
+  // CSS position:sticky, поэтому сами следим за прокруткой и держим
+  // название текущего дня плашкой поверх контента (см. handleScroll).
+  const dayYRef = useRef<Record<string, number>>({});
+  const [stickyDay, setStickyDay] = useState<string | null>(null);
+  const handleScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    if (selectedDay !== 'all') return;
+    const y = e.nativeEvent.contentOffset.y;
+    let current: string | null = null;
+    for (const day of Object.keys(byDay)) {
+      const top = dayYRef.current[day];
+      if (top != null && top <= y + 44) current = day;
+    }
+    setStickyDay(prev => (prev === current ? prev : current));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, byDay]);
+  useEffect(() => {
+    if (selectedDay !== 'all') setStickyDay(null);
+  }, [selectedDay]);
 
   const shareCardRef = useRef<View>(null);
   const [sharingImg, setSharingImg] = useState(false);
@@ -1002,6 +1130,8 @@ export default function ScheduleScreen() {
       style={[s.container, { backgroundColor: C.bg }]}
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
+      onScroll={handleScroll}
+      scrollEventThrottle={32}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -1298,6 +1428,8 @@ export default function ScheduleScreen() {
           {DAY_SWIPE_ORDER.map(day => {
             const active = selectedDay === day;
             const hasLessons = day !== 'all' && lessons.some(l => l.day_of_week === day);
+            const dateObj = day !== 'all' && selectedWeek ? dayDateObj(day, selectedWeek.week_start) : null;
+            const isToday = !!dateObj && isTodayDay(day, selectedWeek!.week_start);
             return (
               <TouchableOpacity
                 key={day}
@@ -1311,12 +1443,24 @@ export default function ScheduleScreen() {
                 }}
                 style={[
                   s.dayBtn,
-                  { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border },
+                  {
+                    backgroundColor: active ? C.primary : C.card,
+                    borderColor: active ? C.primary : isToday ? C.primary : C.border,
+                    borderWidth: !active && isToday ? 1.5 : 1,
+                  },
                 ]}
               >
+                {isToday && !active && (
+                  <Text style={[s.dayTodayTag, { color: C.primary, backgroundColor: C.bg }]}>сегодня</Text>
+                )}
                 <Text style={[s.dayBtnText, { color: active ? '#fff' : C.fg }]}>
                   {day === 'all' ? 'Вся неделя' : DAY_LABELS[day]}
                 </Text>
+                {dateObj && (
+                  <Text style={[s.dayBtnDate, { color: active ? 'rgba(255,255,255,0.85)' : C.muted }]}>
+                    {dateObj.getDate()}
+                  </Text>
+                )}
                 {hasLessons && (
                   <View style={[s.dayDot, { backgroundColor: active ? 'rgba(255,255,255,0.8)' : C.primary }]} />
                 )}
@@ -1333,17 +1477,26 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {/* Расписание — со свайпом для переключения дней */}
+      {/* Расписание — со свайпом для переключения дней. minHeight растягивает
+          зону жеста на весь экран, а не только на высоту карточек — иначе
+          в пустой день (короткое сообщение «занятий нет») свайпать было
+          негде: палец ниже текста уже не попадал по Animated.View. */}
       {!loading && (
-        <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateX: slideX }] }}>
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={{ transform: [{ translateX: slideX }], minHeight: winHeight * 0.55 }}
+        >
           {Object.entries(byDay).map(([day, dayLessons]) => {
             const isToday = dayLessons[0]?.lesson_date === nowTick.date;
             return (
               <View
                 key={day}
-                // Координата нужна только для автопрокрутки к сегодняшнему
-                // дню в режиме «Вся неделя» — см. эффект выше по коду.
-                onLayout={isToday ? (e) => { todayYRef.current = e.nativeEvent.layout.y; } : undefined}
+                // Координата нужна для автопрокрутки к сегодняшнему дню и
+                // для липкого заголовка при прокрутке (handleScroll выше).
+                onLayout={(e) => {
+                  dayYRef.current[day] = e.nativeEvent.layout.y;
+                  if (isToday) todayYRef.current = e.nativeEvent.layout.y;
+                }}
               >
                 {/* Отступы держит строка, у самого текста они сняты — иначе
                     плашка «сегодня» выравнивалась бы по краю отступа, не по тексту */}
@@ -1375,22 +1528,10 @@ export default function ScheduleScreen() {
 
           {selectedGroup && Object.keys(byDay).length === 0 && (
             <View style={s.emptyState}>
-              {isVacation() && lessons.length === 0 ? (
-                <>
-                  <Ionicons name="sunny-outline" size={44} color={C.primary} style={{ marginBottom: 10 }} />
-                  <Text style={[s.emptyTitle, { color: C.fg }]}>Каникулы!</Text>
-                  <Text style={[s.emptyText, { color: C.muted, textAlign: 'center', paddingHorizontal: 24 }]}>
-                    Занятий нет — отдыхаем. Расписание появится ближе к 1 сентября.
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={[s.emptyTitle, { color: C.fg }]}>Занятий не найдено</Text>
-                  <Text style={[s.emptyText, { color: C.muted }]}>
-                    {selectedDay !== 'all' ? 'В этот день пар нет' : 'На этой неделе занятий нет'}
-                  </Text>
-                </>
-              )}
+              <Text style={[s.emptyTitle, { color: C.fg }]}>Занятий не найдено</Text>
+              <Text style={[s.emptyText, { color: C.muted }]}>
+                {selectedDay !== 'all' ? 'В этот день пар нет' : 'На этой неделе занятий нет'}
+              </Text>
             </View>
           )}
           {!selectedGroup && (
@@ -1402,6 +1543,19 @@ export default function ScheduleScreen() {
         </Animated.View>
       )}
     </ScrollView>
+
+    {/* Липкий заголовок дня (см. handleScroll) — RN ScrollView не умеет
+        CSS position:sticky, поэтому рисуем плашку поверх контента сами. */}
+    {stickyDay && selectedWeek && (
+      <View pointerEvents="none" style={[s.stickyDayBar, { top: insets.top, backgroundColor: C.bg, borderBottomColor: C.border }]}>
+        <Text style={[s.dayHeader, { color: C.primary, marginTop: 0, marginBottom: 0 }]}>
+          {stickyDay.charAt(0).toUpperCase() + stickyDay.slice(1)}
+        </Text>
+        <Text style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
+          {getDayDate(stickyDay, selectedWeek.week_start)}
+        </Text>
+      </View>
+    )}
 
     {/* Подтверждение после pull-to-refresh — гаснет само, ничего нажимать не нужно */}
     {refreshToast && (
@@ -1467,15 +1621,26 @@ const s = StyleSheet.create({
   roomChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
   roomChipText: { fontSize: 13, fontWeight: '700' },
 
-  dayBar: { marginBottom: 12 },
+  dayBar: { marginTop: 8, marginBottom: 12 },
   dayBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginRight: 8, borderWidth: 1, alignItems: 'center' },
   dayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
   dayBtnText: { fontSize: 12, fontWeight: '500' },
+  dayBtnDate: { fontSize: 13, fontWeight: '700', marginTop: 1 },
+  dayTodayTag: {
+    position: 'absolute', top: -8, alignSelf: 'center',
+    fontSize: 8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3,
+    paddingHorizontal: 4,
+  },
 
   dayHeader: {
     fontSize: 12, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 0.5,
     marginBottom: 8, marginTop: 4,
+  },
+  stickyDayBar: {
+    position: 'absolute', left: 0, right: 0,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
+    borderBottomWidth: 1,
   },
 
   emptyState: { alignItems: 'center', paddingVertical: 48 },

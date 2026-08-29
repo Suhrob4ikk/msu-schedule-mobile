@@ -57,32 +57,73 @@ export default function TeachersScreen() {
   useEffect(() => { selectedRef.current = selected; }, [selected]);
   useEffect(() => { selectedWeekRef.current = selectedWeek; }, [selectedWeek]);
 
+  /** Выбор недели по умолчанию — текущая, иначе последняя. */
+  const pickWeek = (ws: WeekOption[], weekStart?: string): WeekOption | null => {
+    if (!ws.length) return null;
+    const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
+    return (weekStart && ws.find(w => w.week_start === weekStart)) || cur;
+  };
+
+  /**
+   * Рисуем из офлайн-кэша до всякой сети. Ключи те же, что заполняет полная
+   * синхронизация (syncService.ts). Возвращает неделю, которую нарисовали.
+   */
+  const paintListFromCache = async (weekStart?: string): Promise<WeekOption | null> => {
+    try {
+      const cachedWks = await AsyncStorage.getItem('cache_weeks_all');
+      if (!cachedWks) return null;
+      const ws: WeekOption[] = JSON.parse(cachedWks);
+      const week = pickWeek(ws, weekStart);
+      if (!week) return null;
+      const cachedTs = await AsyncStorage.getItem(`cache_teachers_${week.week_start}`);
+      if (!cachedTs) return null;
+      setWeeks(ws);
+      setSelectedWeek(week);
+      setTeachers(JSON.parse(cachedTs));
+      return week;
+    } catch {
+      return null;
+    }
+  };
+
   // Список преподавателей запрашиваем по неделе — как в веб-версии, чтобы списки
   // совпадали (сервер возвращает только тех, у кого есть пары в эту неделю).
   const loadTeachersList = async (weekStart?: string, silent = false) => {
-    if (!silent) setLoadingList(true);
+    // 1. Кэш — мгновенно.
+    let cachedWeek: WeekOption | null = null;
+    if (!silent) {
+      cachedWeek = await paintListFromCache(weekStart);
+      setLoadingList(!cachedWeek);
+    }
     try {
-      const ws = await api.getWeeksAll();
+      // 2. Свежее. Неделя уже известна из кэша — значит, список преподавателей
+      //    можно спросить параллельно со списком недель, а не после него.
+      const weeksPromise = api.getWeeksAll();
+      const fastTeachers = cachedWeek ? api.getTeachers(cachedWeek.week_start) : null;
+      fastTeachers?.catch(() => null);   // страховка от unhandled rejection
+
+      const ws = await weeksPromise;
       setWeeks(ws);
-      AsyncStorage.setItem('cache_weeks_all', JSON.stringify(ws));
-      const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
-      const week = (weekStart && ws.find(w => w.week_start === weekStart)) || cur;
+      AsyncStorage.setItem('cache_weeks_all', JSON.stringify(ws)).catch(() => null);
+      const week = pickWeek(ws, weekStart);
       if (week) setSelectedWeek(week);
-      const ts = await api.getTeachers(week?.week_start);
+
+      const ts = await (fastTeachers && week?.week_start === cachedWeek?.week_start
+        ? fastTeachers
+        : api.getTeachers(week?.week_start));
       setTeachers(ts);
-      if (week) AsyncStorage.setItem(`cache_teachers_${week.week_start}`, JSON.stringify(ts));
+      if (week) AsyncStorage.setItem(`cache_teachers_${week.week_start}`, JSON.stringify(ts)).catch(() => null);
       setError(null);
       setIsOffline(false);
     } catch {
-      if (silent) return; // keep whatever is shown
+      if (silent || cachedWeek) { setIsOffline(true); return; } // на экране уже есть данные
       // Fallback to cache
       const cachedWks = await AsyncStorage.getItem('cache_weeks_all');
       let week: WeekOption | null = selectedWeek;
       if (cachedWks) {
         const ws: WeekOption[] = JSON.parse(cachedWks);
         setWeeks(ws);
-        const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
-        week = (weekStart && ws.find(w => w.week_start === weekStart)) || cur;
+        week = pickWeek(ws, weekStart);
         if (week) setSelectedWeek(week);
       }
       const cachedTs = week ? await AsyncStorage.getItem(`cache_teachers_${week.week_start}`) : null;
@@ -128,23 +169,30 @@ export default function TeachersScreen() {
   }, [onlineAt]);
 
   const loadTeacher = async (t: Teacher, week: WeekOption | null = selectedWeek, silent = false) => {
-    if (!silent) { setSelected(t); setView('schedule'); setLoading(true); }
+    if (!silent) { setSelected(t); setView('schedule'); }
     setError(null);
     const cacheKey = `cache_teacher_${t.id}_${week?.week_start ?? 'default'}`;
+
+    // Кэш сначала: расписание преподавателя за нужную неделю уже лежит на
+    // устройстве после полной синхронизации — открывать экран под спиннером
+    // ради данных, которые есть, незачем.
+    let fromCache = false;
+    if (!silent) {
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached) { setLessons(JSON.parse(cached)); fromCache = true; }
+      } catch { /* битый кэш — подождём сервер */ }
+      setLoading(!fromCache);
+    }
+
     try {
       const data = await api.getTeacherSchedule(t.id, week?.week_start);
       setLessons(data);
       setIsOffline(false);
       await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
     } catch {
-      if (silent) return;
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) {
-        setLessons(JSON.parse(cached));
-        setIsOffline(true);
-      } else {
-        setError('Не удалось загрузить расписание');
-      }
+      if (silent || fromCache) { setIsOffline(true); return; }
+      setError('Не удалось загрузить расписание');
     } finally {
       setLoading(false);
     }

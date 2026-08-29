@@ -58,40 +58,61 @@ export default function RoomsScreen() {
   const [weeks, setWeeks] = useState<WeekOption[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<WeekOption | null>(null);
 
+  const applyWeeks = (ws: WeekOption[]) => {
+    if (!ws.length) return;
+    setWeeks(ws);
+    const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
+    if (cur) setSelectedWeek(cur);
+  };
+
+  // Список недель — сначала с диска, потом с сервера. Экран не может показать
+  // ни одной аудитории, пока не выбрана неделя, поэтому ждать здесь сеть
+  // значило держать пользователя на пустом экране всё время ответа.
   useEffect(() => {
-    api.getWeeksAll()
-      .then(ws => {
-        setWeeks(ws);
-        AsyncStorage.setItem('cache_weeks_all', JSON.stringify(ws));
-        const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
-        if (cur) setSelectedWeek(cur);
-      })
-      .catch(async () => {
+    let cancelled = false;
+    (async () => {
+      try {
         const cached = await AsyncStorage.getItem('cache_weeks_all');
-        if (cached) {
-          const ws: WeekOption[] = JSON.parse(cached);
-          setWeeks(ws);
-          const cur = ws.find(w => isCurrentWeek(w.week_start)) ?? ws.find(w => w.is_latest) ?? ws[0];
-          if (cur) setSelectedWeek(cur);
-        }
-      });
+        if (cached && !cancelled) applyWeeks(JSON.parse(cached));
+      } catch { /* битый кэш — подождём сервер */ }
+      try {
+        const ws = await api.getWeeksAll();
+        if (cancelled) return;
+        applyWeeks(ws);
+        AsyncStorage.setItem('cache_weeks_all', JSON.stringify(ws)).catch(() => null);
+      } catch { /* офлайн — остаёмся на кэше */ }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const load = async (silent = false, week: WeekOption | null = selectedWeek) => {
-    if (!silent) setLoading(true);
     setError(null);
     setIsOffline(false);
     const cacheKey = `cache_rooms_${day}_${pair}_${week?.week_start}`;
+
+    // Сначала кэш. Полная синхронизация складывает сюда все комбинации
+    // день × пара × неделя, поэтому переключение дня и пары становится
+    // мгновенным вместо запроса на каждый тап.
+    let fromCache = false;
+    if (!silent) {
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached) { setRooms(JSON.parse(cached)); fromCache = true; }
+      } catch { /* битый кэш — подождём сервер */ }
+      setLoading(!fromCache);
+    }
+
     try {
       const data = await api.getFreeRooms(day, pair, week?.week_start);
       setRooms(data);
       await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
     } catch {
+      if (fromCache) { setIsOffline(true); return; }
       const cached = await AsyncStorage.getItem(cacheKey);
       if (cached) {
         setRooms(JSON.parse(cached));
         setIsOffline(true);
-      } else {
+      } else if (!silent || rooms.length === 0) {
         setError('Нет данных для этой комбинации в офлайн-режиме');
       }
     } finally {

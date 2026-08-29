@@ -1,23 +1,48 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { performFullSync, getLastSyncTime, shouldResync, formatSyncTime } from './syncService';
 import { clearApiCache, API_BASE } from './api';
 
-const API_PING = `${API_BASE}/schedule/groups`;
-const PING_TIMEOUT_MS = 4000;
-const POLL_INTERVAL_MS = 15_000;
+/**
+ * Проверка сети.
+ *
+ * Раньше здесь раз в 15 секунд дёргался /api/schedule/groups — полный список
+ * всех групп, 240 запросов в час, только чтобы понять «есть ли интернет».
+ * Теперь состояние приходит событием от Android: система и так знает, есть ли
+ * у сети выход в интернет (NET_CAPABILITY_VALIDATED), и NetInfo просто
+ * пересказывает её ответ. Собственных запросов — ноль.
+ */
+const HEALTH_URL = API_BASE.replace(/\/api\/?$/, '') + '/health';
 
-async function ping(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
-    const res = await fetch(API_PING, { signal: controller.signal, cache: 'no-store' });
-    clearTimeout(id);
-    return res.ok;
-  } catch {
-    return false;
-  }
+NetInfo.configure({
+  // Ответ от системы. Пока он есть, запасная проверка ниже не запускается вовсе.
+  useNativeReachability: true,
+  // Запасной путь — если система вдруг не дала ответа. Тогда лучше спросить
+  // наш же бэкенд, чем чужой адрес, который может быть недоступен.
+  reachabilityUrl: HEALTH_URL,
+  reachabilityMethod: 'HEAD',
+  reachabilityTest: async (response: Response) => response.status < 400,
+  reachabilityLongTimeout: 5 * 60_000,   // всё хорошо — перепроверяем раз в 5 минут
+  reachabilityShortTimeout: 30_000,      // офлайн — раз в полминуты
+  // Render на бесплатном тарифе просыпается долго; короткий тайм-аут
+  // объявил бы спящий сервер мёртвым.
+  reachabilityRequestTimeout: 20_000,
+});
+
+/** true, пока система не сказала обратного: ложный баннер «офлайн» хуже молчания. */
+function isOnlineFrom(state: NetInfoState): boolean {
+  if (state.isConnected === false) return false;
+  // null = «ещё не проверяли». Считаем, что связь есть.
+  return state.isInternetReachable !== false;
 }
+
+/**
+ * Полную синхронизацию не запускаем сразу при старте: в эти же секунды
+ * первый экран грузит своё расписание, и тяжёлый bulk-ответ отбирал бы у него
+ * канал (а на спящем Render — ещё и место в очереди). Пара секунд форы.
+ */
+const SYNC_START_DELAY_MS = 3_000;
 
 type SyncState = {
   lastSyncTime: Date | null;
@@ -54,60 +79,92 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const isOnlineRef = useRef(true);
   const syncStarted = useRef(false);
+  const isSyncingRef = useRef(false);
+  useEffect(() => { isSyncingRef.current = isSyncing; }, [isSyncing]);
 
-  const checkOnline = useCallback(async () => {
-    const online = await ping();
+  const applyState = useCallback((online: boolean) => {
     const wasOnline = isOnlineRef.current;
+    if (wasOnline === online) return;
     isOnlineRef.current = online;
     setIsOnline(online);
-    if (!wasOnline && online) {
-      // Just went online — signal screens to re-fetch
-      setOnlineAt(Date.now());
-    }
+    // Появился интернет — сигнал экранам обновиться.
+    if (!wasOnline && online) setOnlineAt(Date.now());
   }, []);
 
-  // Poll every 15 seconds
+  // Подписка на события сети. Ни одного запроса от нас — состояние
+  // присылает система, а редкую проверку /health делает сам NetInfo.
   useEffect(() => {
-    checkOnline(); // initial check
-    const id = setInterval(checkOnline, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [checkOnline]);
+    const unsubscribe = NetInfo.addEventListener(state => applyState(isOnlineFrom(state)));
+    NetInfo.fetch().then(state => applyState(isOnlineFrom(state))).catch(() => null);
+    return () => unsubscribe();
+  }, [applyState]);
 
-  // Also check when app comes to foreground
+  // При возврате в приложение состояние сети могло измениться, пока оно спало.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active') checkOnline();
+      if (state !== 'active') return;
+      NetInfo.refresh().then(s => applyState(isOnlineFrom(s))).catch(() => null);
     });
     return () => sub.remove();
-  }, [checkOnline]);
+  }, [applyState]);
 
-  // Full sync on start if needed
+  // Полная синхронизация при старте — если пора и если есть сеть.
   useEffect(() => {
     if (syncStarted.current) return;
     syncStarted.current = true;
 
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
     (async () => {
       const last = await getLastSyncTime();
+      if (cancelled) return;
       setLastSyncTime(last);
       if (!shouldResync(last)) return;
 
+      timer = setTimeout(async () => {
+        // Офлайн — не тратим 20 секунд на заведомо мёртвый запрос:
+        // синхронизация всё равно запустится, как только сеть вернётся.
+        if (cancelled || !isOnlineRef.current) return;
+        setIsSyncing(true);
+        try {
+          await performFullSync(msg => setSyncProgress(msg));
+          if (!cancelled) setLastSyncTime(new Date());
+        } catch {
+          // Сеть отвалилась посреди синхронизации — данные на устройстве целы
+        } finally {
+          if (!cancelled) { setIsSyncing(false); setSyncProgress(''); }
+        }
+      }, SYNC_START_DELAY_MS);
+    })();
+
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, []);
+
+  // Сеть вернулась, а синхронизация так и не прошла (были офлайн при старте) —
+  // догоняем. Иначе офлайн-кэш обновился бы только при следующем запуске.
+  useEffect(() => {
+    if (onlineAt === 0 || isSyncingRef.current) return;
+    if (!shouldResync(lastSyncTime)) return;
+    let cancelled = false;
+    (async () => {
       setIsSyncing(true);
       try {
         await performFullSync(msg => setSyncProgress(msg));
-        const now = new Date();
-        setLastSyncTime(now);
+        if (!cancelled) setLastSyncTime(new Date());
       } catch {
-        // Offline at startup — that's fine
+        // Связь опять пропала — попробуем в следующий раз
       } finally {
-        setIsSyncing(false);
-        setSyncProgress('');
+        if (!cancelled) { setIsSyncing(false); setSyncProgress(''); }
       }
     })();
-  }, []);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlineAt]);
 
   // Ручная синхронизация — вызывается кнопкой в профиле.
   const triggerSync = useCallback(async (): Promise<boolean> => {
-    if (syncStarted.current && isSyncing) return false;
+    if (isSyncingRef.current) return false;
     setIsSyncing(true);
     setSyncProgress('');
     try {
@@ -122,7 +179,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setIsSyncing(false);
       setSyncProgress('');
     }
-  }, [isSyncing]);
+  }, []);
 
   const offlineBannerText = lastSyncTime
     ? `Офлайн · данные от ${formatSyncTime(lastSyncTime)}`
