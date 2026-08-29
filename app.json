@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0d9488"
+      "backgroundColor": "#0e9b72"
     },
     "ios": {
       "supportsTablet": true
@@ -19,7 +19,7 @@
       "package": "tj.msu.schedule",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#0d9488"
+        "backgroundColor": "#0e9b72"
       },
       "predictiveBackGestureEnabled": false
     },

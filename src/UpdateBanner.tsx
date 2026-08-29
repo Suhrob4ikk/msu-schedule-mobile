@@ -7,8 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { api } from './api';
-import { useTheme } from './theme';
+import { useTheme, useThemeMode } from './theme';
 
 const DISMISSED_KEY = 'update_dismissed_version';
 
@@ -30,6 +31,7 @@ function isNewer(a: string, b: string): boolean {
  */
 export default function UpdateBanner() {
   const C = useTheme();
+  const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState<
     { version: string; download_url: string | null; notes: string; missed_count: number } | null
@@ -76,7 +78,19 @@ export default function UpdateBanner() {
 
   return (
     <View style={[s.wrap, { bottom }]} pointerEvents="box-none">
-      <View style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
+      {/* Стекло вместо сплошной заливки — карточка «плавает» над расписанием,
+          а не просто перекрывает его. intensity умеренная (не максимум):
+          на Android BlurView софтверный и на слабых устройствах может
+          подтормаживать заметнее, чем на iOS, где он GPU-ускорен нативно.
+          Если после проверки на реальном слабом Android будет лагать —
+          самая быстрая правка: заменить <BlurView ...> на обычный <View
+          style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
+          (без intensity/tint) — визуально почти то же самое, но без блюра. */}
+      <BlurView
+        intensity={50}
+        tint={mode === 'dark' ? 'dark' : 'light'}
+        style={[s.card, { borderColor: C.border, backgroundColor: `${C.card}cc`, overflow: 'hidden' }]}
+      >
         <View style={[s.iconBox, { backgroundColor: C.primary }]}>
           <Ionicons name="arrow-up" size={15} color="#fff" />
         </View>
@@ -118,7 +132,7 @@ export default function UpdateBanner() {
         >
           <Ionicons name="close" size={16} color={C.muted} />
         </TouchableOpacity>
-      </View>
+      </BlurView>
 
       {/* Что нового: заметки всех пропущенных релизов, не только последнего */}
       <Modal

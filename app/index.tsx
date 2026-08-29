@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import {
@@ -1010,7 +1011,7 @@ export default function ScheduleScreen() {
         />
       }
     >
-      <StatusBar barStyle="light-content" backgroundColor="#0d9488" />
+      <StatusBar barStyle="light-content" backgroundColor={C.primary} />
 
       {/* Баннер офлайн-режима */}
       {isOffline && (
@@ -1149,7 +1150,12 @@ export default function ScheduleScreen() {
       {selectedGroup && !loading && (currentItem || nextItem) && (
         <View style={s.nowRow}>
           {currentItem && (
-            <View style={[s.nowCard, { backgroundColor: C.greenBg, borderLeftColor: C.green }]}>
+            <LinearGradient
+              colors={[C.greenBg, C.card]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[s.nowCard, { borderLeftColor: C.green }]}
+            >
               <View style={s.nowCardTop}>
                 <View style={[s.nowDot, { backgroundColor: C.green }]} />
                 <Text style={[s.nowTitle, { color: C.fg }]}>ИДЁТ СЕЙЧАС</Text>
@@ -1182,7 +1188,7 @@ export default function ScheduleScreen() {
                   </View>
                 );
               })()}
-            </View>
+            </LinearGradient>
           )}
           {nextItem && (() => {
             // Прогресс перемены — тает по мере приближения к следующей паре
@@ -1196,7 +1202,12 @@ export default function ScheduleScreen() {
               breakProgress = Math.min(1, Math.max(0, leftMs / totalMs));
             }
             return (
-              <View style={[s.nowCard, { backgroundColor: C.blueBg, borderLeftColor: C.primary }]}>
+              <LinearGradient
+                colors={[C.blueBg, C.card]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[s.nowCard, { borderLeftColor: C.primary }]}
+              >
                 <View style={s.nowCardTop}>
                   {/* Во время перемены важнее сказать «идёт перемена», чем «следующая» */}
                   <Text style={[s.nowTitle, { color: C.fg }]}>
@@ -1239,7 +1250,7 @@ export default function ScheduleScreen() {
                     {nextItem.teacher ? ` · ${nextItem.teacher}` : ''}
                   </Text>
                 </View>
-              </View>
+              </LinearGradient>
             );
           })()}
         </View>

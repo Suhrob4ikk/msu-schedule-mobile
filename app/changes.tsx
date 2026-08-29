@@ -56,6 +56,8 @@ export default function ChangesScreen() {
     try {
       const data = await api.getChanges(groupId ?? undefined);
       setChanges(data);
+      // Отмечаем момент просмотра — по нему в кабинете гаснет бейдж «новое».
+      if (data[0]?.detected_at) await AsyncStorage.setItem('changes_last_seen', data[0].detected_at);
     } catch {
       setError('Не удалось загрузить изменения');
     } finally {

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share,
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share, Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -323,10 +323,44 @@ function SkipStats() {
   );
 }
 
+/** Точка «есть новые изменения» — не просто появляется, а слегка
+ *  выскакивает (пружина), чтобы новый бейдж не потерялся среди текста. */
+function NewChangesDot() {
+  const scale = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 300 }).start();
+  }, [scale]);
+  return (
+    <Animated.View
+      style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#f43f5e', marginLeft: 6, transform: [{ scale }] }}
+    />
+  );
+}
+
+/** Сравнивает время последнего изменения (своей группы) с локальной меткой
+ *  «последний раз смотрел» — та же логика, что и в шапке веба. */
+function useHasNewChanges(): boolean {
+  const [hasNew, setHasNew] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const gid = await AsyncStorage.getItem('selected_group_id');
+        const changes = await api.getChanges(gid ? Number(gid) : undefined);
+        const latest = changes[0]?.detected_at;
+        if (!latest) return;
+        const lastSeen = await AsyncStorage.getItem('changes_last_seen');
+        if (!lastSeen || new Date(latest) > new Date(lastSeen)) setHasNew(true);
+      } catch {}
+    })();
+  }, []);
+  return hasNew;
+}
+
 export default function ProfileScreen() {
   const C = useTheme();
   const { mode, pref, choose } = useThemeMode();
   const { isSyncing, syncProgress, lastSyncTime, triggerSync } = useSyncStatus();
+  const hasNewChanges = useHasNewChanges();
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [name, setName] = useState('');
@@ -573,6 +607,7 @@ export default function ProfileScreen() {
         >
           <Ionicons name="time-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
           <Text style={[s.changeBtnText, { color: C.muted }]}>История изменений расписания</Text>
+          {hasNewChanges && <NewChangesDot />}
         </TouchableOpacity>
       </View>
 
@@ -624,7 +659,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.11</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.12</Text>
       </View>
     </ScrollView>
   );

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, AppState, AppStateStatus } from 'react-native';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, AppState, AppStateStatus, TouchableOpacity, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,21 +7,96 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingScreen from './onboarding';
 import { ThemeProvider, useTheme } from '../src/theme';
 import { SyncProvider, useSyncStatus } from '../src/SyncContext';
+import { formatSyncTime } from '../src/syncService';
 import { setupNotifications } from '../src/examNotifications';
 import { refreshLiveLesson } from '../src/liveLesson';
 import UpdateBanner from '../src/UpdateBanner';
 
-function SyncBanner() {
-  const { isSyncing, syncProgress } = useSyncStatus();
+/**
+ * Точка статуса синхронизации у шапки — вместо баннера, который раньше
+ * висел на весь экран, пока идёт синхронизация (а офлайн-режим — штатный,
+ * ожидаемый сценарий, и не должен выглядеть как непрерывное предупреждение).
+ * Полный текст — по тапу на точку (раскрывается и сама гаснет через время)
+ * либо коротким тостом САМ, когда состояние реально поменялось.
+ */
+function SyncStatusIndicator() {
+  const { isSyncing, syncProgress, isOnline, lastSyncTime, offlineBannerText } = useSyncStatus();
   const C = useTheme();
   const insets = useSafeAreaInsets();
-  if (!isSyncing) return null;
+
+  const [bubbleText, setBubbleText] = useState<string | null>(null);
+  const bubbleOpacity = useRef(new Animated.Value(0)).current;
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const closeBubble = useCallback(() => {
+    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+    Animated.timing(bubbleOpacity, { toValue: 0, duration: 220, useNativeDriver: true })
+      .start(({ finished }) => { if (finished) setBubbleText(null); });
+  }, [bubbleOpacity]);
+
+  const openBubble = useCallback((text: string, autoHide: boolean) => {
+    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+    setBubbleText(text);
+    Animated.timing(bubbleOpacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    if (autoHide) hideTimer.current = setTimeout(closeBubble, 2500);
+  }, [bubbleOpacity, closeBubble]);
+
+  // Тост показываем только на СМЕНЕ состояния, а не на всё время синхронизации/офлайна.
+  const prevSyncing = useRef(isSyncing);
+  useEffect(() => {
+    if (isSyncing === prevSyncing.current) return;
+    prevSyncing.current = isSyncing;
+    openBubble(isSyncing ? (syncProgress || 'Синхронизация...') : '✓ Синхронизировано', true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSyncing]);
+
+  const prevOnline = useRef(isOnline);
+  useEffect(() => {
+    if (isOnline === prevOnline.current) return;
+    prevOnline.current = isOnline;
+    openBubble(isOnline ? '✓ Снова онлайн' : offlineBannerText, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
+
+  // Пока синхронизация идёт, текст шага меняется («Загружаем...» → «Сохраняем...») —
+  // если тост уже открыт по этой же синхронизации, обновляем текст на лету.
+  useEffect(() => {
+    if (isSyncing && bubbleText !== null) setBubbleText(syncProgress || 'Синхронизация...');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncProgress]);
+
+  const color = isSyncing ? '#f59e0b' : !isOnline ? '#ef4444' : '#22c55e';
+  const statusLabel = isSyncing
+    ? (syncProgress || 'Синхронизация...')
+    : !isOnline
+      ? offlineBannerText
+      : lastSyncTime
+        ? `Синхронизировано · ${formatSyncTime(lastSyncTime)}`
+        : 'Ещё не синхронизировано';
+
   return (
-    // paddingTop с системным отступом — иначе текст залезает под часы и батарею
-    <View style={[styles.syncBanner, { backgroundColor: C.primary, paddingTop: insets.top + 6 }]}>
-      <Text style={styles.syncText}>
-        {syncProgress || 'Синхронизация...'}
-      </Text>
+    <View
+      pointerEvents="box-none"
+      style={{ position: 'absolute', top: insets.top + 16, right: 14, zIndex: 50, alignItems: 'flex-end' }}
+    >
+      <TouchableOpacity
+        onPress={() => (bubbleText ? closeBubble() : openBubble(statusLabel, false))}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel={`Статус синхронизации: ${statusLabel}`}
+        style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' }}
+      />
+      {bubbleText != null && (
+        <Animated.View
+          style={{
+            opacity: bubbleOpacity, marginTop: 6, maxWidth: 220,
+            backgroundColor: C.card, borderColor: C.border, borderWidth: 1,
+            borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7,
+          }}
+        >
+          <Text style={{ color: C.fg, fontSize: 11.5, fontWeight: '600' }}>{bubbleText}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -57,7 +132,7 @@ function AppTabs() {
 
   return (
     <View style={{ flex: 1 }}>
-      <SyncBanner />
+      <SyncStatusIndicator />
       <Tabs
         screenOptions={{
           animation: 'fade',
@@ -69,7 +144,7 @@ function AppTabs() {
             height: 60,
             paddingBottom: 8,
           },
-          headerStyle: { backgroundColor: '#0d9488' },
+          headerStyle: { backgroundColor: C.primary },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: '700' },
           tabBarLabelStyle: { fontSize: 10 },
@@ -138,16 +213,3 @@ export default function Layout() {
     </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  syncBanner: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-  },
-  syncText: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-});
