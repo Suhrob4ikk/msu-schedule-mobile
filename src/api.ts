@@ -19,6 +19,39 @@ const _inflight = new Map<string, Promise<unknown>>();
 // фикс сделан на сайте, см. frontend/src/lib/api.ts).
 const FETCH_TIMEOUT_MS = 15_000;
 
+// Вторая попытка, если сервер не ответил за 15 секунд.
+//
+// Пятнадцати секунд не хватает в двух случаях: Render на бесплатном тарифе
+// просыпается до 50 секунд, и мобильный интернет иногда падает до пары
+// килобайт в секунду. В обоих сдаваться рано — запрос бы дошёл, дай ему
+// время. А сдавались мы заметно: экран рисовал оранжевую плашку «Офлайн»
+// при живой сети, потому что данные брались из кэша.
+//
+// Отличать «медленно» от «нет сети» просто: без сети fetch отваливается
+// сразу и с другой ошибкой, а тайм-аут — это всегда AbortError. Поэтому
+// повторяем только его и только один раз.
+// Те же числа на сайте (frontend/src/lib/api.ts) — менять надо в обоих.
+const COLD_START_TIMEOUT_MS = 40_000;
+
+// По имени, а не по классу: abort прилетает то обычным Error, то полифилльным
+// DOMException — в зависимости от версии RN. Проверка `instanceof Error`
+// молча выключила бы повтор на половине сборок.
+const isTimeout = (e: unknown) =>
+  typeof e === 'object' && e !== null && (e as { name?: string }).name === 'AbortError';
+
+async function rawFetch<T>(path: string, timeout: number): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 async function get<T>(path: string, ttl = 180_000): Promise<T> {
   const hit = _cache.get(path);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
@@ -27,21 +60,18 @@ async function get<T>(path: string, ttl = 180_000): Promise<T> {
   if (running) return running as Promise<T>;
 
   const p = (async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    let res: Response;
+    let data: T;
     try {
-      res = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
+      data = await rawFetch<T>(path, FETCH_TIMEOUT_MS);
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') {
-        throw new Error('Сервер не отвечает — проверьте соединение');
+      if (!isTimeout(e)) throw e;
+      try {
+        data = await rawFetch<T>(path, COLD_START_TIMEOUT_MS);
+      } catch (e2) {
+        if (isTimeout(e2)) throw new Error('Сервер не отвечает — проверьте соединение');
+        throw e2;
       }
-      throw e;
-    } finally {
-      clearTimeout(timer);
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data: T = await res.json();
     // ttl=0 — ответ, который никогда не переиспользуется (bulk-sync, несколько
     // мегабайт). Держать его в памяти всё время работы приложения незачем.
     if (ttl > 0) _cache.set(path, { data, ts: Date.now() });
