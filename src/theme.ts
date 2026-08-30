@@ -26,7 +26,10 @@ export const lightColors = {
   // акценты типов занятий (левая полоса карточки)
   examAccent: '#d43a40',
   practiceAccent: '#5650d6',
-  lectureAccent: '#0e9b72',
+  // Раньше был тот же зелёный, что у primary — полоса не читалась как
+  // «это лекция», сливаясь с обычным акцентом интерфейса. Синий совпадает
+  // с web (.lesson-accent[data-kind="lecture"] в globals.css).
+  lectureAccent: '#2563eb',
 };
 
 export const darkColors = {
@@ -50,7 +53,7 @@ export const darkColors = {
   red: '#ff8a8e',
   examAccent: '#ff6166',
   practiceAccent: '#8c87f3',
-  lectureAccent: '#2dd4a7',
+  lectureAccent: '#60a5fa',
 };
 
 export type Colors = typeof lightColors;

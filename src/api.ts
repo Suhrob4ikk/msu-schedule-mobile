@@ -145,6 +145,28 @@ export function gapBetween(prevPair: string, nextPair: string): { pairs: string[
 }
 
 /**
+ * Утренний пробел, если день начинается не с первой пары — например, среда
+ * сразу со второй. Без этого первая карточка дня выглядела как обычная
+ * пара номер один, и было непонятно, что к началу первой пары ехать не нужно.
+ * Точка отсчёта — начало дня (I пара), а не предыдущее занятие, которого в
+ * этот день просто нет. Дублируется на вебе (lib/api.ts).
+ */
+export function leadingGap(firstPair: string): { pairs: string[]; minutes: number } | null {
+  const j = PAIR_NUMBERS.indexOf(firstPair);
+  if (j <= 0) return null;
+
+  const dayStart = PAIR_TIMES[PAIR_NUMBERS[0]]?.[0];
+  const start = PAIR_TIMES[firstPair]?.[0];
+  if (!dayStart || !start) return null;
+
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  return { pairs: PAIR_NUMBERS.slice(0, j), minutes: toMin(start) - toMin(dayStart) };
+}
+
+/**
  * Какая пара идёт прямо сейчас — для кнопки «свободно сейчас».
  *
  * Если пара идёт — возвращаем её; если сейчас перемена или утро — ближайшую

@@ -12,7 +12,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import {
   api, invalidateApiCache, Group, Lesson, TodayItem, WeekInfo, Stats,
-  DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, humanDuration, shortGroupName,
+  DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, leadingGap, humanDuration, shortGroupName,
 } from '../src/api';
 import ScheduleShareCard from '../src/ScheduleShareCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -42,11 +42,19 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // Порядок листания свайпом/кнопками: «вся неделя» → пн → вт → …
 const DAY_SWIPE_ORDER = ['all', ...DAYS_ORDER];
 
+// msu.tj присылает сокращение "ЛК", а не полное слово "ЛЕКЦИЯ" — раньше
+// оно не входило в карту, и лекция получала цвет по умолчанию (тот же
+// синий, что и вообще любой нераспознанный тип). Прописано явно, тем же
+// синим, что теперь на вебе (lesson-tag-lecture в globals.css) — раньше
+// был зелёный, тот же, что у активной кнопки, и полоса не читалась как
+// «это именно лекция».
 const TYPE_COLORS: Record<string, string> = {
-  ЗАЧЕТ: '#d43a40', ЭКЗАМЕН: '#d43a40', ПРАКТИКА: '#5650d6', ПЗ: '#5650d6', ЛЕКЦИЯ: '#0e9b72',
+  ЗАЧЕТ: '#d43a40', ЭКЗАМЕН: '#d43a40', ПРАКТИКА: '#5650d6', ПЗ: '#5650d6',
+  ЛК: '#2563eb', ЛЕКЦИЯ: '#2563eb',
 };
 const TYPE_LABELS: Record<string, string> = {
-  ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика', ЛЕКЦИЯ: 'Лекция',
+  ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика',
+  ЛК: 'Лекция', ЛЕКЦИЯ: 'Лекция',
 };
 
 function weekRangeStr(weekStart: string): string {
@@ -227,7 +235,11 @@ function DayTimeline({
   return (
     <View>
       {lessons.map((l, i) => {
-        const gap = i > 0 ? gapBetween(lessons[i - 1].pair_number, l.pair_number) : null;
+        // У первой пары дня сравнивать не с чем — leadingGap меряет от
+        // начала дня (I пара), а не от предыдущего занятия.
+        const gap = i > 0
+          ? gapBetween(lessons[i - 1].pair_number, l.pair_number)
+          : leadingGap(l.pair_number);
         const state = states[i];
 
         return (
