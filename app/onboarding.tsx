@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName } from '../src/api';
 import GroupSelector from '../src/GroupSelector';
-import { useTheme } from '../src/theme';
+import { useTheme, useThemeMode } from '../src/theme';
 import { requestNotificationPermission } from '../src/examNotifications';
 import { markGroupChosen } from '../src/features';
 
@@ -15,6 +15,7 @@ type Props = { onDone?: () => void };
 
 export default function OnboardingScreen({ onDone }: Props = {}) {
   const C = useTheme();
+  const { mode } = useThemeMode();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selected, setSelected] = useState<Group | null>(null);
   const [name, setName] = useState('');
@@ -60,7 +61,11 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
     >
-      <StatusBar barStyle={C.bg === '#f5f5f0' ? 'dark-content' : 'light-content'} />
+      {/* У онбординга нет зелёной шапки — строка состояния лежит прямо на фоне
+          экрана, поэтому её цвет зависит от темы. Раньше здесь сравнивался
+          #f5f5f0 — фон из старой палитры, которого давно нет: условие никогда
+          не срабатывало, и в светлой теме часы и батарея были белым по белому. */}
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Лого */}
       <View style={s.logoRow}>

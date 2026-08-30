@@ -24,7 +24,9 @@ export default function RadialProgress({
 }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const p = Math.min(1, Math.max(0, progress));
+  // NaN/Infinity (например, если время пары пришло битым) уронили бы
+  // strokeDashoffset в react-native-svg. Считаем такое нулём.
+  const p = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
   const offset = c * (1 - p);
 
   return (

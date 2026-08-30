@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, StatusBar, RefreshControl, PanResponder, Animated, TextInput,
   KeyboardAvoidingView, Platform, Alert, LayoutAnimation, UIManager, useWindowDimensions,
+  AppState,
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -10,14 +11,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import {
-  api, Group, Lesson, TodayItem, WeekInfo, Stats,
+  api, invalidateApiCache, Group, Lesson, TodayItem, WeekInfo, Stats,
   DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, humanDuration, shortGroupName,
 } from '../src/api';
 import ScheduleShareCard from '../src/ScheduleShareCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
-import { scheduleExamReminders, scheduleLessonReminders } from '../src/examNotifications';
+import {
+  scheduleExamReminders, scheduleLessonReminders,
+  NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY,
+} from '../src/examNotifications';
 import GroupSelector from '../src/GroupSelector';
 import RadialProgress from '../src/RadialProgress';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,7 +29,6 @@ import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
 import { refreshLiveLesson } from '../src/liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson, todayIso } from '../src/studyData';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FeatureHint from '../src/FeatureHint';
 import CourseCheckBanner from '../src/CourseCheckBanner';
 
@@ -643,6 +646,9 @@ const cardStyles = StyleSheet.create({
  * календарю → последнюю. Вынесено из loadSchedule, потому что тот же выбор
  * нужен и при отрисовке из офлайн-кэша, до всякой сети.
  */
+/** Высота липкой плашки дня. Она же — порог, за которым день считается текущим. */
+const STICKY_DAY_H = 46;
+
 function pickWeek(
   wks: WeekInfo[],
   weekId?: number,
@@ -714,6 +720,36 @@ export default function ScheduleScreen() {
   const [myGroupId, setMyGroupId] = useState<number | null>(null);
   const myGroupIdRef = useRef<number | null>(null);
   useEffect(() => { myGroupIdRef.current = myGroupId; }, [myGroupId]);
+
+  /**
+   * Пересобрать локальные напоминания (зачёты + «за 10 минут до пары»).
+   *
+   * Сигнатура нужна, чтобы не гонять пересборку впустую: каждый вызов снимает
+   * все свои уведомления и ставит их заново — это несколько десятков вызовов
+   * в нативный планировщик, а фокус на вкладке случается постоянно.
+   * Пересобираем, только когда реально что-то поменялось: переключатель в
+   * кабинете, неделя или набор пар.
+   */
+  const remindersSigRef = useRef('');
+  const applyReminders = useCallback(async (ls: Lesson[], weekStart: string) => {
+    try {
+      const prefs = await AsyncStorage.multiGet([NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY]);
+      // В подпись входит всё, что попадает в текст уведомления: поменялась
+      // аудитория или предмет — напоминание должно перестроиться, даже если
+      // число пар осталось прежним.
+      const body = ls
+        .map(l => `${l.lesson_date ?? l.day_of_week}${l.pair_number}${l.subject}${l.room?.name ?? ''}${l.lesson_type ?? ''}`)
+        .join('|');
+      const sig = `${prefs[0][1]}|${prefs[1][1]}|${weekStart}|${body}`;
+      if (sig === remindersSigRef.current) return;
+      remindersSigRef.current = sig;
+      await scheduleExamReminders(ls, weekStart);
+      await scheduleLessonReminders(ls, weekStart);
+    } catch {
+      // Разрешения нет или планировщик недоступен — не критично
+      remindersSigRef.current = '';
+    }
+  }, []);
 
   const nextItem = nowItems.find(i => i.is_next);
   const currentItem = nowItems.find(i => i.is_current);
@@ -837,18 +873,19 @@ export default function ScheduleScreen() {
           `cache_schedule_${group.id}_${targetWeek.id}`,
           JSON.stringify(sched)
         );
-        // Напоминания о зачётах и данные виджета — только для МОЕЙ группы
-        if (group.id === myGroupIdRef.current) {
-          scheduleExamReminders(sched, targetWeek.week_start).catch(() => null);
-          scheduleLessonReminders(sched, targetWeek.week_start).catch(() => null);
-          // Виджет и постоянное уведомление показывают «что происходит
-          // сейчас», поэтому кормим их только текущей неделей: иначе
-          // достаточно было заглянуть в архив, чтобы они опустели.
-          if (isCurrentWeek(targetWeek.week_start)) {
-            writeWidgetData(group, sched, targetWeek.week_start)
-              .then(() => refreshLiveLesson())
-              .catch(() => null);
-          }
+        // Напоминания, виджет и данные строки «идёт пара» — только для МОЕЙ
+        // группы и только по ТЕКУЩЕЙ неделе.
+        //
+        // Про неделю важно: напоминания пересобираются «снять все свои и
+        // поставить заново», а из архивной недели ставить нечего — все пары
+        // в прошлом. То есть достаточно было заглянуть в расписание прошлой
+        // недели, чтобы молча остаться без напоминаний о завтрашнем зачёте
+        // и без «за 10 минут до пары» на сегодня.
+        if (group.id === myGroupIdRef.current && isCurrentWeek(targetWeek.week_start)) {
+          applyReminders(sched, targetWeek.week_start);
+          writeWidgetData(group, sched, targetWeek.week_start)
+            .then(() => refreshLiveLesson())
+            .catch(() => null);
         }
       }
       return true;
@@ -885,7 +922,7 @@ export default function ScheduleScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [paintFromCache, preferredWeekStart]);
+  }, [paintFromCache, preferredWeekStart, applyReminders]);
 
   const loadGroup = useCallback(async (group: Group, haptic = true) => {
     if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -946,6 +983,10 @@ export default function ScheduleScreen() {
   const onRefresh = useCallback(() => {
     if (!selectedGroup) return;
     setRefreshing(true);
+    // Сбрасываем кэш в памяти: иначе повторный жест в течение TTL отдавал бы
+    // те же данные и всё равно рисовал галочку «Обновлено». Трогаем только
+    // расписание — проверка версии приложения пусть живёт своей жизнью.
+    invalidateApiCache('/schedule/');
     loadSchedule(selectedGroup, selectedWeek?.id, true).then(ok => { if (ok) showRefreshToast(); });
   }, [selectedGroup, selectedWeek, loadSchedule, showRefreshToast]);
 
@@ -1012,6 +1053,46 @@ export default function ScheduleScreen() {
     }, [groupsLoaded, groups, selectedGroup, loadGroup])
   );
 
+  // Переключатели уведомлений живут в кабинете, а ставятся напоминания здесь,
+  // при загрузке расписания. Но возврат на эту вкладку расписание НЕ
+  // перезагружает (группа та же), и подсказка кабинета «открой расписание,
+  // чтобы напоминания встали» не сбывалась: включил — и ничего не произошло
+  // до перезапуска приложения. Поэтому на фокусе пересобираем напоминания из
+  // уже загруженных пар (applyReminders сам ничего не делает, если ничего
+  // не изменилось).
+  useFocusEffect(
+    useCallback(() => {
+      const g = selectedGroupRef.current;
+      const w = selectedWeekRef.current;
+      const ls = lessonsRef.current;
+      if (!g || !w || !ls.length) return;
+      if (g.id !== myGroupIdRef.current || !isCurrentWeek(w.week_start)) return;
+      applyReminders(ls, w.week_start);
+    }, [applyReminders])
+  );
+
+  // «Идёт сейчас», «перемена» и «на сегодня всё» считает сервер по текущей
+  // минуте, а Android держит приложение в памяти сутками: без обновления
+  // утренняя пара так и висела бы «идёт сейчас» вечером, а отсчёт до конца
+  // замирал на нуле. Обновляем при возврате в приложение и раз в минуту, пока
+  // экран открыт. Ответ моложе минуты берётся из кэша, лишних запросов нет.
+  useFocusEffect(
+    useCallback(() => {
+      const refreshNow = () => {
+        if (AppState.currentState !== 'active') return;
+        const g = selectedGroupRef.current;
+        if (!g) return;
+        api.getNow(g.id).then(setNowItems).catch(() => null);
+      };
+      refreshNow();   // вернулись с другой вкладки — данные могли протухнуть
+      const id = setInterval(refreshNow, 60_000);
+      const sub = AppState.addEventListener('change', st => {
+        if (st === 'active') refreshNow();
+      });
+      return () => { clearInterval(id); sub.remove(); };
+    }, [])
+  );
+
   // Свайп по расписанию (через ref, чтобы не было stale closure).
   // Карточки едут за пальцем в реальном времени (onPanResponderMove), а не
   // только «щёлкают» по отпусканию — так жест ощущается отзывчивым. На
@@ -1059,10 +1140,21 @@ export default function ScheduleScreen() {
 
   // Автопрокрутка к сегодняшнему дню в режиме «Вся неделя»: координаты
   // берём из onLayout блока дня (см. рендер ниже), scrollRef — сам скролл.
+  //
+  // ⚠️ onLayout даёт y ОТНОСИТЕЛЬНО РОДИТЕЛЯ, а блоки дней лежат внутри
+  // Animated.View, который начинается далеко не сверху: над ним карточка
+  // группы, кнопки, статистика и полоса недели. Сравнивать такой y напрямую
+  // с contentOffset.y нельзя — разница в сотни пикселей. Поэтому отдельно
+  // запоминаем, где начинается сам список дней, и складываем.
   const scrollRef = useRef<ScrollView>(null);
   const todayYRef = useRef<number | null>(null);
+  const listYRef = useRef(0);
+  const dayYRef = useRef<Record<string, number>>({});
+  const dayAbsY = (day: string): number | null => {
+    const y = dayYRef.current[day];
+    return y == null ? null : listYRef.current + y;
+  };
   const { height: winHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   useEffect(() => {
     if (selectedDay !== 'all' || loading) return;
     const hasToday = Object.values(byDay).some(dl => dl[0]?.lesson_date === nowTick.date);
@@ -1070,25 +1162,55 @@ export default function ScheduleScreen() {
     // onLayout ещё не успел отработать в этот же тик — ждём кадр.
     const id = setTimeout(() => {
       if (todayYRef.current != null) {
-        scrollRef.current?.scrollTo({ y: Math.max(0, todayYRef.current - 8), animated: true });
+        const y = listYRef.current + todayYRef.current;
+        // Минус высота липкой плашки — иначе заголовок дня уезжает прямо под неё.
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - STICKY_DAY_H - 8), animated: true });
       }
     }, 50);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDay, loading]);
 
+  // Полоса дней: держим активную кнопку на виду. День меняется не только
+  // тапом по кнопке, но и свайпом по расписанию, — а свайп полосу не двигал.
+  // Долистав свайпом до «Вся неделя», человек видел полосу, начинающуюся с
+  // «Пн»: какой режим включён, приходилось выяснять, прокручивая её рукой.
+  const dayBarRef = useRef<ScrollView>(null);
+  const dayBarWRef = useRef(0);           // ширина видимой части полосы
+  const dayBarXRef = useRef(0);           // текущая прокрутка полосы
+  const dayChipRef = useRef<Record<string, { x: number; w: number }>>({});
+  useEffect(() => {
+    // onLayout кнопок мог ещё не отработать в этот же тик — ждём кадр.
+    const id = setTimeout(() => {
+      const chip = dayChipRef.current[selectedDay];
+      const viewW = dayBarWRef.current;
+      if (!chip || !viewW) return;
+      const PAD = 12;                     // чтобы кнопка не липла к краю
+      const left = dayBarXRef.current;
+      const right = left + viewW;
+      let target: number | null = null;
+      if (chip.x - PAD < left) target = chip.x - PAD;
+      else if (chip.x + chip.w + PAD > right) target = chip.x + chip.w + PAD - viewW;
+      // Уже целиком видна — не дёргаем полосу без нужды.
+      if (target == null) return;
+      dayBarRef.current?.scrollTo({ x: Math.max(0, target), animated: true });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [selectedDay]);
+
   // Липкий заголовок дня в режиме «Вся неделя»: у ScrollView в RN нет
   // CSS position:sticky, поэтому сами следим за прокруткой и держим
   // название текущего дня плашкой поверх контента (см. handleScroll).
-  const dayYRef = useRef<Record<string, number>>({});
   const [stickyDay, setStickyDay] = useState<string | null>(null);
   const handleScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
     if (selectedDay !== 'all') return;
     const y = e.nativeEvent.contentOffset.y;
+    // Показываем тот день, чей заголовок уже ушёл под плашку. Пока ни один
+    // не ушёл (мы ещё наверху, над списком) — плашки нет вовсе.
     let current: string | null = null;
     for (const day of Object.keys(byDay)) {
-      const top = dayYRef.current[day];
-      if (top != null && top <= y + 44) current = day;
+      const top = dayAbsY(day);
+      if (top != null && top <= y + STICKY_DAY_H) current = day;
     }
     setStickyDay(prev => (prev === current ? prev : current));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1424,7 +1546,15 @@ export default function ScheduleScreen() {
 
       {/* Фильтр по дню */}
       {selectedGroup && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.dayBar}>
+        <ScrollView
+          ref={dayBarRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.dayBar}
+          onLayout={(e) => { dayBarWRef.current = e.nativeEvent.layout.width; }}
+          onScroll={(e) => { dayBarXRef.current = e.nativeEvent.contentOffset.x; }}
+          scrollEventThrottle={32}
+        >
           {DAY_SWIPE_ORDER.map(day => {
             const active = selectedDay === day;
             const hasLessons = day !== 'all' && lessons.some(l => l.day_of_week === day);
@@ -1433,6 +1563,13 @@ export default function ScheduleScreen() {
             return (
               <TouchableOpacity
                 key={day}
+                // Координата и ширина кнопки — чтобы прокрутить полосу к ней
+                // (см. эффект выше). x здесь уже в системе координат содержимого
+                // ScrollView, то есть ровно то, что ждёт scrollTo.
+                onLayout={(e) => {
+                  const { x, width } = e.nativeEvent.layout;
+                  dayChipRef.current[day] = { x, w: width };
+                }}
                 onPress={() => {
                   if (selectedDay === day) return;
                   Haptics.selectionAsync();
@@ -1484,6 +1621,9 @@ export default function ScheduleScreen() {
       {!loading && (
         <Animated.View
           {...panResponder.panHandlers}
+          // Начало списка дней внутри скролла — база для координат из onLayout
+          // блоков дня (см. dayAbsY выше).
+          onLayout={(e) => { listYRef.current = e.nativeEvent.layout.y; }}
           style={{ transform: [{ translateX: slideX }], minHeight: winHeight * 0.55 }}
         >
           {Object.entries(byDay).map(([day, dayLessons]) => {
@@ -1547,7 +1687,7 @@ export default function ScheduleScreen() {
     {/* Липкий заголовок дня (см. handleScroll) — RN ScrollView не умеет
         CSS position:sticky, поэтому рисуем плашку поверх контента сами. */}
     {stickyDay && selectedWeek && (
-      <View pointerEvents="none" style={[s.stickyDayBar, { top: insets.top, backgroundColor: C.bg, borderBottomColor: C.border }]}>
+      <View pointerEvents="none" style={[s.stickyDayBar, { backgroundColor: C.bg, borderBottomColor: C.border }]}>
         <Text style={[s.dayHeader, { color: C.primary, marginTop: 0, marginBottom: 0 }]}>
           {stickyDay.charAt(0).toUpperCase() + stickyDay.slice(1)}
         </Text>
@@ -1638,8 +1778,9 @@ const s = StyleSheet.create({
     marginBottom: 8, marginTop: 4,
   },
   stickyDayBar: {
-    position: 'absolute', left: 0, right: 0,
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
+    position: 'absolute', top: 0, left: 0, right: 0,
+    height: STICKY_DAY_H, justifyContent: 'center',
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
 

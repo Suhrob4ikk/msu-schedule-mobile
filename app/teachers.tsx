@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  api, Teacher, Lesson, DAYS_ORDER, shortGroupName,
+  api, invalidateApiCache, Teacher, Lesson, DAYS_ORDER, shortGroupName,
   WeekOption, weekLabel, isCurrentWeek,
 } from '../src/api';
 import { useTheme } from '../src/theme';
@@ -206,14 +206,19 @@ export default function TeachersScreen() {
     }
   };
 
+  // Кэш в памяти сбрасываем перед ручным обновлением: иначе жест в течение
+  // TTL (3 минуты) молча отдавал бы те же данные.
   const onRefreshList = () => {
     setRefreshingList(true);
+    invalidateApiCache('/schedule/teachers');
+    invalidateApiCache('/schedule/weeks-all');
     loadTeachersList();
   };
 
   const onRefreshSchedule = async () => {
     if (!selected) return;
     setRefreshingSched(true);
+    invalidateApiCache(`/schedule/teacher/${selected.id}`);
     await loadTeacher(selected, selectedWeek);
     setRefreshingSched(false);
   };

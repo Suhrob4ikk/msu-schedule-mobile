@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek, currentSlot } from '../src/api';
+import { api, invalidateApiCache, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek, currentSlot } from '../src/api';
 import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
 
@@ -53,6 +53,8 @@ export default function RoomsScreen() {
   // «Свободно сейчас» нажали вечером или в воскресенье — показываем пояснение
   const [noSlotHint, setNoSlotHint] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  /** Недель узнать не удалось — работаем без week_start (последняя неделя). */
+  const [weeksUnknown, setWeeksUnknown] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [weeks, setWeeks] = useState<WeekOption[]>([]);
@@ -80,7 +82,15 @@ export default function RoomsScreen() {
         if (cancelled) return;
         applyWeeks(ws);
         AsyncStorage.setItem('cache_weeks_all', JSON.stringify(ws)).catch(() => null);
-      } catch { /* офлайн — остаёмся на кэше */ }
+        // База пуста (её стирает каждый деплой Render, и до первой
+        // синхронизации недель действительно нет) — иначе экран навсегда
+        // остался бы пустым: запрос аудиторий ждёт выбранной недели.
+        if (!ws.length) setWeeksUnknown(true);
+      } catch {
+        // Офлайн: если и на диске недель не было, всё равно спросим
+        // аудитории — бэкенд отдаст последнюю неделю сам.
+        if (!cancelled) setWeeksUnknown(true);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -122,12 +132,12 @@ export default function RoomsScreen() {
   };
 
   useEffect(() => {
-    if (selectedWeek) load();
-  }, [day, pair, selectedWeek]);
+    if (selectedWeek || weeksUnknown) load();
+  }, [day, pair, selectedWeek, weeksUnknown]);
 
   // When internet comes back — silently re-fetch current selection
   useEffect(() => {
-    if (onlineAt === 0 || !selectedWeek) return;
+    if (onlineAt === 0 || (!selectedWeek && !weeksUnknown)) return;
     load(true);
   }, [onlineAt]);
 
@@ -136,7 +146,14 @@ export default function RoomsScreen() {
     load(false, w);
   };
 
-  const onRefresh = () => { setRefreshing(true); load(true); };
+  // Сбрасываем кэш в памяти: без этого повторный жест в течение TTL (3 мин)
+  // молча отдавал бы те же данные, хотя человек тянет экран именно потому,
+  // что подозревает их устаревшими.
+  const onRefresh = () => {
+    setRefreshing(true);
+    invalidateApiCache('/schedule/free-rooms');
+    load(true);
+  };
 
   const free = rooms.filter(r => r.is_free);
   const busy = rooms.filter(r => !r.is_free);

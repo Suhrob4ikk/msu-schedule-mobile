@@ -126,6 +126,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         // Офлайн — не тратим 20 секунд на заведомо мёртвый запрос:
         // синхронизация всё равно запустится, как только сеть вернётся.
         if (cancelled || !isOnlineRef.current) return;
+        // Сеть могла вернуться за эти 3 секунды, и «догоняющая» синхронизация
+        // ниже уже пошла — второй такой же запуск только дважды перезапишет
+        // те же ключи и помигает индикатором.
+        if (isSyncingRef.current) return;
         setIsSyncing(true);
         try {
           await performFullSync(msg => setSyncProgress(msg));
@@ -148,6 +152,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (!shouldResync(lastSyncTime)) return;
     let cancelled = false;
     (async () => {
+      // Ref, а не состояние: между рендерами оно обновляется с задержкой,
+      // а стартовая синхронизация проверяет именно ref.
+      isSyncingRef.current = true;
       setIsSyncing(true);
       try {
         await performFullSync(msg => setSyncProgress(msg));
@@ -155,6 +162,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Связь опять пропала — попробуем в следующий раз
       } finally {
+        isSyncingRef.current = false;
         if (!cancelled) { setIsSyncing(false); setSyncProgress(''); }
       }
     })();

@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, Change, shortGroupName } from '../src/api';
+import { api, invalidateApiCache, Change, shortGroupName } from '../src/api';
 import { useTheme } from '../src/theme';
 
 const CHANGE_TYPE_LABELS: Record<string, string> = {
@@ -107,7 +107,12 @@ export default function ChangesScreen() {
 
   const selectMine = () => { setOnlyMine(true); load(profileGroupId); };
   const selectAll = () => { setOnlyMine(false); load(null); };
-  const onRefresh = () => { setRefreshing(true); load(onlyMine ? profileGroupId : null, true); };
+  // Сбрасываем кэш в памяти: лента изменений — ровно то, ради чего тянут экран.
+  const onRefresh = () => {
+    setRefreshing(true);
+    invalidateApiCache('/schedule/changes');
+    load(onlyMine ? profileGroupId : null, true);
+  };
 
   if (loading) {
     return (

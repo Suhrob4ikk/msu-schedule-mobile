@@ -56,6 +56,20 @@ export function clearApiCache(): void {
   _cache.clear();
 }
 
+/**
+ * Забыть закэшированные ответы по путям, начинающимся с prefix.
+ *
+ * Нужно для «потянуть, чтобы обновить»: без этого повторный жест в течение
+ * TTL (3 минуты, а у «идёт сейчас» — минута) отдавал бы те же данные из
+ * памяти и всё равно показывал бы галочку «Обновлено». Человек тянет экран
+ * именно потому, что подозревает, что данные устарели.
+ */
+export function invalidateApiCache(prefix: string): void {
+  for (const key of [..._cache.keys()]) {
+    if (key.startsWith(prefix)) _cache.delete(key);
+  }
+}
+
 export interface Group {
   id: number;
   name: string;
@@ -273,14 +287,18 @@ export function isCurrentWeek(weekStart: string): boolean {
 }
 
 export function shortGroupName(name: string): string {
-  const n = name.toUpperCase();
+  // Пустое или отсутствующее имя не должно ронять экран — на сайте
+  // (lib/api.ts) стоит такая же защита.
+  const trimmed = name?.trim() ?? '';
+  if (!trimmed) return '';
+  const n = trimmed.toUpperCase();
   if (n.includes('ПРИКЛАДНАЯ МАТЕМАТИКА') || (n.includes('МАТЕМАТИК') && n.includes('ИНФОРМАТИК'))) return 'ПМиИ';
   if (n.includes('ХИМИЯ') && (n.includes('ФИЗИКА') || n.includes('МЕХАНИКА'))) return 'ХФММ';
   if (n.includes('ГЕОЛОГИЯ')) return 'Геология';
   if (n.includes('МУНИЦИПАЛЬН') || (n.includes('ГОСУДАРСТВЕНН') && n.includes('УПРАВЛЕНИ'))) return 'ГМУ';
   if (n.includes('МЕЖДУНАРОДН') && n.includes('ОТНОШЕНИ')) return 'МО';
   if (n.includes('ЛИНГВИСТИК')) return 'Лингвистика';
-  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 }
 
 export const api = {
