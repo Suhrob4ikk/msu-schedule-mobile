@@ -7,7 +7,7 @@ import {
   api, Group, Lesson, DAYS_ORDER, PAIR_TIMES, PAIR_NUMBERS, shortGroupName,
   WeekInfo, isCurrentWeek,
 } from '../src/api';
-import { useTheme } from '../src/theme';
+import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 
 const DAY_SHORT: Record<string, string> = {
@@ -17,6 +17,15 @@ const DAY_SHORT: Record<string, string> = {
 
 const DAYS = DAYS_ORDER.filter(d => d !== 'воскресенье');
 
+// Фиолетовый для «занята у сравниваемой группы» — те же значения, что и
+// .lesson-tag-practice в globals.css на вебе (там это уже проверенный акцент,
+// просто применённый здесь к другому смыслу). Своей мягкой подложки под этот
+// цвет в theme.ts нет, поэтому берём готовую пару light/dark локально.
+const OTHER_BUSY = {
+  light: { bg: '#ecebfb', border: '#d3d0fa' },
+  dark: { bg: 'rgba(140,135,243,0.18)', border: 'rgba(140,135,243,0.32)' },
+};
+
 /** Ключ занятого слота: «вторник|III» */
 const slotKey = (day: string, pair: string) => `${day}|${pair}`;
 
@@ -25,6 +34,8 @@ const busySlots = (lessons: Lesson[]) =>
 
 export default function CompareScreen() {
   const C = useTheme();
+  const { mode } = useThemeMode();
+  const otherBusyColors = OTHER_BUSY[mode];
   const [groups, setGroups] = useState<Group[]>([]);
   const [myGroup, setMyGroup] = useState<Group | null>(null);
   const [otherGroup, setOtherGroup] = useState<Group | null>(null);
@@ -145,14 +156,17 @@ export default function CompareScreen() {
               {PAIR_NUMBERS.map(p => {
                 const mine = mineBusy.has(slotKey(day, p));
                 const theirs = theirsBusy.has(slotKey(day, p));
-                // Три состояния: оба свободны / занята одна / заняты обе —
-                // видно не только «когда можно», но и почему нельзя
+                // Четыре состояния: оба свободны / занята моя / занята
+                // сравниваемая / заняты обе. Раньше «моя» и «их» красились
+                // одним и тем же красным — на телефоне тап-по-квадрату не
+                // покажет подсказку, как hover на вебе, поэтому цвет должен
+                // различаться сам, без наведения.
                 const bg = !mine && !theirs ? C.greenBg
                   : mine && theirs ? C.tag
-                    : C.redBg;
+                    : mine ? C.redBg : otherBusyColors.bg;
                 const border = !mine && !theirs ? C.green
                   : mine && theirs ? C.border
-                    : C.red;
+                    : mine ? C.red : otherBusyColors.border;
                 return (
                   <View key={p} style={s.cellWrap}>
                     <View style={[s.cell, { backgroundColor: bg, borderColor: border }]} />
@@ -169,11 +183,17 @@ export default function CompareScreen() {
             </View>
             <View style={s.legendItem}>
               <View style={[s.legendDot, { backgroundColor: C.redBg, borderColor: C.red }]} />
-              <Text style={[s.legendText, { color: C.muted }]}>пара у одной</Text>
+              <Text style={[s.legendText, { color: C.muted }]}>занята твоя</Text>
+            </View>
+            <View style={s.legendItem}>
+              <View style={[s.legendDot, { backgroundColor: otherBusyColors.bg, borderColor: otherBusyColors.border }]} />
+              <Text style={[s.legendText, { color: C.muted }]}>
+                занята {otherGroup ? `${shortGroupName(otherGroup.name)} · ${otherGroup.year} курс` : 'их'}
+              </Text>
             </View>
             <View style={s.legendItem}>
               <View style={[s.legendDot, { backgroundColor: C.tag, borderColor: C.border }]} />
-              <Text style={[s.legendText, { color: C.muted }]}>пары у обеих</Text>
+              <Text style={[s.legendText, { color: C.muted }]}>заняты обе</Text>
             </View>
           </View>
         </View>
