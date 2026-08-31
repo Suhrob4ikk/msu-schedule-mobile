@@ -25,7 +25,7 @@ const DAYS = DAYS_ORDER.filter(d => d !== 'воскресенье');
 
 export default function RoomsScreen() {
   const C = useTheme();
-  const { offlineBannerText, onlineAt } = useSyncStatus();
+  const { offlineBannerText, onlineAt, isOnline } = useSyncStatus();
   // По умолчанию — сегодняшний день (в воскресенье показываем понедельник)
   const [day, setDay] = useState(() => {
     const jsDay = new Date().getDay();
@@ -164,7 +164,7 @@ export default function RoomsScreen() {
       contentContainerStyle={s.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} progressBackgroundColor={C.card} />}
     >
-      {isOffline && (
+      {isOffline && isOnline && (
         <View style={s.offlineBanner}>
           <Text style={s.offlineText}>{offlineBannerText}</Text>
         </View>

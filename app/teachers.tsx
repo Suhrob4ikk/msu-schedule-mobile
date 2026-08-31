@@ -45,7 +45,7 @@ function getDayDate(dayName: string, weekStart: string): string {
 
 export default function TeachersScreen() {
   const C = useTheme();
-  const { offlineBannerText, onlineAt } = useSyncStatus();
+  const { offlineBannerText, onlineAt, isOnline } = useSyncStatus();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selected, setSelected] = useState<Teacher | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -296,7 +296,7 @@ export default function TeachersScreen() {
         >
           <Text style={[s.backText, { color: C.primary }]}>← Все преподаватели</Text>
         </TouchableOpacity>
-        {isOffline && (
+        {isOffline && isOnline && (
           <View style={s.offlineBanner}>
             <Text style={s.offlineText}>{offlineBannerText}</Text>
           </View>
@@ -379,7 +379,7 @@ export default function TeachersScreen() {
 
   return (
     <View style={[s.container, { backgroundColor: C.bg }]}>
-      {isOffline && (
+      {isOffline && isOnline && (
         <View style={s.offlineBanner}>
           <Text style={s.offlineText}>{offlineBannerText}</Text>
         </View>

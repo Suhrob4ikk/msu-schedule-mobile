@@ -50,7 +50,13 @@ class ScheduleWidget : AppWidgetProvider() {
 
     companion object {
         // Выше этой высоты (в dp, задаёт лаунчер при ресайзе) — расширенный макет.
-        private const val LARGE_MIN_HEIGHT_DP = 180
+        //
+        // Было 180 — и виджет, поставленный в размере по умолчанию (4x2,
+        // см. schedule_widget_info.xml), до порога не дотягивал: показывал три
+        // короткие строки компактного макета и половину площади оставлял пустой.
+        // 100 dp — это чуть выше одной строки сетки, так что 4x1 остаётся
+        // компактным, а всё, что выше, сразу показывает список пар.
+        private const val LARGE_MIN_HEIGHT_DP = 100
 
         fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
             val large = isLargeSize(manager, widgetId)
@@ -62,6 +68,7 @@ class ScheduleWidget : AppWidgetProvider() {
             var line2 = "чтобы загрузить расписание"
             var ringProgress: Float? = null
             var upcoming: List<LessonItem> = emptyList()
+            var extraTitle = "СЕГОДНЯ ЕЩЁ"
 
             try {
                 val json = readWidgetData(context)
@@ -117,9 +124,16 @@ class ScheduleWidget : AppWidgetProvider() {
                             line2 = "Хорошего отдыха!"
                         }
                     } else if (large) {
-                        // Расширенный макет: ещё до 4 пар на сегодня после уже показанной.
+                        // Расширенный макет: ещё до 4 пар после уже показанной.
+                        // Сначала пробуем сегодняшние; если на сегодня всё —
+                        // берём ближайшие следующие, какого бы дня они ни были.
+                        // Иначе вечером и в выходные нижняя половина виджета
+                        // оставалась пустой, а место под неё всё равно занято.
                         val dayEnd = endOfDay(now)
-                        upcoming = items.drop(shownIndex + 1).filter { it.start in now..dayEnd }.take(4)
+                        val rest = items.drop(shownIndex + 1).filter { it.start > now }
+                        val today = rest.filter { it.start <= dayEnd }
+                        upcoming = (if (today.isNotEmpty()) today else rest).take(4)
+                        extraTitle = if (today.isNotEmpty()) "СЕГОДНЯ ЕЩЁ" else "ДАЛЬШЕ"
                     }
                 }
             } catch (_: Exception) {
@@ -139,13 +153,19 @@ class ScheduleWidget : AppWidgetProvider() {
 
             if (large) {
                 val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
+                val dayFmt = SimpleDateFormat("EEE", Locale("ru"))
                 val rowIds = listOf(R.id.widget_extra1, R.id.widget_extra2, R.id.widget_extra3, R.id.widget_extra4)
+                views.setTextViewText(R.id.widget_extra_title, extraTitle)
                 views.setViewVisibility(R.id.widget_extra_title, if (upcoming.isEmpty()) View.GONE else View.VISIBLE)
                 for ((i, rowId) in rowIds.withIndex()) {
                     val item = upcoming.getOrNull(i)
                     if (item != null) {
-                        val time = timeFmt.format(Date(item.start))
-                        val text = "$time · ${item.subject}" + (if (item.room.isNotEmpty()) " · ауд. ${item.room}" else "")
+                        // У пар другого дня одно время без дня недели вводило бы
+                        // в заблуждение — «08:00» завтра и сегодня выглядят одинаково.
+                        val sameDay = item.start <= endOfDay(System.currentTimeMillis())
+                        val when_ = if (sameDay) timeFmt.format(Date(item.start))
+                                    else dayFmt.format(Date(item.start)) + " " + timeFmt.format(Date(item.start))
+                        val text = "$when_ · ${item.subject}" + (if (item.room.isNotEmpty()) " · ауд. ${item.room}" else "")
                         views.setTextViewText(rowId, text)
                         views.setViewVisibility(rowId, View.VISIBLE)
                     } else {

@@ -606,9 +606,13 @@ export default function ProfileScreen() {
         />
       </View>
 
-      {/* Статистика, экспорт и история изменений */}
+      {/* Статистика, экспорт и история изменений.
+          «Позвать одногруппников» стоит последним, а не первым: это
+          единственный блок про других людей, а всё остальное здесь — про себя.
+          Раньше он вклинивался между переключателем «Пропуски» и статистикой
+          пропусков, и два блока с одинаковым заголовком оказывались в разных
+          концах экрана — выглядело как ошибка. */}
       <View style={s.section}>
-        <InviteCard C={C} />
         {!featuresLocked && <SkipStats />}
         {!featuresLocked && (
           <TouchableOpacity
@@ -637,6 +641,9 @@ export default function ProfileScreen() {
           <Text style={[s.changeBtnText, { color: C.muted }]}>История изменений расписания</Text>
           {hasNewChanges && <NewChangesDot />}
         </TouchableOpacity>
+        <View style={{ marginTop: 10 }}>
+          <InviteCard C={C} />
+        </View>
       </View>
 
       {/* Синхронизация */}

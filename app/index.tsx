@@ -678,7 +678,7 @@ function pickWeek(
 
 export default function ScheduleScreen() {
   const C = useTheme();
-  const { offlineBannerText, onlineAt } = useSyncStatus();
+  const { offlineBannerText, onlineAt, isOnline } = useSyncStatus();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [weeks, setWeeks] = useState<WeekInfo[]>([]);
@@ -1284,8 +1284,13 @@ export default function ScheduleScreen() {
     >
       <StatusBar barStyle="light-content" backgroundColor={C.primary} />
 
-      {/* Баннер офлайн-режима */}
-      {isOffline && (
+      {/* Плашка «данные устарели».
+          Показываем ТОЛЬКО когда телефон считает, что сеть есть, а наш запрос
+          всё равно не прошёл, — то есть когда точка состояния в правом верхнем
+          углу горит зелёным и сама об этом не скажет. Если телефон и так знает,
+          что связи нет, точка уже красная, и плашка была вторым сообщением о
+          том же самом на одном экране. */}
+      {isOffline && isOnline && (
         <View style={s.offlineBanner}>
           <Text style={s.offlineText}>{offlineBannerText}</Text>
         </View>
