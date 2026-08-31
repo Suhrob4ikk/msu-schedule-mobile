@@ -13,7 +13,10 @@ import { clearApiCache, API_BASE } from './api';
  * у сети выход в интернет (NET_CAPABILITY_VALIDATED), и NetInfo просто
  * пересказывает её ответ. Собственных запросов — ноль.
  */
-const HEALTH_URL = API_BASE.replace(/\/api\/?$/, '') + '/health';
+// Бэкенд отдаёт /health и в корне, и под префиксом /api — а ходим мы через
+// прокси (/backend/* → /api/*), где доступен только второй. Отсюда просто
+// приписанный к базе путь, без вырезания /api, как было раньше.
+const HEALTH_URL = `${API_BASE}/health`;
 
 NetInfo.configure({
   // Ответ от системы. Пока он есть, запасная проверка ниже не запускается вовсе.

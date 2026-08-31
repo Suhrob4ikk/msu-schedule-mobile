@@ -2,9 +2,22 @@ import Constants from 'expo-constants';
 
 // Единственный источник URL бэкенда — app.json → expo.extra.apiUrl.
 // Литерал ниже — только страховка на случай, если extra не подхватился.
+//
+// Это адрес прокси на Vercel, а не самого бэкенда, и это принципиально.
+// Megafon TJ (мобильный интернет) молча роняет пакеты до IP-диапазона Render
+// 216.24.57.0/24: с телефона по мобильной сети не открывается ни
+// msu-schedule.onrender.com, ни голый IP 216.24.57.7, ни любой чужой сервис
+// на onrender.com — везде таймаут, а через VPN всё работает. Именно поэтому
+// приложение годами работало на Wi-Fi и не работало на мобильном интернете.
+// Ретраи и длинные тайм-ауты (v1.9.18, v1.9.19) тут бессильны: пакеты не
+// доходят, сколько ни повторяй.
+//
+// Vercel лежит в другом диапазоне IP, его Megafon пропускает. Vercel сам
+// перекидывает /backend/* на https://msu-schedule.onrender.com/api/*
+// (см. frontend/next.config.ts в репозитории бэкенда).
 export const API_BASE =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
-  'https://msu-schedule.onrender.com/api';
+  'https://frontend-ten-nu-80.vercel.app/backend';
 
 // Простой in-memory кэш: ключ → {данные, время}
 const _cache = new Map<string, { data: unknown; ts: number }>();
