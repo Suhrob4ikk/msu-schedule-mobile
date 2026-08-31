@@ -720,6 +720,8 @@ export default function ScheduleScreen() {
   }, []);
   const [isOffline, setIsOffline] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
+  // Спросить про группу заново — один раз за запуск, а не на каждый фокус.
+  const regroupAsked = useRef(false);
   const groupsLoadedRef = useRef(false);
   const [countdown, setCountdown] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1055,7 +1057,20 @@ export default function ScheduleScreen() {
       AsyncStorage.multiGet(['selected_group_id', 'schedule_view_group_id']).then(pairs => {
         const myId = pairs.find(([k]) => k === 'selected_group_id')?.[1];
         const viewId = pairs.find(([k]) => k === 'schedule_view_group_id')?.[1];
-        if (myId) setMyGroupId(Number(myId));
+        if (myId) {
+          setMyGroupId(Number(myId));
+        } else if (!regroupAsked.current) {
+          // Сохранённой группы больше нет в списке, и восстановить её по
+          // названию не вышло (см. repairSavedGroup в src/api.ts). Пустой
+          // экран без объяснений — худшее, что тут можно показать.
+          regroupAsked.current = true;
+          Alert.alert(
+            'Выберите группу',
+            'Список групп обновился — выберите свою группу заново, и расписание вернётся.',
+            [{ text: 'Выбрать', onPress: () => router.push('/profile') }],
+          );
+          return;
+        }
         const target = Number(viewId ?? myId);
         if (!target) return;
         if (selectedGroup?.id === target) return;

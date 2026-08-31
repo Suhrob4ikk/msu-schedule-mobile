@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { api, Group, shortGroupName } from '../src/api';
+import { api, Group, shortGroupName, rememberGroup } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
@@ -413,6 +413,9 @@ export default function ProfileScreen() {
     setSaving(true);
     await AsyncStorage.setItem('user_name', name.trim());
     await AsyncStorage.setItem('selected_group_id', String(selectedGroupId));
+    // Рядом с номером запоминаем название и курс: если номер когда-нибудь
+    // разойдётся со списком групп, восстановимся по ним (см. src/api.ts).
+    if (selectedGroup) await rememberGroup(selectedGroup);
     // Отмечаем момент выбора: по нему решаем, спрашивать ли про курс после
     // смены учебного года (новичков спрашивать не нужно).
     await markGroupChosen();

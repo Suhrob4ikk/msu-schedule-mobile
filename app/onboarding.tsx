@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { api, Group, shortGroupName } from '../src/api';
+import { api, Group, shortGroupName, rememberGroup } from '../src/api';
 import GroupSelector from '../src/GroupSelector';
 import { useTheme, useThemeMode } from '../src/theme';
 import { requestNotificationPermission } from '../src/examNotifications';
@@ -41,6 +41,9 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
     if (!selected) return;
     setSaving(true);
     await AsyncStorage.setItem('selected_group_id', String(selected.id));
+    // Рядом с номером запоминаем название и курс: если номер когда-нибудь
+    // разойдётся со списком групп, восстановимся по ним (см. src/api.ts).
+    await rememberGroup(selected);
     await markGroupChosen(); // новичку про смену курса напоминать не нужно
     await AsyncStorage.setItem('user_name', name.trim());
     let deviceId = await AsyncStorage.getItem('msu_device_id');

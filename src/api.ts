@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Единственный источник URL бэкенда — app.json → expo.extra.apiUrl.
 // Литерал ниже — только страховка на случай, если extra не подхватился.
@@ -390,8 +391,72 @@ export function shortGroupName(name: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 }
 
+// ─── Привязка выбранной группы ───────────────────────────────────────────────
+//
+// Выбранная группа хранится по числовому id. Этого оказалось мало: база на
+// бесплатном тарифе Render эфемерная, и раньше при каждом её пересоздании id
+// групп перетасовывались. Человек молча начинал смотреть чужое расписание —
+// название на экране бралось из локального кэша и оставалось своим, а пары
+// приходили чужие. Ошибка без единого сообщения об ошибке.
+//
+// Первопричину убрали в бэкенде: id теперь считается из названия, курса и
+// факультета (stable_group_id в models.py) и больше не зависит от порядка
+// вставки. Здесь — вторая линия обороны на случай, если группу всё же
+// переименуют в msu.tj: рядом с id храним «отпечаток» группы и при
+// расхождении верим ему, а не номеру.
+//
+// Если не сошлось ни то ни другое — стираем выбор. Пустой выбор приложение
+// понимает и открывает экран выбора группы; неверный id тихо показывал бы
+// чужое расписание. Те же имена ключей и та же логика на сайте, в lib/api.ts.
+
+const PROFILE_GROUP_KEY = 'selected_group_id';
+const VIEWED_GROUP_KEY = 'schedule_view_group_id';
+const GROUP_PIN_KEY = 'selected_group_pin';
+
+const groupPin = (g: { name: string; year: number }) => `${g.year}|${g.name}`;
+
+/** Запомнить группу, выбранную человеком. Вызывать там же, где пишется id. */
+export async function rememberGroup(g: { name: string; year: number }): Promise<void> {
+  await AsyncStorage.setItem(GROUP_PIN_KEY, groupPin(g)).catch(() => null);
+}
+
+async function repairSavedGroup(groups: Group[]): Promise<void> {
+  if (groups.length === 0) return;
+  try {
+    const savedId = Number(await AsyncStorage.getItem(PROFILE_GROUP_KEY));
+    if (savedId) {
+      const byId = groups.find(g => g.id === savedId);
+      if (byId) {
+        // Всё сходится — заодно освежаем отпечаток (у тех, кто обновился, его ещё нет).
+        await AsyncStorage.setItem(GROUP_PIN_KEY, groupPin(byId));
+      } else {
+        const pin = await AsyncStorage.getItem(GROUP_PIN_KEY);
+        const byPin = pin ? groups.find(g => groupPin(g) === pin) : undefined;
+        if (byPin) {
+          await AsyncStorage.setItem(PROFILE_GROUP_KEY, String(byPin.id));
+        } else {
+          await AsyncStorage.multiRemove([PROFILE_GROUP_KEY, GROUP_PIN_KEY]);
+        }
+      }
+    }
+
+    // «Какую смотрю» — вещь одноразовая: если её больше нет в списке, просто
+    // забываем, и экран вернётся к своей группе.
+    const viewed = Number(await AsyncStorage.getItem(VIEWED_GROUP_KEY));
+    if (viewed && !groups.some(g => g.id === viewed)) {
+      await AsyncStorage.removeItem(VIEWED_GROUP_KEY);
+    }
+  } catch {
+    // Хранилище недоступно — оставляем как есть, хуже не сделаем.
+  }
+}
+
 export const api = {
-  getGroups: () => get<Group[]>('/schedule/groups'),
+  getGroups: async () => {
+    const gs = await get<Group[]>('/schedule/groups');
+    await repairSavedGroup(gs);
+    return gs;
+  },
   getGroupSchedule: (id: number, weekId?: number) =>
     get<Lesson[]>(`/schedule/group/${id}${weekId ? `?week_id=${weekId}` : ''}`),
   getGroupWeeks: (id: number) => get<WeekInfo[]>(`/schedule/weeks/${id}`),
