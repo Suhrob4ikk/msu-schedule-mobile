@@ -19,19 +19,19 @@ const _inflight = new Map<string, Promise<unknown>>();
 // фикс сделан на сайте, см. frontend/src/lib/api.ts).
 const FETCH_TIMEOUT_MS = 15_000;
 
-// Вторая попытка, если сервер не ответил за 15 секунд.
-//
-// Пятнадцати секунд не хватает в двух случаях: Render на бесплатном тарифе
-// просыпается до 50 секунд, и мобильный интернет иногда падает до пары
-// килобайт в секунду. В обоих сдаваться рано — запрос бы дошёл, дай ему
-// время. А сдавались мы заметно: экран рисовал оранжевую плашку «Офлайн»
-// при живой сети, потому что данные брались из кэша.
-//
-// Отличать «медленно» от «нет сети» просто: без сети fetch отваливается
-// сразу и с другой ошибкой, а тайм-аут — это всегда AbortError. Поэтому
-// повторяем только его и только один раз.
+// Вторая попытка, если сервер не ответил за 15 секунд — почти всегда
+// просыпающийся Render на бесплатном тарифе (до 50 секунд).
 // Те же числа на сайте (frontend/src/lib/api.ts) — менять надо в обоих.
 const COLD_START_TIMEOUT_MS = 40_000;
+
+// Пауза перед повтором НЕ-тайм-аутовой ошибки: секундная потеря сигнала,
+// смена вышки, оборванный на середине DNS-запрос. На мобильной сети это
+// самый частый сбой — и раньше он не давал ни одной повторной попытки:
+// fetch() падает на такое мгновенно с обычной сетевой ошибкой (не
+// AbortError), и экран рисовал оранжевую плашку «Офлайн» при живом
+// интернете просто потому, что первая попытка совпала с секундным сбоем.
+const RETRY_DELAY_MS = 1_000;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // По имени, а не по классу: abort прилетает то обычным Error, то полифилльным
 // DOMException — в зависимости от версии RN. Проверка `instanceof Error`
@@ -52,6 +52,40 @@ async function rawFetch<T>(path: string, timeout: number): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function fetchWithRetry<T>(path: string): Promise<T> {
+  try {
+    return await rawFetch<T>(path, FETCH_TIMEOUT_MS);
+  } catch (e) {
+    if (isTimeout(e)) {
+      // Долгий тайм-аут — почти всегда просыпающийся Render. Пауза не нужна:
+      // сервер уже стартовал, просто ждём его дольше.
+      try {
+        return await rawFetch<T>(path, COLD_START_TIMEOUT_MS);
+      } catch (e2) {
+        if (isTimeout(e2)) throw new Error('Сервер не отвечает — проверьте соединение');
+        throw e2;
+      }
+    }
+    // Не тайм-аут — похоже на секундный сбой сети. Даём ему пройти самому
+    // и пробуем ещё раз; если и это окажется тайм-аутом, значит сервер и
+    // правда спит — добиваем длинным ожиданием, а не сдаёмся на полпути.
+    await sleep(RETRY_DELAY_MS);
+    try {
+      return await rawFetch<T>(path, FETCH_TIMEOUT_MS);
+    } catch (e2) {
+      if (isTimeout(e2)) {
+        try {
+          return await rawFetch<T>(path, COLD_START_TIMEOUT_MS);
+        } catch (e3) {
+          if (isTimeout(e3)) throw new Error('Сервер не отвечает — проверьте соединение');
+          throw e3;
+        }
+      }
+      throw e2; // тот же сбой второй раз подряд — дальше ждать не поможет
+    }
+  }
+}
+
 async function get<T>(path: string, ttl = 180_000): Promise<T> {
   const hit = _cache.get(path);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
@@ -59,24 +93,14 @@ async function get<T>(path: string, ttl = 180_000): Promise<T> {
   const running = _inflight.get(path);
   if (running) return running as Promise<T>;
 
-  const p = (async () => {
-    let data: T;
-    try {
-      data = await rawFetch<T>(path, FETCH_TIMEOUT_MS);
-    } catch (e) {
-      if (!isTimeout(e)) throw e;
-      try {
-        data = await rawFetch<T>(path, COLD_START_TIMEOUT_MS);
-      } catch (e2) {
-        if (isTimeout(e2)) throw new Error('Сервер не отвечает — проверьте соединение');
-        throw e2;
-      }
-    }
-    // ttl=0 — ответ, который никогда не переиспользуется (bulk-sync, несколько
-    // мегабайт). Держать его в памяти всё время работы приложения незачем.
-    if (ttl > 0) _cache.set(path, { data, ts: Date.now() });
-    return data;
-  })().finally(() => { _inflight.delete(path); });
+  const p = fetchWithRetry<T>(path)
+    .then(data => {
+      // ttl=0 — ответ, который никогда не переиспользуется (bulk-sync, несколько
+      // мегабайт). Держать его в памяти всё время работы приложения незачем.
+      if (ttl > 0) _cache.set(path, { data, ts: Date.now() });
+      return data;
+    })
+    .finally(() => { _inflight.delete(path); });
 
   _inflight.set(path, p);
   return p;

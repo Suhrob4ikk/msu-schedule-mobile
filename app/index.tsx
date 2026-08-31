@@ -1563,6 +1563,7 @@ export default function ScheduleScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={s.dayBar}
+          contentContainerStyle={s.dayBarContent}
           onLayout={(e) => { dayBarWRef.current = e.nativeEvent.layout.width; }}
           onScroll={(e) => { dayBarXRef.current = e.nativeEvent.contentOffset.x; }}
           scrollEventThrottle={32}
@@ -1573,47 +1574,61 @@ export default function ScheduleScreen() {
             const dateObj = day !== 'all' && selectedWeek ? dayDateObj(day, selectedWeek.week_start) : null;
             const isToday = !!dateObj && isTodayDay(day, selectedWeek!.week_start);
             return (
-              <TouchableOpacity
+              // ⚠️ «сегодня» раньше плавала над кнопкой через position:absolute
+              // с отрицательным top — а лежит это всё внутри ГОРИЗОНТАЛЬНОГО
+              // ScrollView, который обрезает всё, что вылезает за его границы.
+              // Верхнюю половину значка срезало, а нижняя ложилась прямо на
+              // текст кнопки. Теперь значок — обычный элемент в потоке, сверху
+              // над кнопкой, обрезать нечего.
+              <View
                 key={day}
-                // Координата и ширина кнопки — чтобы прокрутить полосу к ней
-                // (см. эффект выше). x здесь уже в системе координат содержимого
-                // ScrollView, то есть ровно то, что ждёт scrollTo.
+                // Координата и ширина всей колонки (значок + кнопка) — чтобы
+                // прокрутить полосу к ней (см. эффект выше). x здесь уже в
+                // системе координат содержимого ScrollView, то есть ровно то,
+                // что ждёт scrollTo.
                 onLayout={(e) => {
                   const { x, width } = e.nativeEvent.layout;
                   dayChipRef.current[day] = { x, w: width };
                 }}
-                onPress={() => {
-                  if (selectedDay === day) return;
-                  Haptics.selectionAsync();
-                  // Карточки пар нового дня появляются каскадом, а не скачком —
-                  // тот же приём, что уже есть у веба (см. audit 1.2).
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setSelectedDay(day);
-                }}
-                style={[
-                  s.dayBtn,
-                  {
-                    backgroundColor: active ? C.primary : C.card,
-                    borderColor: active ? C.primary : isToday ? C.primary : C.border,
-                    borderWidth: !active && isToday ? 1.5 : 1,
-                  },
-                ]}
+                style={s.dayChip}
               >
-                {isToday && !active && (
-                  <Text style={[s.dayTodayTag, { color: C.primary, backgroundColor: C.bg }]}>сегодня</Text>
-                )}
-                <Text style={[s.dayBtnText, { color: active ? '#fff' : C.fg }]}>
-                  {day === 'all' ? 'Вся неделя' : DAY_LABELS[day]}
+                <Text
+                  style={[s.dayTodayTag, { color: C.primary, opacity: isToday && !active ? 1 : 0 }]}
+                  numberOfLines={1}
+                >
+                  сегодня
                 </Text>
-                {dateObj && (
-                  <Text style={[s.dayBtnDate, { color: active ? 'rgba(255,255,255,0.85)' : C.muted }]}>
-                    {dateObj.getDate()}
+                <TouchableOpacity
+                  onPress={() => {
+                    if (selectedDay === day) return;
+                    Haptics.selectionAsync();
+                    // Карточки пар нового дня появляются каскадом, а не скачком —
+                    // тот же приём, что уже есть у веба (см. audit 1.2).
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setSelectedDay(day);
+                  }}
+                  style={[
+                    s.dayBtn,
+                    {
+                      backgroundColor: active ? C.primary : C.card,
+                      borderColor: active ? C.primary : isToday ? C.primary : C.border,
+                      borderWidth: !active && isToday ? 1.5 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={[s.dayBtnText, { color: active ? '#fff' : C.fg }]}>
+                    {day === 'all' ? 'Вся неделя' : DAY_LABELS[day]}
                   </Text>
-                )}
-                {hasLessons && (
-                  <View style={[s.dayDot, { backgroundColor: active ? 'rgba(255,255,255,0.8)' : C.primary }]} />
-                )}
-              </TouchableOpacity>
+                  {dateObj && (
+                    <Text style={[s.dayBtnDate, { color: active ? 'rgba(255,255,255,0.85)' : C.muted }]}>
+                      {dateObj.getDate()}
+                    </Text>
+                  )}
+                  {hasLessons && (
+                    <View style={[s.dayDot, { backgroundColor: active ? 'rgba(255,255,255,0.8)' : C.primary }]} />
+                  )}
+                </TouchableOpacity>
+              </View>
             );
           })}
         </ScrollView>
@@ -1774,14 +1789,20 @@ const s = StyleSheet.create({
   roomChipText: { fontSize: 13, fontWeight: '700' },
 
   dayBar: { marginTop: 8, marginBottom: 12 },
-  dayBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginRight: 8, borderWidth: 1, alignItems: 'center' },
+  // alignItems: flex-start — иначе ScrollView растягивает по высоте все чипы
+  // до самого высокого (с меткой «сегодня»), и у остальных под кнопкой
+  // появлялась пустая полоса.
+  dayBarContent: { alignItems: 'flex-start' },
+  // Колонка «значок сегодня» + кнопка. Значок обычным потоком сверху —
+  // не absolute, чтобы ScrollView не обрезал его (см. комментарий у чипа).
+  dayChip: { alignItems: 'center', marginRight: 8 },
+  dayBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
   dayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
   dayBtnText: { fontSize: 12, fontWeight: '500' },
   dayBtnDate: { fontSize: 13, fontWeight: '700', marginTop: 1 },
   dayTodayTag: {
-    position: 'absolute', top: -8, alignSelf: 'center',
     fontSize: 8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3,
-    paddingHorizontal: 4,
+    marginBottom: 2,
   },
 
   dayHeader: {
