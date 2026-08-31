@@ -2,12 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, ScrollView, RefreshControl,
+  StyleSheet, ActivityIndicator, ScrollView, RefreshControl, Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import * as Haptics from 'expo-haptics';
+import ScheduleShareCard from '../src/ScheduleShareCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   api, invalidateApiCache, Teacher, Lesson, DAYS_ORDER, shortGroupName,
-  WeekOption, weekLabel, isCurrentWeek,
+  WeekOption, weekLabel, isCurrentWeek, weekRangeStr,
 } from '../src/api';
 import { useTheme } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
@@ -234,6 +239,30 @@ export default function TeachersScreen() {
     return acc;
   }, {} as Record<string, Lesson[]>);
 
+  // Та же картинка, что и у расписания группы, только в строке под предметом
+  // не преподаватель (он тут в заголовке), а группа — «у кого пара».
+  const shareCardRef = useRef<View>(null);
+  const [sharingImg, setSharingImg] = useState(false);
+  const handleShareImage = async () => {
+    if (!selected || sharingImg) return;
+    if (Object.keys(byDay).length === 0) {
+      Alert.alert('Нет пар', 'У преподавателя нет занятий на этой неделе — делиться нечем.');
+      return;
+    }
+    setSharingImg(true);
+    try {
+      const uri = await captureRef(shareCardRef, { format: 'png', quality: 1 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Расписание преподавателя' });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {
+      Alert.alert('Ошибка', 'Не получилось создать картинку. Попробуйте ещё раз.');
+    } finally {
+      setSharingImg(false);
+    }
+  };
+
   const weekSelector = weeks.length > 1 ? (
     <ScrollView
       horizontal
@@ -274,6 +303,32 @@ export default function TeachersScreen() {
         )}
         <Text style={[s.teacherName, { color: C.fg }]}>{selected.name}</Text>
         {weekSelector}
+        {Object.keys(byDay).length > 0 && !loading && (
+          <TouchableOpacity
+            onPress={handleShareImage}
+            disabled={sharingImg}
+            activeOpacity={0.7}
+            style={[s.shareBtn, {
+              backgroundColor: C.card, borderColor: C.border, opacity: sharingImg ? 0.6 : 1,
+            }]}
+          >
+            <Ionicons name="share-outline" size={15} color={C.muted} style={{ marginRight: 6 }} />
+            <Text style={{ color: C.muted, fontSize: 14, fontWeight: '600' }}>
+              {sharingImg ? 'Готовим картинку...' : 'Поделиться картинкой'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Невидимая карточка для снимка — за пределами экрана, но смонтирована */}
+        <View style={{ position: 'absolute', left: -9999, top: 0 }} pointerEvents="none">
+          <ScheduleShareCard
+            ref={shareCardRef}
+            groupLabel={selected.name}
+            weekLabel={selectedWeek ? weekRangeStr(selectedWeek.week_start) : ''}
+            lessonsByDay={byDay}
+            subtitle="group"
+          />
+        </View>
         {loading ? (
           <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />
         ) : error ? (
@@ -394,6 +449,11 @@ const s = StyleSheet.create({
   arrow: { fontSize: 20 },
   backBtn: { padding: 14, borderBottomWidth: 1 },
   backText: { fontSize: 14 },
+  shareBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    marginHorizontal: 16, marginBottom: 4, paddingVertical: 11,
+    borderRadius: 12, borderWidth: 1,
+  },
   teacherName: { fontSize: 17, fontWeight: '700', padding: 16, paddingBottom: 0 },
   dayHeader: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, marginTop: 4 },
   card: { borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 0.5, elevation: 1, shadowOpacity: 0.04, shadowRadius: 3 },

@@ -13,6 +13,7 @@ import * as Sharing from 'expo-sharing';
 import {
   api, invalidateApiCache, Group, Lesson, TodayItem, WeekInfo, Stats,
   DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, leadingGap, humanDuration, shortGroupName,
+  weekRangeStr,
 } from '../src/api';
 import ScheduleShareCard from '../src/ScheduleShareCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -56,15 +57,6 @@ const TYPE_LABELS: Record<string, string> = {
   ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика',
   ЛК: 'Лекция', ЛЕКЦИЯ: 'Лекция',
 };
-
-function weekRangeStr(weekStart: string): string {
-  const start = new Date(weekStart + 'T00:00:00');
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const fmt = (d: Date) =>
-    `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
-  return `${fmt(start)} – ${fmt(end)}`;
-}
 
 function weekLabel(w: WeekInfo): string {
   const start = new Date(w.week_start + 'T00:00:00');

@@ -351,6 +351,16 @@ export interface BulkSyncData {
   generated_at: string;
 }
 
+/** Диапазон недели для шапки картинки-шаринга («01.09 – 07.09»). */
+export function weekRangeStr(weekStart: string): string {
+  const start = new Date(weekStart + 'T00:00:00');
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const fmt = (d: Date) =>
+    `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
 export function weekLabel(weekStart: string): string {
   const start = new Date(weekStart + 'T00:00:00');
   const end = new Date(start);

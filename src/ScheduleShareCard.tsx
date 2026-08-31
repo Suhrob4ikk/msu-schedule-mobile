@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Lesson } from './api';
+import { Lesson, shortGroupName } from './api';
 
 // Фиксированные hex-цвета, не тема устройства — картинка должна выглядеть
 // одинаково независимо от светлой/тёмной темы того, кто её отправил.
@@ -14,10 +14,20 @@ const DAY_LABELS_FULL: Record<string, string> = {
   четверг: 'ЧЕТВЕРГ', пятница: 'ПЯТНИЦА', суббота: 'СУББОТА', воскресенье: 'ВОСКРЕСЕНЬЕ',
 };
 
+/**
+ * Что писать в строке под предметом.
+ *
+ * В расписании группы человеку важно, КТО ведёт, — там преподаватель.
+ * В расписании преподавателя он и так в заголовке карточки, и важно
+ * другое — У КОГО пара. Поэтому там на том же месте группа.
+ */
+export type ShareSubtitle = 'teacher' | 'group';
+
 interface Props {
   groupLabel: string;
   weekLabel: string;
   lessonsByDay: Record<string, Lesson[]>;
+  subtitle?: ShareSubtitle;
 }
 
 /**
@@ -26,7 +36,7 @@ interface Props {
  * collapsable={false} обязателен на Android, иначе View схлопнется
  * при снимке и картинка получится пустой.
  */
-const ScheduleShareCard = forwardRef<View, Props>(({ groupLabel, weekLabel, lessonsByDay }, ref) => {
+const ScheduleShareCard = forwardRef<View, Props>(({ groupLabel, weekLabel, lessonsByDay, subtitle }, ref) => {
   const days = Object.entries(lessonsByDay);
   return (
     <View ref={ref} collapsable={false} style={s.wrap}>
@@ -42,7 +52,10 @@ const ScheduleShareCard = forwardRef<View, Props>(({ groupLabel, weekLabel, less
         <View key={day} style={{ marginBottom: 18 }}>
           <Text style={s.dayTitle}>{DAY_LABELS_FULL[day] ?? day}</Text>
           {lessons.map(l => {
-            const meta = [l.lesson_type, l.room?.name ? `ауд. ${l.room.name}` : null, l.teacher?.name]
+            const who = subtitle === 'group'
+              ? (l.group ? `${shortGroupName(l.group.name)} · ${l.group.year} курс` : null)
+              : l.teacher?.name;
+            const meta = [l.lesson_type, l.room?.name ? `ауд. ${l.room.name}` : null, who]
               .filter(Boolean).join(' · ');
             return (
               <View key={l.id} style={s.row}>

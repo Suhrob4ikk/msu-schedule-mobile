@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share, Animated,
@@ -6,7 +6,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { api, Group, shortGroupName, rememberGroup } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
@@ -338,21 +338,31 @@ function NewChangesDot() {
 }
 
 /** Сравнивает время последнего изменения (своей группы) с локальной меткой
- *  «последний раз смотрел» — та же логика, что и в шапке веба. */
+ *  «последний раз смотрел» — та же логика, что и в шапке веба.
+ *
+ *  Пересчитывается при каждом возврате в кабинет, а не один раз при запуске.
+ *  Экран кабинета из памяти не выгружается: раньше точка, загоревшись, висела
+ *  до перезапуска приложения — человек открывал «Историю изменений», всё
+ *  прочитывал, возвращался, а она на месте. Метку о просмотре ставит сам
+ *  экран изменений (changes.tsx), нам остаётся её перечитать. */
 function useHasNewChanges(): boolean {
   const [hasNew, setHasNew] = useState(false);
-  useEffect(() => {
-    (async () => {
-      try {
-        const gid = await AsyncStorage.getItem('selected_group_id');
-        const changes = await api.getChanges(gid ? Number(gid) : undefined);
-        const latest = changes[0]?.detected_at;
-        if (!latest) return;
-        const lastSeen = await AsyncStorage.getItem('changes_last_seen');
-        if (!lastSeen || new Date(latest) > new Date(lastSeen)) setHasNew(true);
-      } catch {}
-    })();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const gid = await AsyncStorage.getItem('selected_group_id');
+          const changes = await api.getChanges(gid ? Number(gid) : undefined);
+          const latest = changes[0]?.detected_at;
+          if (!latest || cancelled) return;
+          const lastSeen = await AsyncStorage.getItem('changes_last_seen');
+          if (!cancelled) setHasNew(!lastSeen || new Date(latest) > new Date(lastSeen));
+        } catch {}
+      })();
+      return () => { cancelled = true; };
+    }, []),
+  );
   return hasNew;
 }
 
