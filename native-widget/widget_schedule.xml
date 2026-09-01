@@ -50,6 +50,23 @@
             android:ellipsize="end"
             android:text="чтобы загрузить расписание" />
 
+        <!-- Живой отсчёт до конца/начала пары. Это системный Chronometer, а
+             не обычный текст: тикает сам, силами лаунчера, без всякого
+             участия приложения — см. большой комментарий в ScheduleWidget.kt
+             про то, почему обычный текст здесь так делать нельзя. Скрыт по
+             умолчанию (нет текущей/следующей пары — например, каникулы). -->
+        <Chronometer
+            android:id="@+id/widget_countdown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#2DD4A7"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <!-- Тающее кольцо прогресса — сколько осталось от пары/перемены. Рисуется

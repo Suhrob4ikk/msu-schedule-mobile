@@ -58,6 +58,20 @@
                 android:ellipsize="end"
                 android:text="чтобы загрузить расписание" />
 
+            <!-- Тот же живой Chronometer, что и в компактном макете
+                 (widget_schedule.xml) — общий id, общий код в ScheduleWidget.kt. -->
+            <Chronometer
+                android:id="@+id/widget_countdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#2DD4A7"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:visibility="gone" />
+
 
         </LinearLayout>
 

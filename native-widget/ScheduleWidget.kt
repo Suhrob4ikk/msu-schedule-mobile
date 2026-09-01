@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
@@ -28,19 +29,25 @@ private data class LessonItem(
  *
  * Данные пишет приложение (src/widgetData.ts) в AsyncStorage под ключом
  * "widget_data"; здесь читаем их напрямую из базы RKStorage — без
- * дополнительных нативных модулей. Обновляется системой раз в 30 минут
- * (updatePeriodMillis) и при каждом добавлении/ресайзе виджета — и только
- * тогда. Между обновлениями содержимое застывает как есть.
+ * дополнительных нативных модулей. Сам виджет (текст «Сейчас/Далее», кольцо)
+ * обновляется системой раз в 30 минут (updatePeriodMillis) и при каждом
+ * добавлении/ресайзе — и только тогда. Между обновлениями это содержимое
+ * застывает как есть.
  *
- * Из этого следует твёрдое правило: НЕ показывать здесь текст, который
- * выглядит как живой отсчёт (например, «осталось N мин») — цифры на месте,
- * а актуальны только в момент последнего обновления. Пробовали в v1.9.22,
- * получили «Через 0 мин» на середине идущей пары. Тающее кольцо
- * (ringProgress/ringBitmap) — не исключение из правила, а его допустимая
- * форма: оно тоже снимок, но не утверждает точность до минуты, поэтому
- * устаревшим выглядит не так явно. Если когда-нибудь понадобится настоящая
- * точность — нужен будильник на границах пар, как в modules/live-lesson
- * (LiveLesson.kt), а не текстовая строка здесь.
+ * Из этого следует твёрдое правило: НЕ показывать здесь ОБЫЧНЫЙ ТЕКСТ,
+ * который выглядит как живой отсчёт («осталось N мин» простой строкой) —
+ * цифры на месте, а актуальны только в момент последнего обновления.
+ * Пробовали в v1.9.23, получили «Через 0 мин» на середине идущей пары.
+ * Тающее кольцо (ringProgress/ringBitmap) — не нарушение правила: оно тоже
+ * снимок, но не называет точную цифру минут, поэтому устаревшим выглядит не
+ * так явно.
+ *
+ * Отсчёт под line2 (widget_countdown) — другое дело: это системный
+ * android.widget.Chronometer, а не текст. RemoteViews.setChronometer() +
+ * setChronometerCountDown() один раз сообщают лаунчеру целевое время, а
+ * дальше ТИКАЕТ САМ ЛАУНЧЕР — по-настоящему, посекундно, без единого нашего
+ * обновления. Появилось в v1.9.25 именно как замена запрещённому обычному
+ * тексту: тот же смысл («осталось X»), но без лжи о точности.
  *
  * Два макета: компактный (widget_schedule) и увеличенный (widget_schedule_large)
  * со списком оставшихся пар на сегодня — выбирается по текущему размеру
@@ -81,6 +88,10 @@ class ScheduleWidget : AppWidgetProvider() {
             var line1 = "Откройте приложение"
             var line2 = "чтобы загрузить расписание"
             var ringProgress: Float? = null
+            // Цель для системного Chronometer (см. большой комментарий выше) — сколько
+            // миллисекунд осталось до конца текущей пары или до начала следующей.
+            var countdownTargetMs: Long? = null
+            var countdownFormat = ""
             var upcoming: List<LessonItem> = emptyList()
             var extraTitle = "СЕГОДНЯ ЕЩЁ"
 
@@ -115,9 +126,13 @@ class ScheduleWidget : AppWidgetProvider() {
                             line1 = "Сейчас: " + l.subject
                             line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
                             ringProgress = ((l.end - now).toFloat() / (l.end - l.start).toFloat()).coerceIn(0f, 1f)
+                            countdownTargetMs = l.end - now
+                            countdownFormat = "Осталось %s"
                         } else {
                             line1 = "Далее: " + l.subject
                             line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
+                            countdownTargetMs = l.start - now
+                            countdownFormat = "Через %s"
                             // Кольцо перемены — только если известно, когда она началась
                             // (то есть до неё в списке была ещё не закончившаяся пара сегодня).
                             if (lastEnd in 0 until l.start) {
@@ -157,6 +172,18 @@ class ScheduleWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_group, group)
             views.setTextViewText(R.id.widget_line1, line1)
             views.setTextViewText(R.id.widget_line2, line2)
+
+            val targetMs = countdownTargetMs
+            if (targetMs != null) {
+                // Chronometer считает от SystemClock.elapsedRealtime(), а не от
+                // System.currentTimeMillis() — переносим разницу в его систему отсчёта.
+                val base = SystemClock.elapsedRealtime() + targetMs
+                views.setChronometer(R.id.widget_countdown, base, countdownFormat, true)
+                views.setChronometerCountDown(R.id.widget_countdown, true)
+                views.setViewVisibility(R.id.widget_countdown, View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.widget_countdown, View.GONE)
+            }
 
             if (ringProgress != null) {
                 views.setImageViewBitmap(R.id.widget_ring, ringBitmap(context, ringProgress))
