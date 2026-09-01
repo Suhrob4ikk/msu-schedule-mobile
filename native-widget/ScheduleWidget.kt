@@ -51,12 +51,15 @@ class ScheduleWidget : AppWidgetProvider() {
     companion object {
         // Выше этой высоты (в dp, задаёт лаунчер при ресайзе) — расширенный макет.
         //
-        // Было 180 — и виджет, поставленный в размере по умолчанию (4x2,
-        // см. schedule_widget_info.xml), до порога не дотягивал: показывал три
-        // короткие строки компактного макета и половину площади оставлял пустой.
-        // 100 dp — это чуть выше одной строки сетки, так что 4x1 остаётся
-        // компактным, а всё, что выше, сразу показывает список пар.
-        private const val LARGE_MIN_HEIGHT_DP = 100
+        // Пробовал снижать до 100: расширенный макет (заголовок + разделитель +
+        // до 4 строк списка) реально требует больше 150dp, чтобы поместиться.
+        // При пороге 100 виджет размера по умолчанию (minHeight=110dp в
+        // schedule_widget_info.xml) получал расширенный макет, для которого не
+        // хватало места, — и на MIUI это кончилось не обрезанным текстом, а
+        // ошибкой «Не удалось загрузить виджет» на всём виджете. 180 проверено
+        // и безопасно; пустоту при маленьком размере лечим самим компактным
+        // макетом (widget_schedule.xml), а не понижением порога.
+        private const val LARGE_MIN_HEIGHT_DP = 180
 
         fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
             val large = isLargeSize(manager, widgetId)
@@ -67,6 +70,7 @@ class ScheduleWidget : AppWidgetProvider() {
             var line1 = "Откройте приложение"
             var line2 = "чтобы загрузить расписание"
             var ringProgress: Float? = null
+            var countdown: String? = null
             var upcoming: List<LessonItem> = emptyList()
             var extraTitle = "СЕГОДНЯ ЕЩЁ"
 
@@ -101,9 +105,11 @@ class ScheduleWidget : AppWidgetProvider() {
                             line1 = "Сейчас: " + l.subject
                             line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
                             ringProgress = ((l.end - now).toFloat() / (l.end - l.start).toFloat()).coerceIn(0f, 1f)
+                            countdown = "Осталось " + fmtDuration(l.end - now)
                         } else {
                             line1 = "Далее: " + l.subject
                             line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
+                            countdown = "Через " + fmtDuration(l.start - now)
                             // Кольцо перемены — только если известно, когда она началась
                             // (то есть до неё в списке была ещё не закончившаяся пара сегодня).
                             if (lastEnd in 0 until l.start) {
@@ -143,6 +149,17 @@ class ScheduleWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_group, group)
             views.setTextViewText(R.id.widget_line1, line1)
             views.setTextViewText(R.id.widget_line2, line2)
+            // Обратный отсчёт — та же формулировка, что и в приложении
+            // (humanDuration в src/api.ts). Раньше при компактном размере
+            // виджет показывал две строки текста и заметно пустовал ниже —
+            // отсчёт занимает это место содержательно, а не просто раздвигает
+            // отступы.
+            if (countdown != null) {
+                views.setTextViewText(R.id.widget_countdown, countdown)
+                views.setViewVisibility(R.id.widget_countdown, View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.widget_countdown, View.GONE)
+            }
 
             if (ringProgress != null) {
                 views.setImageViewBitmap(R.id.widget_ring, ringBitmap(context, ringProgress))
@@ -195,6 +212,15 @@ class ScheduleWidget : AppWidgetProvider() {
             } catch (_: Exception) {
                 false
             }
+        }
+
+        /** Тот же формат, что humanDuration в src/api.ts — «3 ч 20 мин» / «45 мин». */
+        private fun fmtDuration(ms: Long): String {
+            val minutes = (ms / 60_000L).coerceAtLeast(0)
+            val h = minutes / 60
+            val m = minutes % 60
+            if (h == 0L) return "$m мин"
+            return if (m == 0L) "$h ч" else "$h ч $m мин"
         }
 
         private fun endOfDay(ms: Long): Long {

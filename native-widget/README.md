@@ -9,7 +9,7 @@
 Если `android/` пересоздавался — скопируй файлы обратно:
 
 - `ScheduleWidget.kt`      → `android/app/src/main/java/tj/msu/schedule/`
-- `widget_schedule.xml`    → `android/app/src/main/res/layout/`
+- `widget_schedule.xml`, `widget_schedule_large.xml` → `android/app/src/main/res/layout/`
 - `widget_bg.xml`          → `android/app/src/main/res/drawable/`
 - `schedule_widget_info.xml` → `android/app/src/main/res/xml/`
 
