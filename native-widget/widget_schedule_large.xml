@@ -58,20 +58,6 @@
                 android:ellipsize="end"
                 android:text="чтобы загрузить расписание" />
 
-            <!-- Тот же обратный отсчёт, что и в компактном макете (widget_schedule.xml) —
-                 общий id, заполняется тем же кодом в ScheduleWidget.kt. -->
-            <TextView
-                android:id="@+id/widget_countdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="#2DD4A7"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:visibility="gone"
-                android:text="" />
 
         </LinearLayout>
 

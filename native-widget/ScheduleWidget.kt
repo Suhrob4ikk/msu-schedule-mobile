@@ -29,7 +29,18 @@ private data class LessonItem(
  * Данные пишет приложение (src/widgetData.ts) в AsyncStorage под ключом
  * "widget_data"; здесь читаем их напрямую из базы RKStorage — без
  * дополнительных нативных модулей. Обновляется системой раз в 30 минут
- * (updatePeriodMillis) и при каждом добавлении виджета.
+ * (updatePeriodMillis) и при каждом добавлении/ресайзе виджета — и только
+ * тогда. Между обновлениями содержимое застывает как есть.
+ *
+ * Из этого следует твёрдое правило: НЕ показывать здесь текст, который
+ * выглядит как живой отсчёт (например, «осталось N мин») — цифры на месте,
+ * а актуальны только в момент последнего обновления. Пробовали в v1.9.22,
+ * получили «Через 0 мин» на середине идущей пары. Тающее кольцо
+ * (ringProgress/ringBitmap) — не исключение из правила, а его допустимая
+ * форма: оно тоже снимок, но не утверждает точность до минуты, поэтому
+ * устаревшим выглядит не так явно. Если когда-нибудь понадобится настоящая
+ * точность — нужен будильник на границах пар, как в modules/live-lesson
+ * (LiveLesson.kt), а не текстовая строка здесь.
  *
  * Два макета: компактный (widget_schedule) и увеличенный (widget_schedule_large)
  * со списком оставшихся пар на сегодня — выбирается по текущему размеру
@@ -70,7 +81,6 @@ class ScheduleWidget : AppWidgetProvider() {
             var line1 = "Откройте приложение"
             var line2 = "чтобы загрузить расписание"
             var ringProgress: Float? = null
-            var countdown: String? = null
             var upcoming: List<LessonItem> = emptyList()
             var extraTitle = "СЕГОДНЯ ЕЩЁ"
 
@@ -105,11 +115,9 @@ class ScheduleWidget : AppWidgetProvider() {
                             line1 = "Сейчас: " + l.subject
                             line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
                             ringProgress = ((l.end - now).toFloat() / (l.end - l.start).toFloat()).coerceIn(0f, 1f)
-                            countdown = "Осталось " + fmtDuration(l.end - now)
                         } else {
                             line1 = "Далее: " + l.subject
                             line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
-                            countdown = "Через " + fmtDuration(l.start - now)
                             // Кольцо перемены — только если известно, когда она началась
                             // (то есть до неё в списке была ещё не закончившаяся пара сегодня).
                             if (lastEnd in 0 until l.start) {
@@ -149,17 +157,6 @@ class ScheduleWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_group, group)
             views.setTextViewText(R.id.widget_line1, line1)
             views.setTextViewText(R.id.widget_line2, line2)
-            // Обратный отсчёт — та же формулировка, что и в приложении
-            // (humanDuration в src/api.ts). Раньше при компактном размере
-            // виджет показывал две строки текста и заметно пустовал ниже —
-            // отсчёт занимает это место содержательно, а не просто раздвигает
-            // отступы.
-            if (countdown != null) {
-                views.setTextViewText(R.id.widget_countdown, countdown)
-                views.setViewVisibility(R.id.widget_countdown, View.VISIBLE)
-            } else {
-                views.setViewVisibility(R.id.widget_countdown, View.GONE)
-            }
 
             if (ringProgress != null) {
                 views.setImageViewBitmap(R.id.widget_ring, ringBitmap(context, ringProgress))
@@ -212,15 +209,6 @@ class ScheduleWidget : AppWidgetProvider() {
             } catch (_: Exception) {
                 false
             }
-        }
-
-        /** Тот же формат, что humanDuration в src/api.ts — «3 ч 20 мин» / «45 мин». */
-        private fun fmtDuration(ms: Long): String {
-            val minutes = (ms / 60_000L).coerceAtLeast(0)
-            val h = minutes / 60
-            val m = minutes % 60
-            if (h == 0L) return "$m мин"
-            return if (m == 0L) "$h ч" else "$h ч $m мин"
         }
 
         private fun endOfDay(ms: Long): Long {
