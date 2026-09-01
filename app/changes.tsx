@@ -50,6 +50,10 @@ export default function ChangesScreen() {
   const [profileGroupId, setProfileGroupId] = useState<number | null>(null);
   const [profileGroupLabel, setProfileGroupLabel] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
+  // Курс по id группы — для подписи в карточке изменения. Сервер отдаёт
+  // только group_id и голое название («ГЕОЛОГИЯ»), а групп с одинаковым
+  // названием на разных курсах несколько — без курса не понять, о ком речь.
+  const [yearByGroupId, setYearByGroupId] = useState<Record<number, number>>({});
 
   const load = async (groupId: number | null, silent = false) => {
     setError(null);
@@ -94,14 +98,17 @@ export default function ChangesScreen() {
       // подписи над фильтром — из-за этого сам список изменений появлялся
       // на один round-trip позже, чем мог бы.
       load(id);
-      if (id !== null) {
-        api.getGroups()
-          .then(groups => {
+      // Список групп нужен всегда (для курса в карточках), не только тем,
+      // у кого выбрана своя группа.
+      api.getGroups()
+        .then(groups => {
+          setYearByGroupId(Object.fromEntries(groups.map(g => [g.id, g.year])));
+          if (id !== null) {
             const g = groups.find(x => x.id === id);
             if (g) setProfileGroupLabel(`${shortGroupName(g.name)} · ${g.year} курс`);
-          })
-          .catch(() => null);
-      }
+          }
+        })
+        .catch(() => null);
     })();
   }, []);
 
@@ -199,7 +206,10 @@ export default function ChangesScreen() {
             </View>
 
             {item.group_name && (
-              <Text style={[s.groupName, { color: C.fg }]}>👥 {item.group_name}</Text>
+              <Text style={[s.groupName, { color: C.fg }]}>
+                👥 {item.group_name}
+                {item.group_id != null && yearByGroupId[item.group_id] != null ? ` · ${yearByGroupId[item.group_id]} курс` : ''}
+              </Text>
             )}
             {item.day_of_week && item.pair_number && (
               <Text style={[s.meta, { color: C.muted }]}>
