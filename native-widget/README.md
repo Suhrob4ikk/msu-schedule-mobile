@@ -18,9 +18,21 @@
     <receiver android:name=".ScheduleWidget" android:exported="false" android:label="@string/app_name">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="tj.msu.schedule.WIDGET_TICK"/>
+        <action android:name="android.intent.action.BOOT_COMPLETED"/>
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_widget_info"/>
     </receiver>
+
+⚠️ Три последних действия обязательны, без них виджет отстаёт на часы.
+`WIDGET_TICK` — собственный будильник виджета на границе пары: сам по себе
+`updatePeriodMillis` даёт лишь обновление раз в 30 минут, а MIUI режет и его.
+`BOOT_COMPLETED` и `MY_PACKAGE_REPLACED` нужны потому, что после перезагрузки
+и обновления приложения система стирает все будильники, и их надо ставить
+заново. Разрешение `RECEIVE_BOOT_COMPLETED` отдельно добавлять не нужно —
+его объявляет модуль `modules/live-lesson`, и при сборке оно попадает в общий
+манифест.
 
 Данные виджету пишет `src/widgetData.ts` (AsyncStorage, ключ `widget_data`).
 
