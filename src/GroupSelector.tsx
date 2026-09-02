@@ -15,11 +15,22 @@ interface Props {
   C: Colors;
   /** Компактный режим: когда группа выбрана — одна строка, чипы раскрываются по нажатию */
   collapsible?: boolean;
+  /**
+   * Раскрыт ли выбор группы. Нужен экрану расписания: в режиме недели он
+   * отключает собственную прокрутку (её забирает листалка дней), и без этого
+   * сигнала до раскрытого списка групп было не докрутить.
+   */
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
-export default function GroupSelector({ groups, value, onChange, C, collapsible }: Props) {
+export default function GroupSelector({ groups, value, onChange, C, collapsible, onExpandedChange }: Props) {
   const [pendingDir, setPendingDir] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expandedRaw, setExpandedRaw] = useState(false);
+  const expanded = expandedRaw;
+  const setExpanded = (v: boolean) => {
+    setExpandedRaw(v);
+    onExpandedChange?.(v);
+  };
 
   const directions = useMemo(() => {
     const dirs = new Set<string>();
