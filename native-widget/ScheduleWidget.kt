@@ -1,9 +1,12 @@
 package tj.msu.schedule
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.content.ComponentName
+import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -66,7 +69,28 @@ class ScheduleWidget : AppWidgetProvider() {
         updateWidget(context, appWidgetManager, appWidgetId)
     }
 
+    /**
+     * Наш собственный будильник на границе пары, а также перезагрузка телефона
+     * и обновление приложения (в обоих случаях будильники стираются системой,
+     * их надо поставить заново).
+     */
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        val action = intent.action
+        if (action == ACTION_TICK ||
+            action == Intent.ACTION_BOOT_COMPLETED ||
+            action == Intent.ACTION_MY_PACKAGE_REPLACED
+        ) {
+            val manager = AppWidgetManager.getInstance(context) ?: return
+            val ids = manager.getAppWidgetIds(ComponentName(context, ScheduleWidget::class.java))
+            for (id in ids) updateWidget(context, manager, id)
+        }
+    }
+
     companion object {
+        /** Наш будильник «пара сменилась, перерисуй виджет». */
+        const val ACTION_TICK = "tj.msu.schedule.WIDGET_TICK"
+
         // Выше этой высоты (в dp, задаёт лаунчер при ресайзе) — расширенный макет.
         //
         // Пробовал снижать до 100: расширенный макет (заголовок + разделитель +
@@ -92,6 +116,9 @@ class ScheduleWidget : AppWidgetProvider() {
             // миллисекунд осталось до конца текущей пары или до начала следующей.
             var countdownTargetMs: Long? = null
             var countdownFormat = ""
+            // Тот же момент, но абсолютным временем — на него ставим будильник,
+            // чтобы перерисовать виджет ровно тогда, когда показанное устареет.
+            var nextBoundaryAt: Long? = null
             var upcoming: List<LessonItem> = emptyList()
             var extraTitle = "СЕГОДНЯ ЕЩЁ"
 
@@ -128,11 +155,13 @@ class ScheduleWidget : AppWidgetProvider() {
                             ringProgress = ((l.end - now).toFloat() / (l.end - l.start).toFloat()).coerceIn(0f, 1f)
                             countdownTargetMs = l.end - now
                             countdownFormat = "Осталось %s"
+                            nextBoundaryAt = l.end
                         } else {
                             line1 = "Далее: " + l.subject
                             line2 = l.label + (if (l.room.isNotEmpty()) " · ауд. ${l.room}" else "")
                             countdownTargetMs = l.start - now
                             countdownFormat = "Через %s"
+                            nextBoundaryAt = l.start
                             // Кольцо перемены — только если известно, когда она началась
                             // (то есть до неё в списке была ещё не закончившаяся пара сегодня).
                             if (lastEnd in 0 until l.start) {
@@ -174,7 +203,11 @@ class ScheduleWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_line2, line2)
 
             val targetMs = countdownTargetMs
-            if (targetMs != null) {
+            // Chronometer в режиме обратного отсчёта не останавливается на нуле:
+            // перейдя цель, он показывает время со знаком минус («−14:13:37»).
+            // Само по себе это видно, только если виджет не обновился вовремя,
+            // но подстраховаться дешевле, чем показать человеку минус.
+            if (targetMs != null && targetMs > 0) {
                 // Chronometer считает от SystemClock.elapsedRealtime(), а не от
                 // System.currentTimeMillis() — переносим разницу в его систему отсчёта.
                 val base = SystemClock.elapsedRealtime() + targetMs
@@ -194,7 +227,7 @@ class ScheduleWidget : AppWidgetProvider() {
 
             if (large) {
                 val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
-                val dayFmt = SimpleDateFormat("EEE", Locale("ru"))
+                val dayFmt = SimpleDateFormat("EEE", Locale.forLanguageTag("ru"))
                 val rowIds = listOf(R.id.widget_extra1, R.id.widget_extra2, R.id.widget_extra3, R.id.widget_extra4)
                 views.setTextViewText(R.id.widget_extra_title, extraTitle)
                 views.setViewVisibility(R.id.widget_extra_title, if (upcoming.isEmpty()) View.GONE else View.VISIBLE)
@@ -226,6 +259,11 @@ class ScheduleWidget : AppWidgetProvider() {
             }
 
             manager.updateAppWidget(widgetId, views)
+
+            // Будильник на границу пары. Если пар впереди нет (каникулы,
+            // вечер воскресенья) — не ставим ничего: разбудит либо обычное
+            // обновление системы, либо открытие приложения.
+            nextBoundaryAt?.let { scheduleNextUpdate(context, it) }
         }
 
         /** Пользователь растянул виджет выше LARGE_MIN_HEIGHT_DP — показываем список пар. */
@@ -236,6 +274,33 @@ class ScheduleWidget : AppWidgetProvider() {
             } catch (_: Exception) {
                 false
             }
+        }
+
+        /**
+         * Ставит будильник на момент, когда показанное станет неправдой:
+         * конец идущей пары или начало следующей.
+         *
+         * Без этого виджет жил только на updatePeriodMillis (30 минут), а на
+         * MIUI система режет и их: 2 сентября 2026 виджет в 23:58 всё ещё
+         * показывал утреннюю пару, а отсчёт под ней ушёл в «−14:13:37».
+         * Тот же приём уже работает для уведомления «идёт пара»
+         * (modules/live-lesson/LiveLesson.kt), оттуда и способ.
+         *
+         * setWindow, а не setExact: точные будильники на Android 12+ требуют
+         * отдельного разрешения, которое пользователь может отобрать. Окна в
+         * минуту на смену пары более чем достаточно.
+         */
+        private fun scheduleNextUpdate(context: Context, atMs: Long) {
+            val am = context.getSystemService(AlarmManager::class.java) ?: return
+            val pi = PendingIntent.getBroadcast(
+                context,
+                0,
+                Intent(context, ScheduleWidget::class.java).setAction(ACTION_TICK),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            // +2 секунды: будим уже ПОСЛЕ границы, иначе пересчёт застанет
+            // ту же пару и поставит будильник на то же время по кругу.
+            am.setWindow(AlarmManager.RTC_WAKEUP, atMs + 2_000L, 60_000L, pi)
         }
 
         private fun endOfDay(ms: Long): Long {
