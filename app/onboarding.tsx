@@ -9,6 +9,7 @@ import { api, Group, shortGroupName, rememberGroup } from '../src/api';
 import GroupSelector from '../src/GroupSelector';
 import { useTheme, useThemeMode } from '../src/theme';
 import { requestNotificationPermission } from '../src/examNotifications';
+import { syncPushToken } from '../src/pushToken';
 import { markGroupChosen } from '../src/features';
 
 type Props = { onDone?: () => void };
@@ -54,6 +55,10 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
     await api.registerUser(deviceId, name.trim() || 'Аноним', selected.id).catch(() => null);
     // Запрашиваем разрешение на уведомления сразу после регистрации
     await requestNotificationPermission();
+    // Если разрешение дали — тут же отправляем push-токен, чтобы об
+    // изменении расписания узнать мгновенно, а не только при следующем
+    // открытии приложения.
+    await syncPushToken();
     setSaving(false);
     if (onDone) { onDone(); } else { router.replace('/'); }
   };

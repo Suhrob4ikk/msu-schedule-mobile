@@ -491,6 +491,10 @@ export const api = {
   registerUser: (deviceId: string, name: string, groupId: number) =>
     fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
+  /** Токен для мгновенных push об изменении расписания своей группы (см. src/pushToken.ts). */
+  setPushToken: (deviceId: string, token: string) =>
+    fetch(`${API_BASE}/user/push-token?device_id=${encodeURIComponent(deviceId)}&token=${encodeURIComponent(token)}`, { method: 'POST' })
+      .then(r => r.json()).catch(() => null),
   // 5 минут — совпадает с кэшем на бэкенде, чтобы уведомление о новой
   // версии доходило быстро, а не через час после релиза.
   // installed — своя версия: бэкенд вернёт, что нового именно с неё.

@@ -1165,24 +1165,6 @@ export default function ScheduleScreen() {
 
   const { height: winHeight } = useWindowDimensions();
 
-  // Высота одной страницы листалки недели: всё, что осталось на экране под
-  // шапкой. Считаем от координаты самого списка (её и так меряет onLayout
-  // ниже) — так страница подстраивается под любой размер экрана и не зависит
-  // от того, сколько блоков показано сверху.
-  const [weekListY, setWeekListY] = useState(0);
-  // 76 — нижняя панель вкладок плюс небольшой отступ, чтобы день не упирался
-  // в неё вплотную. Нижняя граница в 320 — страховка на маленьких экранах.
-  const weekPageH = Math.max(320, winHeight - weekListY - 76);
-  const weekPagerRef = useRef<ScrollView>(null);
-  // Какая страница (день) сейчас открыта. Нужна не только для «открыть на
-  // сегодня»: высота страницы меняется на ходу — например, когда раскрывают
-  // выбор группы и шапка становится выше. Без пересчёта прокрутка оставалась
-  // на старом смещении, и в экран попадали хвост одного дня и начало другого.
-  const weekPageRef = useRef(0);
-  const weekInited = useRef(false);
-  // Раскрыт ли выбор группы — см. scrollEnabled внешнего экрана ниже.
-  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
-
   const filtered = selectedDay === 'all'
     ? lessons
     : lessons.filter(l => l.day_of_week === selectedDay);
@@ -1192,27 +1174,6 @@ export default function ScheduleScreen() {
     if (dl.length) acc[day] = dl;
     return acc;
   }, {} as Record<string, Lesson[]>);
-
-  // Порядковый номер сегодняшнего дня среди тех, что есть на неделе.
-  const weekDayKeys = Object.keys(byDay);
-  const weekTodayIndex = Math.max(
-    0,
-    weekDayKeys.findIndex(d => byDay[d][0]?.lesson_date === nowTick.date),
-  );
-
-  // Вход в режим недели — открываемся на сегодняшнем дне.
-  useEffect(() => {
-    if (selectedDay !== 'all') { weekInited.current = false; return; }
-    if (weekInited.current || weekDayKeys.length === 0) return;
-    weekInited.current = true;
-    weekPageRef.current = weekTodayIndex;
-  }, [selectedDay, weekTodayIndex, weekDayKeys.length]);
-
-  // Держим открытый день выровненным по экрану при любом пересчёте высоты.
-  useEffect(() => {
-    if (selectedDay !== 'all' || weekListY === 0) return;
-    weekPagerRef.current?.scrollTo({ y: weekPageRef.current * weekPageH, animated: false });
-  }, [selectedDay, weekPageH, weekListY]);
 
   // Автопрокрутка к сегодняшнему дню в режиме «Вся неделя»: координаты
   // берём из onLayout блока дня (см. рендер ниже), scrollRef — сам скролл.
@@ -1327,14 +1288,6 @@ export default function ScheduleScreen() {
       style={[s.container, { backgroundColor: C.bg }]}
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
-      // В режиме недели вертикальный жест принадлежит листателю дней ниже:
-      // если бы прокручивался ещё и внешний экран, движение пальцем вверх
-      // означало бы сразу и «прокрути страницу», и «следующий день».
-      //
-      // Исключение — раскрытый выбор группы: список направлений и курсов
-      // длиннее экрана, и с выключенной прокруткой до него было не добраться,
-      // не переключившись сначала на конкретный день.
-      scrollEnabled={selectedDay !== 'all' || groupPickerOpen}
       onScroll={handleScroll}
       scrollEventThrottle={32}
       refreshControl={
@@ -1381,7 +1334,6 @@ export default function ScheduleScreen() {
             onChange={loadGroup}
             C={C}
             collapsible
-            onExpandedChange={setGroupPickerOpen}
           />
         )}
       </View>
@@ -1494,7 +1446,7 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {selectedGroup && !loading && selectedDay !== 'all' && (currentItem || nextItem) && (
+      {selectedGroup && !loading && (currentItem || nextItem) && (
         <View style={s.nowRow}>
           {currentItem && (
             <LinearGradient
@@ -1604,7 +1556,7 @@ export default function ScheduleScreen() {
       )}
 
       {/* Статистика недели */}
-      {stats && stats.total_lessons_week >= 3 && selectedDay !== 'all' && (
+      {stats && stats.total_lessons_week >= 3 && (
         <View style={[s.statsRow, { backgroundColor: C.card, borderColor: C.border }]}>
           <View style={s.statItem}>
             <Text style={[s.statNum, { color: C.primary }]}>{stats.total_lessons_week}</Text>
@@ -1722,73 +1674,10 @@ export default function ScheduleScreen() {
           {...panResponder.panHandlers}
           // Начало списка дней внутри скролла — база для координат из onLayout
           // блоков дня (см. dayAbsY выше).
-          onLayout={(e) => {
-            listYRef.current = e.nativeEvent.layout.y;
-            // Та же координата задаёт высоту страницы листалки недели.
-            setWeekListY(e.nativeEvent.layout.y);
-          }}
+          onLayout={(e) => { listYRef.current = e.nativeEvent.layout.y; }}
           style={{ transform: [{ translateX: slideX }], minHeight: winHeight * 0.55 }}
         >
-          {/* Режим недели — листалка: один день на экран, вертикальный свайп
-              меняет день. Обычный ScrollView с pagingEnabled, а не FlatList:
-              дней всего шесть, виртуализация не нужна, зато нет предупреждения
-              про вложенные списки. Внешний экран в этом режиме не прокручивается
-              (scrollEnabled выше), поэтому вертикаль целиком принадлежит этому
-              списку и жесты не спорят. */}
-          {selectedDay === 'all' && Object.keys(byDay).length > 0 ? (
-            <ScrollView
-              ref={weekPagerRef}
-              style={{ height: weekPageH }}
-              showsVerticalScrollIndicator={false}
-              snapToInterval={weekPageH}
-              // Один сильный свайп пролистывал от понедельника до субботы:
-              // pagingEnabled и snapToInterval вместе спорят друг с другом, и
-              // инерция уносила через несколько страниц. Оставлен только
-              // snapToInterval, а disableIntervalMomentum ограничивает жест
-              // ровно одним днём, сколько бы резко ни листали.
-              disableIntervalMomentum
-              snapToAlignment="start"
-              decelerationRate="fast"
-              onMomentumScrollEnd={(e) => {
-                weekPageRef.current = Math.round(e.nativeEvent.contentOffset.y / weekPageH);
-              }}
-            >
-              {Object.entries(byDay).map(([day, dayLessons]) => {
-                const isToday = dayLessons[0]?.lesson_date === nowTick.date;
-                return (
-                  <View key={day} style={{ height: weekPageH }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4, marginBottom: 8 }}>
-                      <Text style={[s.dayHeader, { color: C.primary, marginTop: 0, marginBottom: 0 }]}>
-                        {day.charAt(0).toUpperCase() + day.slice(1)}
-                        {selectedWeek ? `, ${getDayDate(day, selectedWeek.week_start)}` : ''}
-                      </Text>
-                      {isToday && (
-                        <View style={{ backgroundColor: C.blueBg, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 9.5, fontWeight: '800', color: C.primary, letterSpacing: 0.4 }}>
-                            СЕГОДНЯ
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    {/* День длиннее экрана (пять пар с заметками) прокручивается
-                        внутри своей страницы — иначе низ дня был бы обрезан. */}
-                    <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
-                      <DayTimeline
-                        lessons={dayLessons}
-                        C={C}
-                        todayDate={nowTick.date}
-                        nowMinutes={nowTick.minutes}
-                        dimPast={selectedWeek ? isCurrentWeek(selectedWeek.week_start) : false}
-                        showAttendance={featureAttendance && isMyGroup}
-                        showNotes={featureNotes && isMyGroup}
-                      />
-                    </ScrollView>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          ) : (
-          Object.entries(byDay).map(([day, dayLessons]) => {
+          {Object.entries(byDay).map(([day, dayLessons]) => {
             const isToday = dayLessons[0]?.lesson_date === nowTick.date;
             return (
               <View
@@ -1826,8 +1715,7 @@ export default function ScheduleScreen() {
                 />
               </View>
             );
-          })
-          )}
+          })}
 
           {selectedGroup && Object.keys(byDay).length === 0 && (
             <View style={s.emptyState}>

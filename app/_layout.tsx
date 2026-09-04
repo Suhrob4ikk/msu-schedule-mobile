@@ -10,6 +10,7 @@ import { SyncProvider, useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
 import { setupNotifications } from '../src/examNotifications';
 import { refreshLiveLesson } from '../src/liveLesson';
+import { syncPushToken } from '../src/pushToken';
 import UpdateBanner from '../src/UpdateBanner';
 
 /**
@@ -110,6 +111,10 @@ function AppTabs() {
     AsyncStorage.getItem('selected_group_id').then(id => {
       setNeedsOnboarding(!id);
       setReady(true);
+      // Уже зарегистрированные пользователи не проходят онбординг заново —
+      // это единственное место, где им перепадёт push-токен, если разрешение
+      // на уведомления они уже дали раньше (для напоминаний о зачётах).
+      if (id) syncPushToken();
     });
   }, []);
 
