@@ -5,6 +5,13 @@ interface LiveLessonNativeModule {
   refresh(): Promise<void>;
   /** Снять уведомление и будильник. */
   clear(): Promise<void>;
+  /**
+   * Разбудить виджет на рабочем столе прямо сейчас, не дожидаясь его
+   * собственного будильника или системного updatePeriodMillis — оба MIUI
+   * умеет замораживать на часы. Вызывать при каждой записи свежего
+   * расписания (см. src/widgetData.ts).
+   */
+  refreshWidget(): Promise<void>;
 }
 
 // requireOptionalNativeModule, а не requireNativeModule: модуль только для

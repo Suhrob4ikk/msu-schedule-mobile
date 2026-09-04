@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Group, Lesson, DAYS_ORDER, shortGroupName } from './api';
+import LiveLessonNative from '../modules/live-lesson';
 
 // Данные для виджета на рабочем столе. Пишем компактный JSON в AsyncStorage
 // (ключ widget_data) — нативный виджет (ScheduleWidget.kt) читает его напрямую
@@ -43,4 +44,13 @@ export async function writeWidgetData(group: Group, lessons: Lesson[], weekStart
     updatedAt: Date.now(),
     lessons: items,
   }));
+
+  // Раньше на этом всё заканчивалось: виджет узнавал о новых данных только
+  // на своём будильнике или системном updatePeriodMillis (30 минут) — а MIUI
+  // умеет замораживать и то, и другое на часы. 3 сентября 2026 виджет так
+  // провисел с 15:30 до 23:01, показывая пару, которая давно закончилась, с
+  // отсчётом в минус. Теперь каждое открытие приложения (расписание
+  // загружается заново при каждом входе) сразу же будит виджет — независимо
+  // от того, работает будильник на этом телефоне или нет.
+  await LiveLessonNative?.refreshWidget().catch(() => null);
 }
