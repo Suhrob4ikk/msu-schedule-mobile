@@ -262,13 +262,16 @@ object LiveLesson {
         )
 
     /**
-     * setWindow, а не setExact: точные будильники на Android 12+ требуют
-     * отдельного разрешения, которое пользователь может отобрать. Окна в
-     * минуту для смены пары более чем достаточно.
+     * setExactAndAllowWhileIdle, а не setExact/setAlarmClock: те требуют
+     * отдельное разрешение SCHEDULE_EXACT_ALARM (Android 12+), которое
+     * пользователь может отобрать. В отличие от прежнего setWindow, доставляется
+     * даже в Doze (см. тот же приём и подробное объяснение в
+     * native-widget/ScheduleWidget.kt — там из-за setWindow строка «идёт
+     * пара» и виджет отставали одинаково).
      */
     private fun scheduleAt(context: Context, atMs: Long) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return
-        am.setWindow(AlarmManager.RTC_WAKEUP, atMs, 60_000L, alarmIntent(context))
+        am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, alarmIntent(context))
     }
 
     private fun cancelAlarm(context: Context) {

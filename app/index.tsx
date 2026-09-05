@@ -1580,7 +1580,30 @@ export default function ScheduleScreen() {
         <FeatureHint skips={featureAttendance} notes={featureNotes} />
       )}
 
-      {/* Фильтр по дню */}
+      {/* Фильтр по дню: «Вся неделя» — отдельная широкая кнопка сверху (в
+          общем горизонтальном ряду с днями она не помещалась на узких
+          экранах), сами дни — как раньше, в горизонтальной прокрутке */}
+      {selectedGroup && (
+        <TouchableOpacity
+          onPress={() => {
+            if (selectedDay === 'all') return;
+            Haptics.selectionAsync();
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setSelectedDay('all');
+          }}
+          style={[
+            s.allWeekBtn,
+            {
+              backgroundColor: selectedDay === 'all' ? C.primary : C.card,
+              borderColor: selectedDay === 'all' ? C.primary : C.border,
+            },
+          ]}
+        >
+          <Text style={[s.allWeekBtnText, { color: selectedDay === 'all' ? '#fff' : C.fg }]}>
+            Вся неделя
+          </Text>
+        </TouchableOpacity>
+      )}
       {selectedGroup && (
         <ScrollView
           ref={dayBarRef}
@@ -1592,7 +1615,7 @@ export default function ScheduleScreen() {
           onScroll={(e) => { dayBarXRef.current = e.nativeEvent.contentOffset.x; }}
           scrollEventThrottle={32}
         >
-          {DAY_SWIPE_ORDER.map(day => {
+          {DAY_SWIPE_ORDER.filter(day => day !== 'all').map(day => {
             const active = selectedDay === day;
             const hasLessons = day !== 'all' && lessons.some(l => l.day_of_week === day);
             const dateObj = day !== 'all' && selectedWeek ? dayDateObj(day, selectedWeek.week_start) : null;
@@ -1641,7 +1664,7 @@ export default function ScheduleScreen() {
                   ]}
                 >
                   <Text style={[s.dayBtnText, { color: active ? '#fff' : C.fg }]}>
-                    {day === 'all' ? 'Вся неделя' : DAY_LABELS[day]}
+                    {DAY_LABELS[day]}
                   </Text>
                   {dateObj && (
                     <Text style={[s.dayBtnDate, { color: active ? 'rgba(255,255,255,0.85)' : C.muted }]}>
@@ -1812,6 +1835,14 @@ const s = StyleSheet.create({
   roomChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
   roomChipText: { fontSize: 13, fontWeight: '700' },
 
+  allWeekBtn: {
+    marginTop: 8,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  allWeekBtnText: { fontSize: 14, fontWeight: '700' },
   dayBar: { marginTop: 8, marginBottom: 12 },
   // alignItems: flex-start — иначе ScrollView растягивает по высоте все чипы
   // до самого высокого (с меткой «сегодня»), и у остальных под кнопкой

@@ -286,9 +286,15 @@ class ScheduleWidget : AppWidgetProvider() {
          * Тот же приём уже работает для уведомления «идёт пара»
          * (modules/live-lesson/LiveLesson.kt), оттуда и способ.
          *
-         * setWindow, а не setExact: точные будильники на Android 12+ требуют
-         * отдельного разрешения, которое пользователь может отобрать. Окна в
-         * минуту на смену пары более чем достаточно.
+         * setExactAndAllowWhileIdle, а не setExact/setAlarmClock: те требуют
+         * отдельное разрешение SCHEDULE_EXACT_ALARM (Android 12+), которое
+         * пользователь может отобрать. setExactAndAllowWhileIdle разрешения не
+         * требует и, в отличие от setWindow, доставляется даже в Doze — ценой
+         * троттлинга примерно раз в 9 минут на всё приложение, что для смены
+         * пар (несколько раз в день, с разрывом на много больше 9 минут) не
+         * помеха. Была причиной бага 5 сентября 2026: на setWindow будильник
+         * на начало пары не сработал вовремя, и виджет всё ещё показывал
+         * «Далее» с отсчётом, ушедшим в минус, хотя пара уже шла.
          */
         private fun scheduleNextUpdate(context: Context, atMs: Long) {
             val am = context.getSystemService(AlarmManager::class.java) ?: return
@@ -300,7 +306,7 @@ class ScheduleWidget : AppWidgetProvider() {
             )
             // +2 секунды: будим уже ПОСЛЕ границы, иначе пересчёт застанет
             // ту же пару и поставит будильник на то же время по кругу.
-            am.setWindow(AlarmManager.RTC_WAKEUP, atMs + 2_000L, 60_000L, pi)
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs + 2_000L, pi)
         }
 
         private fun endOfDay(ms: Long): Long {

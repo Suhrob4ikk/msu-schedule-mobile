@@ -1,6 +1,10 @@
 package tj.msu.schedule.live
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -47,6 +51,31 @@ class LiveLessonModule : Module() {
                 ctx.sendBroadcast(
                     Intent("tj.msu.schedule.WIDGET_TICK").setPackage(ctx.packageName)
                 )
+            }
+        }
+
+        /**
+         * Уже ли системе разрешено не ограничивать приложение в фоне.
+         * Это НЕ решает проблему MIUI целиком — у MIUI есть отдельный,
+         * непубличный переключатель «Автозапуск», до которого этим методом
+         * не достучаться, — но снимает часть ограничений на стоковом Android
+         * и Doze, из-за которых будильник виджета (см. ScheduleWidget.kt)
+         * может не сработать вовремя.
+         */
+        AsyncFunction("isIgnoringBatteryOptimizations") {
+            val ctx = appContext.reactContext ?: return@AsyncFunction true
+            val pm = ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            pm?.isIgnoringBatteryOptimizations(ctx.packageName) ?: true
+        }
+
+        /** Открыть системный диалог запроса на исключение из ограничений батареи. */
+        AsyncFunction("requestIgnoreBatteryOptimizations") {
+            appContext.reactContext?.let { ctx ->
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:${ctx.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                ctx.startActivity(intent)
             }
         }
     }

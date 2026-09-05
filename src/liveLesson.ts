@@ -58,3 +58,23 @@ export async function refreshLiveLesson(): Promise<void> {
     // Уведомление — не то, из-за чего стоит ломать экран расписания
   }
 }
+
+/** Разрешено ли приложению работать в фоне без ограничений батареи. */
+export async function isIgnoringBatteryOptimizations(): Promise<boolean> {
+  if (Platform.OS !== 'android' || !LiveLessonNative) return true;
+  try {
+    return await LiveLessonNative.isIgnoringBatteryOptimizations();
+  } catch {
+    return true;
+  }
+}
+
+/** Системный диалог «не ограничивать батарею для этого приложения». */
+export async function requestIgnoreBatteryOptimizations(): Promise<void> {
+  if (Platform.OS !== 'android' || !LiveLessonNative) return;
+  try {
+    await LiveLessonNative.requestIgnoreBatteryOptimizations();
+  } catch {
+    // Нет — так нет, попросим ещё раз в другой раз
+  }
+}

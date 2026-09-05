@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share, Animated,
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share, Animated, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -21,7 +21,10 @@ import { formatSyncTime } from '../src/syncService';
 
 import { featuresUnlocked, daysUntilUnlock, markGroupChosen } from '../src/features';
 import { collectSkips, collectNotes, type SkipStats as SkipStatsType } from '../src/studyData';
-import { isLiveLessonEnabled, setLiveLessonEnabled } from '../src/liveLesson';
+import {
+  isLiveLessonEnabled, setLiveLessonEnabled,
+  isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations,
+} from '../src/liveLesson';
 import InviteCard from '../src/InviteCard';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts.
@@ -207,6 +210,52 @@ function LiveLessonRow() {
       <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
         <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
       </View>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * Виджет и «идёт пара» иногда отстают на телефонах Xiaomi/Redmi/POCO (MIUI) и
+ * на некоторых других прошивках — система замораживает будильник, которым
+ * они обновляются. Показываем только на Android: у iOS этого ограничения
+ * нет вовсе (там своя модель фоновой работы, к делу не относится).
+ */
+function BackgroundWorkRow() {
+  const C = useTheme();
+  const [exempt, setExempt] = useState(true);
+
+  const check = useCallback(() => {
+    isIgnoringBatteryOptimizations().then(setExempt);
+  }, []);
+
+  useEffect(() => { check(); }, [check]);
+  useFocusEffect(check);
+
+  if (Platform.OS !== 'android') return null;
+
+  const onPress = async () => {
+    if (!exempt) await requestIgnoreBatteryOptimizations();
+    Alert.alert(
+      'Если виджет всё равно отстаёт',
+      'На Xiaomi, Redmi, POCO и некоторых других телефонах этого может быть недостаточно — там есть отдельная настройка. Зайди в настройки телефона → Приложения → МГУ Расписание → Автозапуск и включи его, а в разделе «Экономия заряда» для этого приложения выбери «Без ограничений».',
+    );
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
+    >
+      <View style={ft.text}>
+        <Text style={[ft.label, { color: C.fg }]}>Разрешить работу в фоне</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>
+          {exempt
+            ? 'Разрешено — нажми, если виджет или «идёт пара» всё равно отстают'
+            : 'Если виджет или «идёт пара» отстают по времени — включи здесь'}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={C.muted} />
     </TouchableOpacity>
   );
 }
@@ -594,6 +643,7 @@ export default function ProfileScreen() {
         <NotificationRow />
         <LessonReminderRow />
         <LiveLessonRow />
+        <BackgroundWorkRow />
         <FeatureToggle
           label="Пропуски"
           description="Отмечай только пары, которые пропустил. Здесь будет видно, сколько пропусков накопилось по каждому предмету"

@@ -4,6 +4,8 @@
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
   <!-- Плашка в статус-баре Android 16 (на старых версиях просто игнорируется) -->
   <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+  <!-- Показать пользователю системный диалог «не ограничивать батарею для этого приложения» -->
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
   <application>
     <!--

@@ -12,6 +12,10 @@ interface LiveLessonNativeModule {
    * расписания (см. src/widgetData.ts).
    */
   refreshWidget(): Promise<void>;
+  /** Разрешено ли приложению работать в фоне без ограничений батареи. */
+  isIgnoringBatteryOptimizations(): Promise<boolean>;
+  /** Показать системный диалог «не ограничивать батарею для этого приложения». */
+  requestIgnoreBatteryOptimizations(): Promise<void>;
 }
 
 // requireOptionalNativeModule, а не requireNativeModule: модуль только для
