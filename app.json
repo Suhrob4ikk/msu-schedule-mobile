@@ -3,7 +3,7 @@
     "name": "МГУ Расписание",
     "slug": "msu-schedule-mobile",
     "scheme": "msu-schedule",
-    "version": "1.9.30",
+    "version": "1.9.31",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "tj.msu.schedule",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0e9b72"

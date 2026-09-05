@@ -36,6 +36,24 @@
 
 Данные виджету пишет `src/widgetData.ts` (AsyncStorage, ключ `widget_data`).
 
+## Push-уведомления (Firebase/FCM)
+
+Исходник `google-services.json` лежит в корне репозитория и указан в
+`app.json` (`expo.android.googleServicesFile`) — при обычном `expo prebuild`
+Expo сам скопирует его в `android/app/` и подключит плагин. Но раз `android/`
+здесь персистентная, а не всегда пересоздаётся, если она всё же пересоздалась
+вручную — проверь и при необходимости добавь заново:
+
+- Скопировать `google-services.json` из корня в `android/app/`
+- В `android/build.gradle` (buildscript → dependencies):
+  `classpath('com.google.gms:google-services:4.4.2')`
+- В `android/app/build.gradle` (в самом верху, рядом с другими `apply plugin`):
+  `apply plugin: "com.google.gms.google-services"`
+
+Без этого `Notifications.getExpoPushTokenAsync()` на Android будет падать —
+не критично для остального приложения (см. `src/pushToken.ts`), но push
+работать не будет.
+
 ## Строка «идёт пара» — в modules/, копировать не нужно
 
 Постоянное уведомление с текущей парой живёт в `modules/live-lesson/` как

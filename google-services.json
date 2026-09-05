@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "633018166483",
+    "project_id": "msu-schedule-2e26a",
+    "storage_bucket": "msu-schedule-2e26a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:633018166483:android:da7ce6b7de064fc4ed3826",
+        "android_client_info": {
+          "package_name": "tj.msu.schedule"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4nK4DOZq8zw1Ze_haANjbHi9WjRznLi8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
