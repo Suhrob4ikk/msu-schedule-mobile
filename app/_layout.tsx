@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, AppState, AppStateStatus, TouchableOpacity, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import OnboardingScreen from './onboarding';
 import { ThemeProvider, useTheme } from '../src/theme';
 import { SyncProvider, useSyncStatus } from '../src/SyncContext';
@@ -11,7 +12,86 @@ import { formatSyncTime } from '../src/syncService';
 import { setupNotifications } from '../src/examNotifications';
 import { refreshLiveLesson } from '../src/liveLesson';
 import { syncPushToken } from '../src/pushToken';
+import { addNotifHistory, getUnreadNotifCount, subscribeNotifHistory } from '../src/notificationHistory';
 import UpdateBanner from '../src/UpdateBanner';
+
+/**
+ * Пуш об изменении расписания — единственный тип уведомлений, который шлёт
+ * сервер (см. backend/app/services/push.py → notify_group_changes). У наших
+ * СВОИХ локальных напоминаний (зачёты/пары) всегда стоит data.type — по его
+ * отсутствию и отличаем «пришло с сервера» от «сами запланировали».
+ * Слушаем и получение (пока приложение открыто), и тап по уведомлению
+ * (включая холодный старт из шторки) — иначе часть уведомлений в историю
+ * не попадёт.
+ */
+function logRemoteNotification(content: Notifications.NotificationContent, date: Date): void {
+  if (content.data?.type) return; // это наше локальное — уже в истории
+  const title = content.title ?? 'Уведомление';
+  const body = content.body ?? '';
+  const minuteKey = date.toISOString().slice(0, 16);
+  addNotifHistory({ id: `change:${title}:${body}:${minuteKey}`, category: 'change', title, body, date: date.toISOString() });
+}
+
+function useLogRemoteNotifications(): void {
+  useEffect(() => {
+    Notifications.getLastNotificationResponseAsync().then(r => {
+      if (r) logRemoteNotification(r.notification.request.content, new Date(r.notification.date));
+    });
+    const sub1 = Notifications.addNotificationReceivedListener(n => {
+      logRemoteNotification(n.request.content, new Date(n.date));
+    });
+    const sub2 = Notifications.addNotificationResponseReceivedListener(r => {
+      logRemoteNotification(r.notification.request.content, new Date(r.notification.date));
+    });
+    return () => { sub1.remove(); sub2.remove(); };
+  }, []);
+}
+
+/** Счётчик непрочитанных уведомлений для колокольчика в шапке. Обновляется
+ *  по подписке (новая запись/прочтение) и при возврате приложения на передний
+ *  план — колокольчик рисуется один раз для всех вкладок, своего useFocusEffect
+ *  на экран у него нет. */
+function useUnreadNotifCount(): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => getUnreadNotifCount().then(c => { if (mounted) setCount(c); });
+    refresh();
+    const unsub = subscribeNotifHistory(refresh);
+    const sub = AppState.addEventListener('change', (s: AppStateStatus) => { if (s === 'active') refresh(); });
+    return () => { mounted = false; unsub(); sub.remove(); };
+  }, []);
+  return count;
+}
+
+/** Колокольчик в шапке — то же, что кнопка «Уведомления» в кабинете, но
+ *  виден сразу на любом экране, без двух тапов вглубь. */
+function NotificationBell() {
+  const count = useUnreadNotifCount();
+  return (
+    <TouchableOpacity
+      onPress={() => router.push('/notifications')}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel={count > 0 ? `Уведомления, непрочитанных: ${count}` : 'Уведомления'}
+      style={{ width: 26, height: 26, alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Ionicons name="notifications-outline" size={22} color="#fff" />
+      {count > 0 && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute', top: -3, right: -5, minWidth: 16, height: 16, borderRadius: 8,
+            backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+            borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)',
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 9.5, fontWeight: '800' }}>{count > 9 ? '9+' : count}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
 
 /**
  * Точка статуса синхронизации у шапки — вместо баннера, который раньше
@@ -78,26 +158,29 @@ function SyncStatusIndicator() {
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: 'absolute', top: insets.top + 16, right: 14, zIndex: 50, alignItems: 'flex-end' }}
+      style={{ position: 'absolute', top: insets.top + 10, right: 10, zIndex: 50, flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}
     >
-      <TouchableOpacity
-        onPress={() => (bubbleText ? closeBubble() : openBubble(statusLabel, false))}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel={`Статус синхронизации: ${statusLabel}`}
-        style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' }}
-      />
-      {bubbleText != null && (
-        <Animated.View
-          style={{
-            opacity: bubbleOpacity, marginTop: 6, maxWidth: 220,
-            backgroundColor: C.card, borderColor: C.border, borderWidth: 1,
-            borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7,
-          }}
-        >
-          <Text style={{ color: C.fg, fontSize: 11.5, fontWeight: '600' }}>{bubbleText}</Text>
-        </Animated.View>
-      )}
+      <NotificationBell />
+      <View pointerEvents="box-none" style={{ alignItems: 'flex-end', marginTop: 8 }}>
+        <TouchableOpacity
+          onPress={() => (bubbleText ? closeBubble() : openBubble(statusLabel, false))}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={`Статус синхронизации: ${statusLabel}`}
+          style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' }}
+        />
+        {bubbleText != null && (
+          <Animated.View
+            style={{
+              opacity: bubbleOpacity, marginTop: 6, maxWidth: 220,
+              backgroundColor: C.card, borderColor: C.border, borderWidth: 1,
+              borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7,
+            }}
+          >
+            <Text style={{ color: C.fg, fontSize: 11.5, fontWeight: '600' }}>{bubbleText}</Text>
+          </Animated.View>
+        )}
+      </View>
     </View>
   );
 }
@@ -106,6 +189,8 @@ function AppTabs() {
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const C = useTheme();
+
+  useLogRemoteNotifications();
 
   useEffect(() => {
     AsyncStorage.getItem('selected_group_id').then(id => {
@@ -186,6 +271,7 @@ function AppTabs() {
           }}
         />
         <Tabs.Screen name="changes" options={{ href: null, title: 'Изменения расписания' }} />
+        <Tabs.Screen name="notifications" options={{ href: null, title: 'Уведомления' }} />
         <Tabs.Screen name="compare" options={{ href: null, title: 'Сравнить с группой' }} />
         <Tabs.Screen
           name="profile"

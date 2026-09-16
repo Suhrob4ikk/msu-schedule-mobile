@@ -12,6 +12,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { addNotifHistory } from './notificationHistory';
 
 // Локальный переключатель напоминаний (отдельно от системного разрешения).
 export const NOTIF_PREF_KEY = 'notif_enabled';
@@ -189,38 +190,34 @@ export async function scheduleExamReminders(
     eveBefore.setDate(eveBefore.getDate() - 1);
     eveBefore.setHours(20, 0, 0, 0);
     if (eveBefore > new Date()) {
+      const title = '⏰ Завтра зачёт!';
+      const body = `${subject}${time ? ` в ${time}` : ''}. Готовься, ты сможешь! 💪`;
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '⏰ Завтра зачёт!',
-          body: `${subject}${time ? ` в ${time}` : ''}. Готовься, ты сможешь! 💪`,
-          data: { type: 'exam' },
-          sound: true,
-        },
+        content: { title, body, data: { type: 'exam' }, sound: true },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: eveBefore,
           channelId: NOTIFICATION_CHANNEL,
         },
       });
+      addNotifHistory({ id: `exam:${subject}:${eveBefore.toISOString()}`, category: 'exam', title, body, date: eveBefore.toISOString() });
     }
 
     // В день экзамена в 7:00
     const dayOf = new Date(examDate);
     dayOf.setHours(7, 0, 0, 0);
     if (dayOf > new Date()) {
+      const title = '🍀 Сегодня зачёт!';
+      const body = `${subject}${time ? ` в ${time}` : ''}. Удачи тебе!`;
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '🍀 Сегодня зачёт!',
-          body: `${subject}${time ? ` в ${time}` : ''}. Удачи тебе!`,
-          data: { type: 'exam' },
-          sound: true,
-        },
+        content: { title, body, data: { type: 'exam' }, sound: true },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: dayOf,
           channelId: NOTIFICATION_CHANNEL,
         },
       });
+      addNotifHistory({ id: `exam:${subject}:${dayOf.toISOString()}`, category: 'exam', title, body, date: dayOf.toISOString() });
     }
   }
 }

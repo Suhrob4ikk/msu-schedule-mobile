@@ -26,6 +26,8 @@ import {
   isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations,
 } from '../src/liveLesson';
 import InviteCard from '../src/InviteCard';
+import { hasUnreadNotifHistory } from '../src/notificationHistory';
+import TipsHint from '../src/TipsHint';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts.
 // ВАЖНО: не выносить в константу модуля — она вычислялась бы один раз при старте
@@ -415,11 +417,26 @@ function useHasNewChanges(): boolean {
   return hasNew;
 }
 
+/** Есть ли непрочитанные записи в «Уведомлениях» — перечитывается при
+ *  каждом возврате в кабинет, метку о прочтении ставит сам экран notifications.tsx. */
+function useHasUnreadNotifs(): boolean {
+  const [hasUnread, setHasUnread] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      hasUnreadNotifHistory().then(v => { if (!cancelled) setHasUnread(v); });
+      return () => { cancelled = true; };
+    }, []),
+  );
+  return hasUnread;
+}
+
 export default function ProfileScreen() {
   const C = useTheme();
   const { mode, pref, choose } = useThemeMode();
   const { isSyncing, syncProgress, lastSyncTime, triggerSync } = useSyncStatus();
   const hasNewChanges = useHasNewChanges();
+  const hasUnreadNotifs = useHasUnreadNotifs();
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [name, setName] = useState('');
@@ -640,6 +657,7 @@ export default function ProfileScreen() {
       {/* Дополнительные возможности */}
       <View style={s.section}>
         <Text style={[s.sectionTitle, { color: C.muted }]}>Дополнительные возможности</Text>
+        <TipsHint />
         <NotificationRow />
         <LessonReminderRow />
         <LiveLessonRow />
@@ -685,11 +703,20 @@ export default function ProfileScreen() {
         <TouchableOpacity
           onPress={() => router.push('/changes')}
           activeOpacity={0.7}
-          style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 0 }]}
+          style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 10 }]}
         >
           <Ionicons name="time-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
           <Text style={[s.changeBtnText, { color: C.muted }]}>История изменений расписания</Text>
           {hasNewChanges && <NewChangesDot />}
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push('/notifications')}
+          activeOpacity={0.7}
+          style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 0 }]}
+        >
+          <Ionicons name="notifications-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
+          <Text style={[s.changeBtnText, { color: C.muted }]}>Уведомления</Text>
+          {hasUnreadNotifs && <NewChangesDot />}
         </TouchableOpacity>
         <View style={{ marginTop: 10 }}>
           <InviteCard C={C} />
@@ -744,7 +771,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.19</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.32</Text>
       </View>
     </ScrollView>
   );

@@ -1338,24 +1338,6 @@ export default function ScheduleScreen() {
         )}
       </View>
 
-      {/* Поделиться расписанием картинкой */}
-      {selectedGroup && Object.keys(byDay).length > 0 && (
-        <TouchableOpacity
-          onPress={handleShareImage}
-          disabled={sharingImg}
-          activeOpacity={0.7}
-          style={[s.backToMine, {
-            backgroundColor: C.card, borderColor: C.border, opacity: sharingImg ? 0.6 : 1,
-            flexDirection: 'row', justifyContent: 'center',
-          }]}
-        >
-          <Ionicons name="share-outline" size={15} color={C.muted} style={{ marginRight: 6 }} />
-          <Text style={{ color: C.muted, fontSize: 14, fontWeight: '600' }}>
-            {sharingImg ? 'Готовим картинку...' : 'Поделиться картинкой'}
-          </Text>
-        </TouchableOpacity>
-      )}
-
       {/* Невидимая карточка для снимка — за пределами экрана, но смонтирована */}
       {selectedGroup && (
         <View style={{ position: 'absolute', left: -9999, top: 0 }} pointerEvents="none">
@@ -1386,35 +1368,49 @@ export default function ScheduleScreen() {
 
       {error && <Text style={s.error}>{error}</Text>}
 
-      {/* Переключатель недель (диапазон дат — в заголовке, отдельный баннер не нужен) */}
-      {selectedGroup && weeks.length > 1 && (
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: C.muted }]}>
-            Неделя{selectedWeek ? ` · ${weekRangeStr(selectedWeek.week_start)}` : ''}
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {weeks.map(w => {
-              const active = selectedWeek?.id === w.id;
-              const current = isCurrentWeek(w.week_start);
-              return (
-                <TouchableOpacity
-                  key={w.id}
-                  onPress={() => switchWeek(w)}
-                  style={[
-                    s.weekBtn,
-                    { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border },
-                  ]}
-                >
-                  <Text style={[s.weekBtnText, { color: active ? '#fff' : C.fg }]}>
-                    {weekLabel(w)}
-                  </Text>
-                  {current && (
-                    <View style={[s.weekDot, { backgroundColor: active ? 'rgba(255,255,255,0.7)' : C.primary }]} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+      {/* Недели + «поделиться картинкой» одним компактным рядом вместо двух
+          отдельных блоков — на телефоне и так тесно (см. правку по фидбеку
+          о перегруженности экрана). */}
+      {selectedGroup && (weeks.length > 1 || Object.keys(byDay).length > 0) && (
+        <View style={s.toolRow}>
+          {weeks.length > 1 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+              {weeks.map(w => {
+                const active = selectedWeek?.id === w.id;
+                const current = isCurrentWeek(w.week_start);
+                return (
+                  <TouchableOpacity
+                    key={w.id}
+                    onPress={() => switchWeek(w)}
+                    style={[
+                      s.weekBtn,
+                      { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border },
+                    ]}
+                  >
+                    <Text style={[s.weekBtnText, { color: active ? '#fff' : C.fg }]}>
+                      {weekLabel(w)}
+                    </Text>
+                    {current && (
+                      <View style={[s.weekDot, { backgroundColor: active ? 'rgba(255,255,255,0.7)' : C.primary }]} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
+          {Object.keys(byDay).length > 0 && (
+            <TouchableOpacity
+              onPress={handleShareImage}
+              disabled={sharingImg}
+              activeOpacity={0.7}
+              accessibilityLabel="Поделиться расписанием картинкой"
+              style={[s.shareIconBtn, { backgroundColor: C.card, borderColor: C.border, opacity: sharingImg ? 0.5 : 1 }]}
+            >
+              <Ionicons name="share-outline" size={16} color={C.muted} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -1813,6 +1809,7 @@ const s = StyleSheet.create({
     alignItems: 'center', marginTop: -4, marginBottom: 12,
   },
 
+  toolRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   weekBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
@@ -1820,6 +1817,10 @@ const s = StyleSheet.create({
   },
   weekBtnText: { fontSize: 13, fontWeight: '500' },
   weekDot: { width: 6, height: 6, borderRadius: 3 },
+  shareIconBtn: {
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
 
   nowRow: { gap: 10, marginBottom: 12 },
   nowCard: { borderRadius: 12, padding: 14, borderLeftWidth: 3 },
