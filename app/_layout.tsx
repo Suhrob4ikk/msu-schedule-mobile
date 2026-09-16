@@ -156,12 +156,18 @@ function SyncStatusIndicator() {
         : 'Ещё не синхронизировано';
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={{ position: 'absolute', top: insets.top + 10, right: 10, zIndex: 50, flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}
-    >
-      <NotificationBell />
-      <View pointerEvents="box-none" style={{ alignItems: 'flex-end', marginTop: 8 }}>
+    <>
+      {/* Колокольчик — отдельный плавающий блок с фиксированной позицией.
+          Раньше сидел в одном ряду с точкой синхронизации, и когда всплывала
+          подсказка, ряд раздувался по ширине и толкал колокольчик влево —
+          он должен стоять на месте, а подсказка — просто лечь поверх него. */}
+      <View pointerEvents="box-none" style={{ position: 'absolute', top: insets.top + 10, right: 46, zIndex: 50 }}>
+        <NotificationBell />
+      </View>
+      <View
+        pointerEvents="box-none"
+        style={{ position: 'absolute', top: insets.top + 18, right: 10, zIndex: 51, alignItems: 'flex-end' }}
+      >
         <TouchableOpacity
           onPress={() => (bubbleText ? closeBubble() : openBubble(statusLabel, false))}
           hitSlop={12}
@@ -181,7 +187,7 @@ function SyncStatusIndicator() {
           </Animated.View>
         )}
       </View>
-    </View>
+    </>
   );
 }
 
