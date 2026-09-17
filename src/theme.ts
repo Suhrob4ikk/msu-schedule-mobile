@@ -58,6 +58,13 @@ export const darkColors = {
 
 export type Colors = typeof lightColors;
 
+// Альтернативный акцент «Синий» — тот же выбор, что и на сайте (см.
+// frontend/src/lib/theme.ts). Меняется только primary: статус «свободно»/
+// «занято» на аудиториях (green/greenBg/red/redBg) от него не зависит.
+export type AccentPref = 'green' | 'blue';
+const BLUE_PRIMARY_LIGHT = '#168bff';
+const BLUE_PRIMARY_DARK = '#2f9bff';
+
 export type ThemeMode = 'light' | 'dark';
 /** Настройка пользователя: явная тема или «как в системе». */
 export type ThemePref = ThemeMode | 'system';
@@ -77,6 +84,9 @@ interface ThemeCtxType {
    * и того же значения.
    */
   choose: (pref: ThemePref, origin?: { x: number; y: number }) => void;
+  /** Цвет акцента — независим от светлой/тёмной темы. */
+  accent: AccentPref;
+  setAccent: (a: AccentPref) => void;
 }
 
 const ThemeCtx = createContext<ThemeCtxType>({
@@ -84,6 +94,8 @@ const ThemeCtx = createContext<ThemeCtxType>({
   mode: 'light',
   pref: 'system',
   choose: () => {},
+  accent: 'green',
+  setAccent: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -100,10 +112,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // onCovered читает значение в отдельном колбэке, а не в этом рендере.
   const pendingPref = useRef<ThemePref>('system');
 
+  const [accent, setAccentState] = useState<AccentPref>('green');
+
   useEffect(() => {
     AsyncStorage.getItem('msu_theme').then(v => {
       if (v === 'dark' || v === 'light' || v === 'system') setPrefState(v);
     });
+    AsyncStorage.getItem('msu_accent').then(v => {
+      if (v === 'blue') setAccentState('blue');
+    });
+  }, []);
+
+  const setAccent = useCallback((a: AccentPref) => {
+    setAccentState(a);
+    AsyncStorage.setItem('msu_accent', a);
   }, []);
 
   const applyPref = useCallback((next: ThemePref) => {
@@ -128,11 +150,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setReveal(null);
   }, [applyPref]);
 
+  const baseColors = mode === 'dark' ? darkColors : lightColors;
+  const colors: Colors = accent === 'blue'
+    ? { ...baseColors, primary: mode === 'dark' ? BLUE_PRIMARY_DARK : BLUE_PRIMARY_LIGHT }
+    : baseColors;
+
   const value: ThemeCtxType = {
-    colors: mode === 'dark' ? darkColors : lightColors,
+    colors,
     mode,
     pref,
     choose,
+    accent,
+    setAccent,
   };
 
   return React.createElement(
@@ -152,4 +181,9 @@ export function useTheme(): Colors {
 export function useThemeMode(): Pick<ThemeCtxType, 'mode' | 'pref' | 'choose'> {
   const { mode, pref, choose } = useContext(ThemeCtx);
   return { mode, pref, choose };
+}
+
+export function useAccent(): Pick<ThemeCtxType, 'accent' | 'setAccent'> {
+  const { accent, setAccent } = useContext(ThemeCtx);
+  return { accent, setAccent };
 }

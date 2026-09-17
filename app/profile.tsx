@@ -8,7 +8,7 @@ import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import { api, Group, shortGroupName, rememberGroup } from '../src/api';
-import { useTheme, useThemeMode } from '../src/theme';
+import { useTheme, useThemeMode, useAccent } from '../src/theme';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -434,6 +434,7 @@ function useHasUnreadNotifs(): boolean {
 export default function ProfileScreen() {
   const C = useTheme();
   const { mode, pref, choose } = useThemeMode();
+  const { accent, setAccent } = useAccent();
   const { isSyncing, syncProgress, lastSyncTime, triggerSync } = useSyncStatus();
   const hasNewChanges = useHasNewChanges();
   const hasUnreadNotifs = useHasUnreadNotifs();
@@ -645,6 +646,43 @@ export default function ProfileScreen() {
                   borderColor: active ? C.primary : C.border,
                 }]}
               >
+                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : C.fg }}>
+                  {o.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Цвет акцента — независимо от светлой/тёмной темы. «Свободно»/«занято»
+          на аудиториях этим цветом не красится, см. src/theme.ts. */}
+      <View style={[s.themePrefRow, { backgroundColor: C.card, borderColor: C.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Ionicons name="color-palette-outline" size={16} color={C.muted} />
+          <Text style={[s.themePrefLabel, { color: C.muted }]}>Цвет акцента</Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {([
+            { value: 'green' as const, label: 'Изумруд', swatch: '#0e9b72' },
+            { value: 'blue' as const, label: 'Синий', swatch: '#168bff' },
+          ]).map(o => {
+            const active = accent === o.value;
+            return (
+              <TouchableOpacity
+                key={o.value}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setAccent(o.value);
+                }}
+                activeOpacity={0.7}
+                style={[s.themePrefChip, {
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                  backgroundColor: active ? C.primary : C.tag,
+                  borderColor: active ? C.primary : C.border,
+                }]}
+              >
+                <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: o.swatch }} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : C.fg }}>
                   {o.label}
                 </Text>
