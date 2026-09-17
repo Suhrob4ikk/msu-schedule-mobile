@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek, currentSlot } from '../src/api';
 import { useTheme } from '../src/theme';
@@ -32,6 +32,7 @@ export default function RoomsScreen() {
     return jsDay >= 1 && jsDay <= 6 ? DAYS_ORDER[jsDay - 1] : 'понедельник';
   });
   const [pair, setPair] = useState('I');
+  const [search, setSearch] = useState('');
 
   // Переход из расписания по тапу на аудиторию: «кто ещё занят в это время».
   // Параметры приходят из app/index.tsx (router.push с day и pair).
@@ -156,8 +157,11 @@ export default function RoomsScreen() {
     load(true);
   };
 
-  const free = rooms.filter(r => r.is_free);
-  const busy = rooms.filter(r => !r.is_free);
+  const searched = search.trim()
+    ? rooms.filter(r => r.room_name.toLowerCase().includes(search.trim().toLowerCase()))
+    : rooms;
+  const free = searched.filter(r => r.is_free);
+  const busy = searched.filter(r => !r.is_free);
 
   return (
     <ScrollView
@@ -190,6 +194,14 @@ export default function RoomsScreen() {
           Сейчас занятий нет — вечер или выходной. Выбери день и пару вручную.
         </Text>
       )}
+
+      <TextInput
+        style={[s.searchInput, { backgroundColor: C.card, borderColor: C.border, color: C.fg }]}
+        placeholder="Найти аудиторию, например 105..."
+        placeholderTextColor={C.muted}
+        value={search}
+        onChangeText={setSearch}
+      />
 
       {/* День */}
       <Text style={[s.sectionLabel, { color: C.muted }]}>День</Text>
@@ -314,6 +326,7 @@ const s = StyleSheet.create({
   nowBtn: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 14 },
   nowBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   nowHint: { fontSize: 12, marginTop: -8, marginBottom: 14 },
+  searchInput: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 14 },
 
   chipBar: { flexGrow: 0, marginBottom: 12 },
   chipContent: { paddingRight: 4, paddingBottom: 2 },
