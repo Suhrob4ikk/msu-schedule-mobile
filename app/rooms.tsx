@@ -275,7 +275,7 @@ export default function RoomsScreen() {
               <View style={s.freeGrid}>
                 {free.map(r => (
                   <View key={r.room_name} style={[s.freeChip, { backgroundColor: C.greenBg, borderColor: C.green }]}>
-                    <Text style={[s.freeChipText, { color: '#16a34a' }]}>Ауд. {r.room_name}</Text>
+                    <Text style={[s.freeChipText, { color: '#16a34a' }]}>{r.room_name}</Text>
                     <Text style={[s.freeChipSub, { color: '#16a34a' }]}>
                       {r.free_until ? `до ${r.free_until}` : 'весь день'}
                     </Text>
@@ -291,7 +291,7 @@ export default function RoomsScreen() {
             return (
               <View key={r.room_name} style={[s.roomCard, { backgroundColor: C.redBg, borderLeftColor: C.red }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <Text style={[s.roomName, { color: C.fg }]}>Ауд. {r.room_name}</Text>
+                  <Text style={[s.roomName, { color: C.fg }]}>{r.room_name}</Text>
                   {r.occupied_until && (
                     <Text style={{ fontSize: 12, color: '#dc2626', opacity: 0.85 }}>до {r.occupied_until}</Text>
                   )}
