@@ -48,6 +48,7 @@ export default function RoomsScreen() {
   const [rooms, setRooms] = useState<{
     room_name: string; is_free: boolean; occupied_by?: string;
     occupied_list?: string[]; conflict?: boolean;
+    free_until?: string | null; occupied_until?: string | null;
   }[]>([]);
   const [loading, setLoading] = useState(false);
   // «Свободно сейчас» нажали вечером или в воскресенье — показываем пояснение
@@ -263,6 +264,9 @@ export default function RoomsScreen() {
                 {free.map(r => (
                   <View key={r.room_name} style={[s.freeChip, { backgroundColor: C.greenBg, borderColor: C.green }]}>
                     <Text style={[s.freeChipText, { color: '#16a34a' }]}>{r.room_name}</Text>
+                    <Text style={[s.freeChipSub, { color: '#16a34a' }]}>
+                      {r.free_until ? `до ${r.free_until}` : 'весь день'}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -276,6 +280,9 @@ export default function RoomsScreen() {
               <View key={r.room_name} style={[s.roomCard, { backgroundColor: C.redBg, borderLeftColor: C.red }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <Text style={[s.roomName, { color: C.fg }]}>{r.room_name}</Text>
+                  {r.occupied_until && (
+                    <Text style={{ fontSize: 12, color: '#dc2626', opacity: 0.85 }}>до {r.occupied_until}</Text>
+                  )}
                   {r.conflict && (
                     <View style={{ backgroundColor: '#dc2626', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
                       <Text style={{ color: '#fff', fontSize: 9.5, fontWeight: '700' }}>
@@ -332,8 +339,9 @@ const s = StyleSheet.create({
 
   countHeader: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
   freeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  freeChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+  freeChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
   freeChipText: { fontSize: 13, fontWeight: '600' },
+  freeChipSub: { fontSize: 9.5, opacity: 0.75, marginTop: 1 },
   roomCard: { borderRadius: 10, padding: 12, marginBottom: 6, borderLeftWidth: 3 },
   roomName: { fontSize: 14, fontWeight: '600' },
   occupiedBy: { fontSize: 12, marginTop: 2 },

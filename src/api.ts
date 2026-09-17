@@ -481,6 +481,7 @@ export const api = {
     get<{
       room_name: string; is_free: boolean; occupied_by?: string;
       occupied_list?: string[]; conflict?: boolean;
+      free_until?: string | null; occupied_until?: string | null;
     }[]>(
       `/schedule/free-rooms?day_of_week=${encodeURIComponent(day)}&pair_number=${pair}${weekStart ? `&week_start=${weekStart}` : ''}`
     ),
