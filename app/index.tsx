@@ -13,7 +13,7 @@ import * as Sharing from 'expo-sharing';
 import {
   api, invalidateApiCache, Group, Lesson, TodayItem, WeekInfo, Stats,
   DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, leadingGap, shortGroupName,
-  weekRangeStr, PAIR_TIMES,
+  weekRangeStr, PAIR_TIMES, PAIR_NUMBERS,
 } from '../src/api';
 import ScheduleShareCard from '../src/ScheduleShareCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -189,6 +189,28 @@ function Rail({ C, dashed, children }: {
   );
 }
 
+/** Пары считаются одним занятием, если идут подряд без окна и совпадают
+ *  по предмету, преподавателю, аудитории и типу — как на сайте. */
+function sameBlock(a: Lesson, b: Lesson): boolean {
+  return a.subject === b.subject
+    && (a.teacher?.id ?? null) === (b.teacher?.id ?? null)
+    && (a.room?.id ?? null) === (b.room?.id ?? null)
+    && a.lesson_type === b.lesson_type
+    && PAIR_NUMBERS.indexOf(b.pair_number) - PAIR_NUMBERS.indexOf(a.pair_number) === 1;
+}
+
+/** Группирует отсортированный по парам список дня в блоки подряд идущих
+ *  одинаковых пар — по одной карточке на блок вместо нескольких подряд. */
+function groupConsecutive(lessons: Lesson[]): Lesson[][] {
+  const runs: Lesson[][] = [];
+  for (const l of lessons) {
+    const run = runs[runs.length - 1];
+    if (run && sameBlock(run[run.length - 1], l)) run.push(l);
+    else runs.push([l]);
+  }
+  return runs;
+}
+
 function DayTimeline({
   lessons, C, todayDate, nowMinutes, dimPast, showAttendance, showNotes,
 }: {
@@ -204,21 +226,25 @@ function DayTimeline({
   showAttendance?: boolean;
   showNotes?: boolean;
 }) {
-  const states: LessonState[] = lessons.map(l => {
-    if (!l.lesson_date) return 'future';
-    if (l.lesson_date < todayDate) return 'past';
-    if (l.lesson_date > todayDate) return 'future';
-    if (nowMinutes >= toMin(l.pair_time_end)) return 'past';
-    if (nowMinutes >= toMin(l.pair_time_start)) return 'current';
+  // Подряд идущие одинаковые пары — одной карточкой (см. groupConsecutive).
+  const runs = groupConsecutive(lessons);
+
+  const states: LessonState[] = runs.map(run => {
+    const first = run[0], last = run[run.length - 1];
+    if (!first.lesson_date) return 'future';
+    if (first.lesson_date < todayDate) return 'past';
+    if (first.lesson_date > todayDate) return 'future';
+    if (nowMinutes >= toMin(last.pair_time_end)) return 'past';
+    if (nowMinutes >= toMin(first.pair_time_start)) return 'current';
     return 'future';
   });
 
-  // Перед какой парой встанет маркер «сейчас». Только МЕЖДУ парами: про
+  // Перед каким блоком встанет маркер «сейчас». Только МЕЖДУ парами: про
   // «день не начался» и «на сегодня всё» и так говорят карточки наверху.
-  const isToday = lessons[0]?.lesson_date === todayDate;
+  const isToday = runs[0]?.[0]?.lesson_date === todayDate;
   const markerIdx = (() => {
     if (!isToday || states.includes('current')) return -1;
-    const idx = lessons.findIndex(l => toMin(l.pair_time_start) > nowMinutes);
+    const idx = runs.findIndex(run => toMin(run[0].pair_time_start) > nowMinutes);
     return idx > 0 ? idx : -1;
   })();
 
@@ -226,11 +252,13 @@ function DayTimeline({
 
   return (
     <View>
-      {lessons.map((l, i) => {
+      {runs.map((run, i) => {
+        const l = run[0];
+        const last = run[run.length - 1];
         // У первой пары дня сравнивать не с чем — leadingGap меряет от
         // начала дня (I пара), а не от предыдущего занятия.
         const gap = i > 0
-          ? gapBetween(lessons[i - 1].pair_number, l.pair_number)
+          ? gapBetween(runs[i - 1][runs[i - 1].length - 1].pair_number, l.pair_number)
           : leadingGap(l.pair_number);
         const state = states[i];
 
@@ -301,7 +329,7 @@ function DayTimeline({
                 >
                   {l.pair_time_start}
                 </Text>
-                <Text style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>{l.pair_time_end}</Text>
+                <Text style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>{last.pair_time_end}</Text>
               </View>
               <Rail C={C}>
                 <View style={{ marginTop: 19 }}>
@@ -321,6 +349,7 @@ function DayTimeline({
               <View style={{ flex: 1 }}>
                 <LessonCard
                   lesson={l}
+                  mergedWith={run.length > 1 ? run.slice(1) : undefined}
                   C={C}
                   compactTime
                   links
@@ -389,8 +418,12 @@ function GroupSelectorSkeleton({ C }: { C: ReturnType<typeof useTheme> }) {
   );
 }
 
-function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current, links }: {
+function LessonCard({ lesson, mergedWith, C, showAttendance, showNotes, compactTime, current, links }: {
   lesson: Lesson;
+  /** Ещё пары, слитые с этой в одну карточку (см. groupConsecutive) — идущие
+   *  подряд без окна, с тем же предметом/преподавателем/аудиторией/типом.
+   *  Заголовок один на всех, а «Пропуск» и заметка — свои у каждой пары. */
+  mergedWith?: Lesson[];
   C: ReturnType<typeof useTheme>;
   showAttendance?: boolean;
   showNotes?: boolean;
@@ -410,6 +443,102 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
   const accent = /зач|экз/i.test(lt) ? C.examAccent
     : /пз|практ/i.test(lt) ? C.practiceAccent
     : lt ? C.lectureAccent : C.border;
+  const allLessons = mergedWith?.length ? [lesson, ...mergedWith] : [lesson];
+  const lastLesson = allLessons[allLessons.length - 1];
+
+  return (
+    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: current ? C.primary : C.border, borderLeftWidth: 4, borderLeftColor: accent }]}>
+      <View style={cardStyles.header}>
+        <View style={[cardStyles.pairBadge, { backgroundColor: C.blueBg }]}>
+          <Text style={[cardStyles.pairText, { color: C.primary }]}>
+            {allLessons.length > 1 ? `${allLessons.length} пары` : `${lesson.pair_number} пара`}
+            {!compactTime && ` · ${lesson.pair_time_start}–${lastLesson.pair_time_end}`}
+          </Text>
+        </View>
+        {label && (
+          <View style={[cardStyles.typeBadge, { backgroundColor: color + '20' }]}>
+            <Text style={[cardStyles.typeText, { color }]}>{label}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={[cardStyles.subject, { color: C.fg }]}>{lesson.subject}</Text>
+      <View style={cardStyles.meta}>
+        {/* ФИО и аудитория — быстрые переходы. Тапабельны только они, а не вся
+            карточка: внутри неё есть кнопка пропуска и поле заметки, и тап по
+            карточке целиком превратился бы в угадайку «куда я нажал». */}
+        {lesson.teacher && (
+          links ? (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push({ pathname: '/teachers', params: { teacher: String(lesson.teacher!.id) } });
+              }}
+              accessibilityRole="link"
+              accessibilityLabel={`Расписание преподавателя ${lesson.teacher.name}`}
+              hitSlop={6}
+            >
+              <Text style={[cardStyles.metaText, cardStyles.metaLink, { color: C.primary }]}>
+                Преп.: {lesson.teacher.name}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[cardStyles.metaText, { color: C.muted }]}>Преп.: {lesson.teacher.name}</Text>
+          )
+        )}
+        {lesson.room && (
+          links ? (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push({
+                  pathname: '/rooms',
+                  params: { day: lesson.day_of_week, pair: lesson.pair_number },
+                });
+              }}
+              accessibilityRole="link"
+              accessibilityLabel="Кто ещё занят в это время"
+              hitSlop={6}
+            >
+              <Text style={[cardStyles.metaText, cardStyles.metaLink, { color: C.primary }]}>
+                Ауд. {lesson.room.name}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[cardStyles.metaText, { color: C.muted }]}>Ауд. {lesson.room.name}</Text>
+          )
+        )}
+      </View>
+
+      {/* Пропуск и заметка — свои у каждой слитой пары (см. mergedWith) */}
+      {allLessons.map(l => (
+        <LessonActions
+          key={l.id}
+          lesson={l}
+          C={C}
+          showAttendance={showAttendance}
+          showNotes={showNotes}
+          pairLabel={allLessons.length > 1 ? `${l.pair_number} пара · ${l.pair_time_start}–${l.pair_time_end}` : undefined}
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Кнопка «Отметить пропуск» + заметка для ОДНОЙ пары. Вынесена из LessonCard,
+ * чтобы у слитых подряд пар (см. mergedWith) у каждой было своё состояние —
+ * иначе общий useState не позволил бы отметить пропуск только половины
+ * объединённого блока.
+ */
+function LessonActions({ lesson, C, showAttendance, showNotes, pairLabel }: {
+  lesson: Lesson;
+  C: ReturnType<typeof useTheme>;
+  showAttendance?: boolean;
+  showNotes?: boolean;
+  /** Показывается только когда карточка объединяет несколько пар. */
+  pairLabel?: string;
+}) {
+  const lt = lesson.lesson_type ?? '';
   // На экзаменах/зачётах/консультациях посещаемость не отмечают
   const attendanceApplicable = !/экзамен|зач|конс/i.test(lt);
 
@@ -487,72 +616,20 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
     persistNote(note, next);
   };
 
+  const showSkipRow = showAttendance && canMarkSkip;
+  if (!showSkipRow && !showNotes) return null;
+
   return (
-    <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: current ? C.primary : C.border, borderLeftWidth: 4, borderLeftColor: accent }]}>
-      <View style={cardStyles.header}>
-        <View style={[cardStyles.pairBadge, { backgroundColor: C.blueBg }]}>
-          <Text style={[cardStyles.pairText, { color: C.primary }]}>
-            {lesson.pair_number} пара
-            {!compactTime && ` · ${lesson.pair_time_start}–${lesson.pair_time_end}`}
-          </Text>
-        </View>
-        {label && (
-          <View style={[cardStyles.typeBadge, { backgroundColor: color + '20' }]}>
-            <Text style={[cardStyles.typeText, { color }]}>{label}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={[cardStyles.subject, { color: C.fg }]}>{lesson.subject}</Text>
-      <View style={cardStyles.meta}>
-        {/* ФИО и аудитория — быстрые переходы. Тапабельны только они, а не вся
-            карточка: внутри неё есть кнопка пропуска и поле заметки, и тап по
-            карточке целиком превратился бы в угадайку «куда я нажал». */}
-        {lesson.teacher && (
-          links ? (
-            <TouchableOpacity
-              onPress={() => {
-                Haptics.selectionAsync();
-                router.push({ pathname: '/teachers', params: { teacher: String(lesson.teacher!.id) } });
-              }}
-              accessibilityRole="link"
-              accessibilityLabel={`Расписание преподавателя ${lesson.teacher.name}`}
-              hitSlop={6}
-            >
-              <Text style={[cardStyles.metaText, cardStyles.metaLink, { color: C.primary }]}>
-                Преп.: {lesson.teacher.name}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[cardStyles.metaText, { color: C.muted }]}>Преп.: {lesson.teacher.name}</Text>
-          )
-        )}
-        {lesson.room && (
-          links ? (
-            <TouchableOpacity
-              onPress={() => {
-                Haptics.selectionAsync();
-                router.push({
-                  pathname: '/rooms',
-                  params: { day: lesson.day_of_week, pair: lesson.pair_number },
-                });
-              }}
-              accessibilityRole="link"
-              accessibilityLabel="Кто ещё занят в это время"
-              hitSlop={6}
-            >
-              <Text style={[cardStyles.metaText, cardStyles.metaLink, { color: C.primary }]}>
-                Ауд. {lesson.room.name}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[cardStyles.metaText, { color: C.muted }]}>Ауд. {lesson.room.name}</Text>
-          )
-        )}
-      </View>
+    <>
+      {pairLabel && (
+        <Text style={{ fontSize: 10.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 10, color: '#8b94a3' }}>
+          {pairLabel}
+        </Text>
+      )}
 
       {/* Пропуск: отмечаем только то, что пропустили */}
-      {showAttendance && canMarkSkip && (
-        <View style={[cardStyles.attRow, { borderTopColor: C.border }]}>
+      {showSkipRow && (
+        <View style={[cardStyles.attRow, { borderTopColor: C.border, borderTopWidth: pairLabel ? 0 : 0.5, marginTop: pairLabel ? 6 : 10 }]}>
           <Pressable
             onPress={toggleSkip}
             accessibilityRole="button"
@@ -574,7 +651,7 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
       )}
 
       {showNotes && (
-        <View style={[cardStyles.notesRow, { borderTopColor: C.border }]}>
+        <View style={[cardStyles.notesRow, { borderTopColor: C.border, borderTopWidth: pairLabel || showSkipRow ? 0 : 0.5, marginTop: pairLabel || showSkipRow ? 6 : 10 }]}>
           {editingNote ? (
             <>
               <TextInput
@@ -636,7 +713,7 @@ function LessonCard({ lesson, C, showAttendance, showNotes, compactTime, current
           )}
         </View>
       )}
-    </View>
+    </>
   );
 }
 
