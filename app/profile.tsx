@@ -665,7 +665,7 @@ export default function ProfileScreen() {
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {([
             { value: 'green' as const, label: 'Изумруд', swatch: '#0e9b72' },
-            { value: 'blue' as const, label: 'Синий', swatch: '#168bff' },
+            { value: 'blue' as const, label: 'Синий', swatch: '#2563eb' },
           ]).map(o => {
             const active = accent === o.value;
             return (

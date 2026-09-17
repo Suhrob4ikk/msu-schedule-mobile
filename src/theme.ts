@@ -62,8 +62,8 @@ export type Colors = typeof lightColors;
 // frontend/src/lib/theme.ts). Меняется только primary: статус «свободно»/
 // «занято» на аудиториях (green/greenBg/red/redBg) от него не зависит.
 export type AccentPref = 'green' | 'blue';
-const BLUE_PRIMARY_LIGHT = '#168bff';
-const BLUE_PRIMARY_DARK = '#2f9bff';
+const BLUE_PRIMARY_LIGHT = '#2563eb';
+const BLUE_PRIMARY_DARK = '#2563eb';
 
 export type ThemeMode = 'light' | 'dark';
 /** Настройка пользователя: явная тема или «как в системе». */
