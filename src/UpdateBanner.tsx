@@ -92,7 +92,7 @@ export default function UpdateBanner() {
         style={[s.card, { borderColor: C.border, backgroundColor: `${C.card}cc`, overflow: 'hidden' }]}
       >
         <View style={[s.iconBox, { backgroundColor: C.primary }]}>
-          <Ionicons name="arrow-up" size={15} color="#fff" />
+          <Ionicons name="arrow-up" size={15} color={C.primaryFg} />
         </View>
         {/* Тап по тексту раскрывает список изменений — что нового именно
             с той версии, которая стоит у человека */}
@@ -120,7 +120,7 @@ export default function UpdateBanner() {
             accessibilityLabel={`Скачать версию ${info.version}`}
             style={[s.btn, { backgroundColor: C.primary }]}
           >
-            <Text style={s.btnText}>Скачать</Text>
+            <Text style={[s.btnText, { color: C.primaryFg }]}>Скачать</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -167,7 +167,7 @@ export default function UpdateBanner() {
                 activeOpacity={0.85}
                 style={[s.modalBtn, { backgroundColor: C.primary }]}
               >
-                <Text style={s.btnText}>Скачать обновление</Text>
+                <Text style={[s.btnText, { color: C.primaryFg }]}>Скачать обновление</Text>
               </TouchableOpacity>
             )}
           </View>

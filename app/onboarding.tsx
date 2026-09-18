@@ -78,7 +78,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
       {/* Лого */}
       <View style={s.logoRow}>
         <View style={[s.logoBox, { backgroundColor: C.primary }]}>
-          <Text style={s.logoText}>МГУ</Text>
+          <Text style={[s.logoText, { color: C.primaryFg }]}>МГУ</Text>
         </View>
         <View>
           <Text style={[s.logoTitle, { color: C.fg }]}>МГУ Душанбе</Text>
@@ -88,7 +88,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
 
       {/* Аватар */}
       <View style={[s.avatar, { backgroundColor: C.primary, opacity: name.trim() ? 1 : 0.35 }]}>
-        <Text style={s.avatarText}>{initials}</Text>
+        <Text style={[s.avatarText, { color: C.primaryFg }]}>{initials}</Text>
       </View>
       {name.trim() && <Text style={[s.displayName, { color: C.fg }]}>{name.trim()}</Text>}
       {selected && (
@@ -132,8 +132,8 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
           activeOpacity={0.85}
         >
           {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={s.btnText}>Начать</Text>
+            ? <ActivityIndicator color={C.primaryFg} />
+            : <Text style={[s.btnText, { color: C.primaryFg }]}>Начать</Text>
           }
         </TouchableOpacity>
         {(!name.trim() || !selected) && (

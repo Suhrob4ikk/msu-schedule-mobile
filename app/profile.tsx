@@ -545,7 +545,7 @@ export default function ProfileScreen() {
       {/* Аватар */}
       <View style={s.avatarSection}>
         <View style={[s.avatar, { backgroundColor: C.primary, opacity: name.trim() ? 1 : 0.4 }]}>
-          <Text style={s.avatarText}>{initials}</Text>
+          <Text style={[s.avatarText, { color: C.primaryFg }]}>{initials}</Text>
         </View>
         {name.trim() && <Text style={[s.displayName, { color: C.fg }]}>{name.trim()}</Text>}
         {selectedGroup && (
@@ -591,9 +591,9 @@ export default function ProfileScreen() {
             activeOpacity={0.8}
           >
             {saving ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={C.primaryFg} />
             ) : (
-              <Text style={s.saveBtnText}>{saved ? '✓ Сохранено' : 'Сохранить'}</Text>
+              <Text style={[s.saveBtnText, { color: C.primaryFg }]}>{saved ? '✓ Сохранено' : 'Сохранить'}</Text>
             )}
           </TouchableOpacity>
 
@@ -646,7 +646,7 @@ export default function ProfileScreen() {
                   borderColor: active ? C.primary : C.border,
                 }]}
               >
-                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : C.fg }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? C.primaryFg : C.fg }}>
                   {o.label}
                 </Text>
               </TouchableOpacity>
@@ -664,6 +664,7 @@ export default function ProfileScreen() {
         </View>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {([
+            { value: 'violet' as const, label: 'Фиолетовый', swatch: '#9b8afb' },
             { value: 'green' as const, label: 'Изумруд', swatch: '#0e9b72' },
             { value: 'blue' as const, label: 'Синий', swatch: '#2563eb' },
           ]).map(o => {
@@ -683,7 +684,7 @@ export default function ProfileScreen() {
                 }]}
               >
                 <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: o.swatch }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : C.fg }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? C.primaryFg : C.fg }}>
                   {o.label}
                 </Text>
               </TouchableOpacity>
@@ -772,13 +773,13 @@ export default function ProfileScreen() {
         >
           {isSyncing ? (
             <>
-              <ActivityIndicator color="#fff" size="small" style={{ marginRight: 8 }} />
-              <Text style={s.syncBtnText}>{syncProgress || 'Синхронизация...'}</Text>
+              <ActivityIndicator color={C.primaryFg} size="small" style={{ marginRight: 8 }} />
+              <Text style={[s.syncBtnText, { color: C.primaryFg }]}>{syncProgress || 'Синхронизация...'}</Text>
             </>
           ) : (
             <>
-              <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={s.syncBtnText}>Обновить расписание</Text>
+              <Ionicons name="refresh" size={18} color={C.primaryFg} style={{ marginRight: 8 }} />
+              <Text style={[s.syncBtnText, { color: C.primaryFg }]}>Обновить расписание</Text>
             </>
           )}
         </TouchableOpacity>

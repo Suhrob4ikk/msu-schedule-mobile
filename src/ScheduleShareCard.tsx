@@ -44,7 +44,7 @@ const ScheduleShareCard = forwardRef<View, Props>(({ groupLabel, weekLabel, less
   return (
     <View ref={ref} collapsable={false} style={[s.wrap, { backgroundColor: C.bg }]}>
       <View style={s.header}>
-        <View style={[s.logo, { backgroundColor: C.primary }]}><Text style={s.logoText}>МГУ</Text></View>
+        <View style={[s.logo, { backgroundColor: C.primary }]}><Text style={[s.logoText, { color: C.primaryFg }]}>МГУ</Text></View>
         <View>
           <Text style={[s.groupText, { color: C.fg }]}>{groupLabel}</Text>
           <Text style={[s.weekText, { color: C.muted }]}>{weekLabel}</Text>

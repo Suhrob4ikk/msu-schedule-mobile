@@ -32,8 +32,8 @@ export default function InviteCard({ C }: { C: Colors }) {
         Пусть отсканируют камерой телефона — откроется сайт с расписанием, ничего устанавливать не нужно.
       </Text>
       <TouchableOpacity onPress={share} activeOpacity={0.85} style={[s.btn, { backgroundColor: C.primary }]}>
-        <Ionicons name="share-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
-        <Text style={s.btnText}>Поделиться ссылкой</Text>
+        <Ionicons name="share-outline" size={16} color={C.primaryFg} style={{ marginRight: 8 }} />
+        <Text style={[s.btnText, { color: C.primaryFg }]}>Поделиться ссылкой</Text>
       </TouchableOpacity>
     </View>
   );

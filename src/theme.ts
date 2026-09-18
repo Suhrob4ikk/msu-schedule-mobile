@@ -20,7 +20,6 @@ export const lightColors = {
   inputBorder: '#e6e9ee',
   green: '#0e9b72',
   greenBg: '#e5f4f0',
-  blueBg: '#e5f4f0',        // мягкая изумрудная подложка (бейдж пары)
   redBg: '#fdeaeb',
   red: '#c5303a',
   // акценты типов занятий (левая полоса карточки)
@@ -32,38 +31,70 @@ export const lightColors = {
   lectureAccent: '#2563eb',
 };
 
+// Тёмная тема — редизайн сен 2026, токены 1:1 с сайтом и макетами
+// (design/mockups «Карточка занятия», C:\Users\Suhrob\Desktop\mgu-mobile-redesign-mockups).
 export const darkColors = {
-  bg: '#0b0d10',
-  fg: '#e7eaee',
-  card: '#14171b',
-  border: '#262b32',
+  bg: '#0d0c13',
+  fg: '#f3f1f6',
+  card: '#18151f',
+  border: '#2a2734',
   primary: '#0e9b72',
   primaryFg: '#ffffff',
-  muted: '#8b94a3',
-  tag: '#1b2026',
-  tagText: '#9aa3b2',
-  tabBar: '#14171b',
-  tabBorder: '#262b32',
-  inputBg: '#1b1f25',
-  inputBorder: '#262b32',
-  green: '#2dd4a7',
-  greenBg: '#0e2a22',
-  blueBg: '#0e2a22',
-  redBg: '#281517',
-  red: '#ff8a8e',
-  examAccent: '#ff6166',
+  muted: '#8b8594',
+  tag: '#221e2c',
+  tagText: '#a39dae',
+  tabBar: '#18151f',
+  tabBorder: '#211e29',
+  inputBg: '#0d0c13',
+  inputBorder: '#2a2734',
+  green: '#34d399',
+  greenBg: 'rgba(52,211,153,0.08)',
+  redBg: 'rgba(199,58,72,0.16)',
+  red: '#ef6673',
+  examAccent: '#c73a48',
   practiceAccent: '#8c87f3',
   lectureAccent: '#60a5fa',
 };
 
-export type Colors = typeof lightColors;
+// blueBg — не статичный токен: мягкая подложка бейджей/карточек, которая
+// раньше всегда оставалась зелёной независимо от акцента (был отдельный
+// баг-фидбек — «все цвета меняются кроме этого»). Теперь считается от
+// текущего primary при каждой смене акцента/темы, см. ThemeProvider ниже.
+export type Colors = typeof lightColors & { blueBg: string };
 
-// Альтернативный акцент «Синий» — тот же выбор, что и на сайте (см.
-// frontend/src/lib/theme.ts). Меняется только primary: статус «свободно»/
-// «занято» на аудиториях (green/greenBg/red/redBg) от него не зависит.
-export type AccentPref = 'green' | 'blue';
+/** hex → rgba(...) с заданной прозрачностью. Нужна для полупрозрачных
+ *  вариантов primaryFg — раньше подсветки поверх акцентной заливки везде
+ *  были жёстко rgba(255,255,255,...), что ломалось на фиолетовом акценте
+ *  (primaryFg у него тёмный, не белый). */
+export function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/** Радиусы редизайна сен 2026 — 1:1 с макетами. Карточки крупнее, чем было,
+ *  чипы/пилюли ощутимо круглее. Используются по мере переноса экранов. */
+export const RADIUS = {
+  card: 20,
+  control: 12,
+  chip: 10,
+  pill: 999,
+} as const;
+
+// Альтернативные акценты — тот же выбор, что и на сайте (см.
+// frontend/src/lib/theme.ts), плюс «Фиолетовый» из редизайна сен 2026 (дефолт).
+// Меняется только primary/primaryFg: статус «свободно»/«занято» на аудиториях
+// (green/greenBg/red/redBg) от акцента не зависит.
+export type AccentPref = 'green' | 'blue' | 'violet';
 const BLUE_PRIMARY_LIGHT = '#2563eb';
 const BLUE_PRIMARY_DARK = '#2563eb';
+// Фиолетовый — светлый пастельный тон что в тёмной, что в светлой теме
+// (как на сайте): текст на кнопке-акценте поэтому тёмный, а не белый —
+// белый на #9b8afb уходил бы в нечитаемый бледный.
+const VIOLET_PRIMARY = '#9b8afb';
+const VIOLET_PRIMARY_FG = '#0d0c13';
 
 export type ThemeMode = 'light' | 'dark';
 /** Настройка пользователя: явная тема или «как в системе». */
@@ -90,11 +121,11 @@ interface ThemeCtxType {
 }
 
 const ThemeCtx = createContext<ThemeCtxType>({
-  colors: lightColors,
+  colors: { ...lightColors, blueBg: withAlpha(lightColors.primary, 0.12) },
   mode: 'light',
   pref: 'system',
   choose: () => {},
-  accent: 'green',
+  accent: 'violet',
   setAccent: () => {},
 });
 
@@ -112,14 +143,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // onCovered читает значение в отдельном колбэке, а не в этом рендере.
   const pendingPref = useRef<ThemePref>('system');
 
-  const [accent, setAccentState] = useState<AccentPref>('green');
+  // Дефолт — «Фиолетовый» (редизайн сен 2026). Старые green/blue, выбранные
+  // до редизайна, читаем из хранилища и оставляем как есть.
+  const [accent, setAccentState] = useState<AccentPref>('violet');
 
   useEffect(() => {
     AsyncStorage.getItem('msu_theme').then(v => {
       if (v === 'dark' || v === 'light' || v === 'system') setPrefState(v);
     });
     AsyncStorage.getItem('msu_accent').then(v => {
-      if (v === 'blue') setAccentState('blue');
+      if (v === 'blue' || v === 'green') setAccentState(v);
     });
   }, []);
 
@@ -151,9 +184,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [applyPref]);
 
   const baseColors = mode === 'dark' ? darkColors : lightColors;
-  const colors: Colors = accent === 'blue'
+  const withPrimary = accent === 'blue'
     ? { ...baseColors, primary: mode === 'dark' ? BLUE_PRIMARY_DARK : BLUE_PRIMARY_LIGHT }
+    : accent === 'violet'
+    ? { ...baseColors, primary: VIOLET_PRIMARY, primaryFg: VIOLET_PRIMARY_FG }
     : baseColors;
+  const colors: Colors = {
+    ...withPrimary,
+    blueBg: withAlpha(withPrimary.primary, mode === 'dark' ? 0.16 : 0.12),
+  };
 
   const value: ThemeCtxType = {
     colors,

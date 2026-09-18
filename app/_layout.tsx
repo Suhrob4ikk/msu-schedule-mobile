@@ -68,6 +68,7 @@ function useUnreadNotifCount(): number {
  *  виден сразу на любом экране, без двух тапов вглубь. */
 function NotificationBell() {
   const count = useUnreadNotifCount();
+  const C = useTheme();
   return (
     <TouchableOpacity
       onPress={() => router.push('/notifications')}
@@ -76,7 +77,7 @@ function NotificationBell() {
       accessibilityLabel={count > 0 ? `Уведомления, непрочитанных: ${count}` : 'Уведомления'}
       style={{ width: 26, height: 26, alignItems: 'center', justifyContent: 'center' }}
     >
-      <Ionicons name="notifications-outline" size={22} color="#fff" />
+      <Ionicons name="notifications-outline" size={22} color={C.primaryFg} />
       {count > 0 && (
         <View
           pointerEvents="none"
@@ -241,7 +242,7 @@ function AppTabs() {
             paddingBottom: 8,
           },
           headerStyle: { backgroundColor: C.primary },
-          headerTintColor: '#fff',
+          headerTintColor: C.primaryFg,
           headerTitleStyle: { fontWeight: '700' },
           tabBarLabelStyle: { fontSize: 10 },
         }}

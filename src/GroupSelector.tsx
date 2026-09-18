@@ -123,7 +123,7 @@ export default function GroupSelector({ groups, value, onChange, C, collapsible 
               ]}
               activeOpacity={0.7}
             >
-              <Text style={[s.chipText, { color: active ? '#fff' : C.fg }]}>{dir}</Text>
+              <Text style={[s.chipText, { color: active ? C.primaryFg : C.fg }]}>{dir}</Text>
             </TouchableOpacity>
           );
         })}
@@ -148,7 +148,7 @@ export default function GroupSelector({ groups, value, onChange, C, collapsible 
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Text style={[s.chipText, { color: active ? '#fff' : C.fg }]}>
+                  <Text style={[s.chipText, { color: active ? C.primaryFg : C.fg }]}>
                     {year} курс
                   </Text>
                 </TouchableOpacity>

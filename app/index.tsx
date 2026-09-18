@@ -17,7 +17,7 @@ import {
 } from '../src/api';
 import ScheduleShareCard from '../src/ScheduleShareCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTheme } from '../src/theme';
+import { useTheme, withAlpha } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
 import {
   scheduleExamReminders, scheduleLessonReminders,
@@ -682,7 +682,7 @@ function LessonActions({ lesson, C, showAttendance, showNotes, pairLabel }: {
                     backgroundColor: repeatWeekly ? C.primary : 'transparent',
                   }}>
                     <Animated.View style={{ transform: [{ scale: checkScale }] }}>
-                      <Ionicons name="checkmark" size={11} color="#fff" />
+                      <Ionicons name="checkmark" size={11} color={C.primaryFg} />
                     </Animated.View>
                   </View>
                   <Text style={{ fontSize: 11.5, color: repeatWeekly ? C.primary : C.muted }}>
@@ -1464,11 +1464,11 @@ export default function ScheduleScreen() {
                       { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border },
                     ]}
                   >
-                    <Text style={[s.weekBtnText, { color: active ? '#fff' : C.fg }]}>
+                    <Text style={[s.weekBtnText, { color: active ? C.primaryFg : C.fg }]}>
                       {weekLabel(w)}
                     </Text>
                     {current && (
-                      <View style={[s.weekDot, { backgroundColor: active ? 'rgba(255,255,255,0.7)' : C.primary }]} />
+                      <View style={[s.weekDot, { backgroundColor: active ? withAlpha(C.primaryFg, 0.7) : C.primary }]} />
                     )}
                   </TouchableOpacity>
                 );
@@ -1494,9 +1494,9 @@ export default function ScheduleScreen() {
       {/* Что идёт сейчас — показываем только когда есть текущая или следующая пара */}
       {/* На сегодня занятия кончились — показываем ближайший учебный день */}
       {selectedGroup && !loading && tomorrowItem && (
-        <View style={[s.nowCard, { backgroundColor: C.greenBg, borderLeftColor: C.green, marginBottom: 12 }]}>
+        <View style={[s.nowCard, { backgroundColor: C.blueBg, borderLeftColor: C.primary, marginBottom: 12 }]}>
           <View style={s.nowCardTop}>
-            <Ionicons name="checkmark-circle" size={15} color={C.green} />
+            <Ionicons name="checkmark-circle" size={15} color={C.primary} />
             <Text style={[s.nowTitle, { color: C.fg }]}>НА СЕГОДНЯ ВСЁ</Text>
             <View style={[s.nowPairBadge, { backgroundColor: C.card, marginLeft: 'auto' }]}>
               <Text style={[s.nowPairText, { color: C.primary }]}>{tomorrowItem.pair_number} пара</Text>
@@ -1523,13 +1523,13 @@ export default function ScheduleScreen() {
         <View style={s.nowRow}>
           {currentItem && (
             <LinearGradient
-              colors={[C.greenBg, C.card]}
+              colors={[C.blueBg, C.card]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[s.nowCard, { borderLeftColor: C.green }]}
+              style={[s.nowCard, { borderLeftColor: C.primary }]}
             >
               <View style={s.nowCardTop}>
-                <View style={[s.nowDot, { backgroundColor: C.green }]} />
+                <View style={[s.nowDot, { backgroundColor: C.primary }]} />
                 <Text style={[s.nowTitle, { color: C.fg }]}>ИДЁТ СЕЙЧАС</Text>
                 <View style={[s.nowPairBadge, { backgroundColor: C.card }]}>
                   <Text style={[s.nowPairText, { color: C.primary }]}>{currentItem.pair_number} пара</Text>
@@ -1551,8 +1551,8 @@ export default function ScheduleScreen() {
                 const left = Math.max(0, Math.ceil((en.getTime() - nowMs) / 60000));
                 return (
                   <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <RadialProgress progress={1 - p} size={34} stroke={3.5} color={C.green} track={C.card}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: C.green, fontVariant: ['tabular-nums'] }}>{left}</Text>
+                    <RadialProgress progress={1 - p} size={34} stroke={3.5} color={C.primary} track={C.card}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: C.primary, fontVariant: ['tabular-nums'] }}>{left}</Text>
                     </RadialProgress>
                     <Text style={{ fontSize: 12, color: C.muted, flex: 1 }}>
                       осталось <Text style={{ color: C.fg, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{left} мин</Text> до конца пары
@@ -1672,7 +1672,7 @@ export default function ScheduleScreen() {
             },
           ]}
         >
-          <Text style={[s.allWeekBtnText, { color: selectedDay === 'all' ? '#fff' : C.fg }]}>
+          <Text style={[s.allWeekBtnText, { color: selectedDay === 'all' ? C.primaryFg : C.fg }]}>
             Вся неделя
           </Text>
         </TouchableOpacity>
@@ -1736,16 +1736,16 @@ export default function ScheduleScreen() {
                     },
                   ]}
                 >
-                  <Text style={[s.dayBtnText, { color: active ? '#fff' : C.fg }]}>
+                  <Text style={[s.dayBtnText, { color: active ? C.primaryFg : C.fg }]}>
                     {DAY_LABELS[day]}
                   </Text>
                   {dateObj && (
-                    <Text style={[s.dayBtnDate, { color: active ? 'rgba(255,255,255,0.85)' : C.muted }]}>
+                    <Text style={[s.dayBtnDate, { color: active ? withAlpha(C.primaryFg, 0.85) : C.muted }]}>
                       {dateObj.getDate()}
                     </Text>
                   )}
                   {hasLessons && (
-                    <View style={[s.dayDot, { backgroundColor: active ? 'rgba(255,255,255,0.8)' : C.primary }]} />
+                    <View style={[s.dayDot, { backgroundColor: active ? withAlpha(C.primaryFg, 0.8) : C.primary }]} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -1854,7 +1854,7 @@ export default function ScheduleScreen() {
             paddingHorizontal: 14, paddingVertical: 7,
           }}
         >
-          <Text style={{ color: '#fff', fontSize: 12.5, fontWeight: '700' }}>✓ Обновлено</Text>
+          <Text style={{ color: C.primaryFg, fontSize: 12.5, fontWeight: '700' }}>✓ Обновлено</Text>
         </Animated.View>
       </View>
     )}

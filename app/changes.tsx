@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  StyleSheet, RefreshControl,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, Change, shortGroupName } from '../src/api';
 import { useTheme } from '../src/theme';
+import AppLoader from '../src/AppLoader';
 
 const CHANGE_TYPE_LABELS: Record<string, string> = {
   added: 'Добавлено',
@@ -124,7 +125,7 @@ export default function ChangesScreen() {
   if (loading) {
     return (
       <View style={[s.center, { backgroundColor: C.bg }]}>
-        <ActivityIndicator size="large" color={C.primary} />
+        <AppLoader />
       </View>
     );
   }
@@ -154,7 +155,7 @@ export default function ChangesScreen() {
                 activeOpacity={0.7}
                 style={[s.filterChip, { backgroundColor: onlyMine ? C.primary : C.card, borderColor: onlyMine ? C.primary : C.border }]}
               >
-                <Text style={[s.filterText, { color: onlyMine ? '#fff' : C.fg }]}>
+                <Text style={[s.filterText, { color: onlyMine ? C.primaryFg : C.fg }]}>
                   Моя группа{profileGroupLabel ? ` · ${profileGroupLabel}` : ''}
                 </Text>
               </TouchableOpacity>
@@ -163,7 +164,7 @@ export default function ChangesScreen() {
                 activeOpacity={0.7}
                 style={[s.filterChip, { backgroundColor: !onlyMine ? C.primary : C.card, borderColor: !onlyMine ? C.primary : C.border }]}
               >
-                <Text style={[s.filterText, { color: !onlyMine ? '#fff' : C.fg }]}>Все факультеты</Text>
+                <Text style={[s.filterText, { color: !onlyMine ? C.primaryFg : C.fg }]}>Все факультеты</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -174,7 +175,7 @@ export default function ChangesScreen() {
           <View style={s.center}>
             <Text style={s.error}>{error}</Text>
             <TouchableOpacity onPress={() => load(onlyMine ? profileGroupId : null)} style={[s.retryBtn, { backgroundColor: C.primary }]}>
-              <Text style={s.retryText}>Повторить</Text>
+              <Text style={[s.retryText, { color: C.primaryFg }]}>Повторить</Text>
             </TouchableOpacity>
           </View>
         ) : (

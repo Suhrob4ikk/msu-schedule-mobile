@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, ScrollView, RefreshControl, Alert,
+  StyleSheet, ScrollView, RefreshControl, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
@@ -14,7 +14,8 @@ import {
   api, invalidateApiCache, Teacher, Lesson, DAYS_ORDER, shortGroupName,
   WeekOption, weekLabel, isCurrentWeek, weekRangeStr,
 } from '../src/api';
-import { useTheme } from '../src/theme';
+import { useTheme, withAlpha } from '../src/theme';
+import AppLoader from '../src/AppLoader';
 import { useSyncStatus } from '../src/SyncContext';
 
 const DAY_FULL: Record<string, string> = {
@@ -279,8 +280,8 @@ export default function TeachersScreen() {
             onPress={() => switchWeek(w)}
             style={[s.weekBtn, { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border }]}
           >
-            <Text style={[s.weekBtnText, { color: active ? '#fff' : C.fg }]}>{weekLabel(w.week_start)}</Text>
-            {cur && <View style={[s.weekDot, { backgroundColor: active ? 'rgba(255,255,255,0.7)' : C.primary }]} />}
+            <Text style={[s.weekBtnText, { color: active ? C.primaryFg : C.fg }]}>{weekLabel(w.week_start)}</Text>
+            {cur && <View style={[s.weekDot, { backgroundColor: active ? withAlpha(C.primaryFg, 0.7) : C.primary }]} />}
           </TouchableOpacity>
         );
       })}
@@ -330,7 +331,7 @@ export default function TeachersScreen() {
           />
         </View>
         {loading ? (
-          <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />
+          <AppLoader />
         ) : error ? (
           <Text style={s.errorText}>{error}</Text>
         ) : (
@@ -397,7 +398,7 @@ export default function TeachersScreen() {
         </View>
       </View>
       {weekSelector}
-      {loadingList && <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 32 }} />}
+      {loadingList && <AppLoader />}
       {error && !loadingList && <Text style={s.errorText}>{error}</Text>}
       {!loadingList && (
         <FlatList

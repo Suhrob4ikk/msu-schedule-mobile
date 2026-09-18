@@ -67,8 +67,8 @@ export default function NotificationsScreen() {
                   activeOpacity={0.7}
                   style={[s.tabChip, { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border }]}
                 >
-                  <Ionicons name={t.icon} size={14} color={active ? '#fff' : C.muted} style={{ marginRight: 6 }} />
-                  <Text style={[s.tabText, { color: active ? '#fff' : C.fg }]}>
+                  <Ionicons name={t.icon} size={14} color={active ? C.primaryFg : C.muted} style={{ marginRight: 6 }} />
+                  <Text style={[s.tabText, { color: active ? C.primaryFg : C.fg }]}>
                     {t.label}{counts[t.key] > 0 ? ` · ${counts[t.key]}` : ''}
                   </Text>
                 </TouchableOpacity>
