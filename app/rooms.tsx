@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { View, Text, TextInput, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek, currentSlot } from '../src/api';
@@ -26,16 +26,34 @@ function getDayDate(dayName: string, weekStart: string): string {
 const DAYS = DAYS_ORDER.filter(d => d !== 'воскресенье');
 
 /** Сортировка аудиторий по номеру — с первого этажа до последнего (100е,
- *  200е...). Без цифр в названии (лабгеол и т.п.) — в конец списка. */
+ *  200е...), именованные («лабгеол» и т.п.) — после них по алфавиту.
+ *  Тот же приём, что на сайте (byRoomNumber в frontend/src/app/rooms). */
 function sortRooms<T extends { room_name: string }>(list: T[]): T[] {
   return [...list].sort((a, b) => {
-    const na = parseInt(a.room_name.match(/\d+/)?.[0] ?? '', 10);
-    const nb = parseInt(b.room_name.match(/\d+/)?.[0] ?? '', 10);
-    const va = Number.isNaN(na) ? Number.MAX_SAFE_INTEGER : na;
-    const vb = Number.isNaN(nb) ? Number.MAX_SAFE_INTEGER : nb;
-    if (va !== vb) return va - vb;
+    const na = parseInt(a.room_name, 10);
+    const nb = parseInt(b.room_name, 10);
+    const aIsNum = !Number.isNaN(na);
+    const bIsNum = !Number.isNaN(nb);
+    if (aIsNum && bIsNum) return na - nb || a.room_name.localeCompare(b.room_name, 'ru');
+    if (aIsNum) return -1;
+    if (bIsNum) return 1;
     return a.room_name.localeCompare(b.room_name, 'ru');
   });
+}
+
+/**
+ * Бэкенд отдаёт запись занятости одной строкой вида
+ * «3 курс · ПМиИ: Кураторский час · Практика · Бобоев Ш.А.» — разбираем на
+ * «группа: предмет» и «тип · препод» для двух строк в карточке. Тот же
+ * разбор, что на сайте (splitOccupantEntry в frontend/src/app/rooms).
+ */
+function splitOccupantEntry(entry: string): { top: string; bottom: string } {
+  const sep = entry.indexOf(': ');
+  if (sep === -1) return { top: entry, bottom: '' };
+  const group = entry.slice(0, sep);
+  const rest = entry.slice(sep + 2).split(' · ');
+  const subject = rest[0] ?? '';
+  return { top: `${group}: ${subject}`, bottom: rest.slice(1).join(' · ') };
 }
 
 export default function RoomsScreen() {
@@ -48,11 +66,10 @@ export default function RoomsScreen() {
   });
   const [pair, setPair] = useState('I');
   const [search, setSearch] = useState('');
-  // Занятые по умолчанию свёрнуты — только номер и «до какого времени».
-  // Группа/предмет/преподаватель — по кнопке «Подробнее» (как на сайте):
-  // список из 5-6 занятых аудиторий с полным составом текста было тяжело
-  // окинуть взглядом, когда просто хочешь понять, сколько где занято.
-  const [showBusyDetails, setShowBusyDetails] = useState(false);
+  // Аудитория, по которой открыта шторка с подробностями — по тапу на
+  // конкретную аудиторию (как на сайте), а не общий тумблер на весь список:
+  // разворачивать сразу все 15-20 занятых ради одной было неудобно.
+  const [openRoom, setOpenRoom] = useState<string | null>(null);
 
   // Переход из расписания по тапу на аудиторию: «кто ещё занят в это время».
   // Параметры приходят из app/index.tsx (router.push с day и pair).
@@ -298,12 +315,17 @@ export default function RoomsScreen() {
             : (
               <View style={s.freeGrid}>
                 {free.map(r => (
-                  <View key={r.room_name} style={[s.freeChip, { backgroundColor: C.greenBg, borderColor: C.green }]}>
+                  <TouchableOpacity
+                    key={r.room_name}
+                    onPress={() => setOpenRoom(r.room_name)}
+                    activeOpacity={0.7}
+                    style={[s.freeChip, { backgroundColor: C.greenBg, borderColor: C.green }]}
+                  >
                     <Text style={[s.freeChipText, { color: C.green }]}>{r.room_name}</Text>
                     <Text style={[s.freeChipSub, { color: C.green }]}>
                       {r.free_until ? `до ${r.free_until}` : 'весь день'}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )
@@ -313,65 +335,110 @@ export default function RoomsScreen() {
             <View style={[s.statusDot, { backgroundColor: C.red }]} />
             <Text style={[s.countHeader, { color: C.fg }]}>Занятых: {busy.length}</Text>
             {busy.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setShowBusyDetails(v => !v)}
-                activeOpacity={0.7}
-                style={[s.detailsToggle, { borderColor: C.border }]}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '600', color: C.muted }}>
-                  {showBusyDetails ? 'Свернуть' : 'Подробнее'}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={12}
-                  color={C.muted}
-                  style={{ transform: [{ rotate: showBusyDetails ? '180deg' : '0deg' }] }}
-                />
-              </TouchableOpacity>
+              <Text style={[s.hintText, { color: C.muted }]}>нажми, чтобы узнать кто</Text>
             )}
           </View>
 
-          {/* Свёрнуто — компактные чипы, тот же вид, что у свободных: быстро
-              окинуть взглядом, когда освободится. Развёрнуто — кто именно
-              занял (группа/предмет/преподаватель). */}
-          {!showBusyDetails ? (
-            <View style={s.freeGrid}>
-              {busy.map(r => (
-                <View key={r.room_name} style={[s.freeChip, { backgroundColor: C.redBg, borderColor: C.red }]}>
-                  <Text style={[s.freeChipText, { color: C.red }]}>{r.room_name}</Text>
-                  {r.occupied_until && (
-                    <Text style={[s.freeChipSub, { color: C.red }]}>до {r.occupied_until}</Text>
-                  )}
+          {/* Компактные чипы для всех занятых — тап по конкретной открывает
+              шторку с подробностями (как на сайте). Точка в углу — накладка
+              в расписании (две группы в одной аудитории одновременно). */}
+          <View style={s.freeGrid}>
+            {busy.map(r => (
+              <TouchableOpacity
+                key={r.room_name}
+                onPress={() => setOpenRoom(r.room_name)}
+                activeOpacity={0.7}
+                style={[s.freeChip, { backgroundColor: C.redBg, borderColor: C.red }]}
+              >
+                <Text style={[s.freeChipText, { color: C.red }]}>{r.room_name}</Text>
+                {r.occupied_until && (
+                  <Text style={[s.freeChipSub, { color: C.red }]}>до {r.occupied_until}</Text>
+                )}
+                {r.conflict && <View style={[s.conflictDot, { backgroundColor: C.red, borderColor: C.bg }]} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
+
+      {/* Подробности по конкретной аудитории — шторка снизу, тап на фон закрывает. */}
+      {openRoom && (() => {
+        const r = rooms.find(x => x.room_name === openRoom);
+        if (!r) return null;
+        const entries = r.occupied_list ?? (r.occupied_by ? [r.occupied_by] : []);
+        const [pairStart, pairEnd] = PAIR_TIMES[pair] ?? ['', ''];
+        return (
+          <Modal transparent visible animationType="fade" onRequestClose={() => setOpenRoom(null)}>
+            <Pressable style={s.sheetBackdrop} onPress={() => setOpenRoom(null)}>
+              <Pressable style={[s.sheet, { backgroundColor: C.card }]} onPress={() => {}}>
+                <View style={s.sheetHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.sheetTitle, { color: C.fg }]}>Аудитория {r.room_name}</Text>
+                    <Text style={[s.sheetSubtitle, { color: C.muted }]}>
+                      {day.charAt(0).toUpperCase() + day.slice(1)} · {pair} пара · {pairStart}–{pairEnd}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setOpenRoom(null)} hitSlop={10}>
+                    <Ionicons name="close" size={22} color={C.muted} />
+                  </TouchableOpacity>
                 </View>
-              ))}
-            </View>
-          ) : (
-            busy.map(r => {
-              const entries = r.occupied_list ?? (r.occupied_by ? [r.occupied_by] : []);
-              return (
-                <View key={r.room_name} style={[s.roomCard, { backgroundColor: C.redBg, borderLeftColor: C.red }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <Text style={[s.roomName, { color: C.fg }]}>{r.room_name}</Text>
-                    {r.occupied_until && (
-                      <Text style={{ fontSize: 12, color: C.red, opacity: 0.85 }}>до {r.occupied_until}</Text>
-                    )}
+
+                {r.is_free ? (
+                  <>
+                    <View style={[s.statusPill, { backgroundColor: C.greenBg }]}>
+                      <View style={[s.statusDot, { backgroundColor: C.green }]} />
+                      <Text style={[s.statusPillText, { color: C.green }]}>
+                        Свободна {r.free_until ? `до ${r.free_until}` : 'весь день'}
+                      </Text>
+                    </View>
+                    <Text style={[s.sheetNote, { color: C.muted }]}>
+                      {r.free_until
+                        ? `После ${r.free_until} аудиторию занимает следующая пара.`
+                        : 'До конца дня занятий в этой аудитории нет.'}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={[s.statusPill, { backgroundColor: C.redBg }]}>
+                      <View style={[s.statusDot, { backgroundColor: C.red }]} />
+                      <Text style={[s.statusPillText, { color: C.red }]}>
+                        Занята {r.occupied_until ? `до ${r.occupied_until}` : ''}
+                      </Text>
+                    </View>
+
                     {r.conflict && (
-                      <View style={{ backgroundColor: C.examAccent, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 }}>
-                        <Text style={{ color: '#fff', fontSize: 9.5, fontWeight: '700' }}>
-                          {entries.length} группы одновременно
+                      <View style={[s.conflictBanner, { backgroundColor: C.examAccent }]}>
+                        <Text style={s.conflictBannerText}>
+                          В расписании накладка: {entries.length} группы в одной аудитории одновременно
                         </Text>
                       </View>
                     )}
-                  </View>
-                  {entries.map((e, i) => (
-                    <Text key={i} style={[s.occupiedBy, { color: C.muted }]}>{e}</Text>
-                  ))}
-                </View>
-              );
-            })
-          )}
-        </>
-      )}
+
+                    <View style={{ gap: 8, marginTop: 12 }}>
+                      {entries.map((e, i) => {
+                        const { top, bottom } = splitOccupantEntry(e);
+                        return (
+                          <View key={i} style={[s.occupantRow, { backgroundColor: C.tag }]}>
+                            <Text style={[s.occupantTop, { color: C.fg }]}>{top}</Text>
+                            {bottom && <Text style={[s.occupantBottom, { color: C.muted }]}>{bottom}</Text>}
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    {r.occupied_until && (
+                      <Text style={[s.sheetNote, { color: C.muted }]}>
+                        Освободится в {r.occupied_until}. Это время считается по всем парам подряд —
+                        занимать аудиторию до него может не одна группа, а несколько.
+                      </Text>
+                    )}
+                  </>
+                )}
+              </Pressable>
+            </Pressable>
+          </Modal>
+        );
+      })()}
     </ScrollView>
   );
 }
@@ -410,18 +477,27 @@ const s = StyleSheet.create({
 
   statusHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   statusDot: { width: 8, height: 8, borderRadius: 999 },
-  detailsToggle: {
-    marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4,
-    height: 28, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1,
-  },
+  hintText: { marginLeft: 'auto', fontSize: 12 },
   countHeader: { fontSize: 14, fontWeight: '800' },
   freeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  freeChip: { minWidth: 74, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, alignItems: 'center' },
+  freeChip: { minWidth: 74, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', position: 'relative' },
   freeChipText: { fontSize: 16, fontWeight: '800' },
   freeChipSub: { fontSize: 10, opacity: 0.85, marginTop: 2 },
-  roomCard: { borderRadius: 14, padding: 12, marginBottom: 8, borderLeftWidth: 3 },
-  roomName: { fontSize: 14, fontWeight: '600' },
-  occupiedBy: { fontSize: 12, marginTop: 2 },
+  conflictDot: { position: 'absolute', top: -3, right: -3, width: 10, height: 10, borderRadius: 999, borderWidth: 2 },
   noRooms: { fontSize: 13, textAlign: 'center', paddingVertical: 8 },
   error: { color: '#dc2626', textAlign: 'center', marginTop: 24, fontSize: 14 },
+
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32, maxHeight: '80%' },
+  sheetHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
+  sheetTitle: { fontSize: 17, fontWeight: '800' },
+  sheetSubtitle: { fontSize: 12, marginTop: 2 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
+  statusPillText: { fontSize: 14, fontWeight: '700' },
+  sheetNote: { fontSize: 12, marginTop: 12, lineHeight: 17 },
+  conflictBanner: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 },
+  conflictBannerText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  occupantRow: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  occupantTop: { fontSize: 13, fontWeight: '600' },
+  occupantBottom: { fontSize: 12, marginTop: 2 },
 });
