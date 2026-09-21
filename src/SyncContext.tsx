@@ -9,35 +9,54 @@ import { clearApiCache, API_BASE } from './api';
  *
  * Раньше здесь раз в 15 секунд дёргался /api/schedule/groups — полный список
  * всех групп, 240 запросов в час, только чтобы понять «есть ли интернет».
- * Теперь состояние приходит событием от Android: система и так знает, есть ли
- * у сети выход в интернет (NET_CAPABILITY_VALIDATED), и NetInfo просто
- * пересказывает её ответ. Собственных запросов — ноль.
+ * Теперь основной сигнал приходит событием от Android (NET_CAPABILITY_VALIDATED) —
+ * своих запросов на это почти нет.
+ *
+ * «Почти», а не «совсем», по опыту 19–21 сен 2026: на одном телефоне (MIUI)
+ * Android трое суток подряд считал, что «интернета нет» — сам, без нашего
+ * участия, — хотя сеть и наш бэкенд прекрасно отвечали (Telegram работал,
+ * бэкенд отвечал за секунды). Похоже на историю с Megafon TJ и IP Render
+ * (см. комментарий у API_BASE в api.ts): устройство не может провалидировать
+ * какой-то ЧУЖОЙ адрес, которым Android проверяет интернет вообще, и решает,
+ * что сети нет — хотя нужный НАМ адрес доступен. NetInfo с useNativeReachability
+ * в такой ситуации даже не смотрит на свой резервный reachabilityUrl — он
+ * запускается, только когда нативного ответа нет вовсе, а не когда он есть,
+ * но неверный. Поэтому здесь и добавлена собственная перепроверка: если
+ * система сказала «офлайн», не верим на слово и стучимся напрямую в наш
+ * /health — и только если он тоже недоступен, показываем «офлайн» по-настоящему.
  */
 // Бэкенд отдаёт /health и в корне, и под префиксом /api — а ходим мы через
 // прокси (/backend/* → /api/*), где доступен только второй. Отсюда просто
 // приписанный к базе путь, без вырезания /api, как было раньше.
 const HEALTH_URL = `${API_BASE}/health`;
+const HEALTH_CHECK_TIMEOUT_MS = 10_000;
+// Пока система настаивает на «офлайн» — перепроверяем сами раз в полминуты,
+// а не жуём батарею частым опросом.
+const HEALTH_RECHECK_INTERVAL_MS = 30_000;
 
-NetInfo.configure({
-  // Ответ от системы. Пока он есть, запасная проверка ниже не запускается вовсе.
-  useNativeReachability: true,
-  // Запасной путь — если система вдруг не дала ответа. Тогда лучше спросить
-  // наш же бэкенд, чем чужой адрес, который может быть недоступен.
-  reachabilityUrl: HEALTH_URL,
-  reachabilityMethod: 'HEAD',
-  reachabilityTest: async (response: Response) => response.status < 400,
-  reachabilityLongTimeout: 5 * 60_000,   // всё хорошо — перепроверяем раз в 5 минут
-  reachabilityShortTimeout: 30_000,      // офлайн — раз в полминуты
-  // Render на бесплатном тарифе просыпается долго; короткий тайм-аут
-  // объявил бы спящий сервер мёртвым.
-  reachabilityRequestTimeout: 20_000,
-});
+NetInfo.configure({ useNativeReachability: true });
 
 /** true, пока система не сказала обратного: ложный баннер «офлайн» хуже молчания. */
 function isOnlineFrom(state: NetInfoState): boolean {
   if (state.isConnected === false) return false;
   // null = «ещё не проверяли». Считаем, что связь есть.
   return state.isInternetReachable !== false;
+}
+
+/** GET, не HEAD: на этот бэкенд HEAD то виснет на весь тайм-аут, то отдаёт
+ *  405 (роут зарегистрирован только под GET) — обе реакции читались бы как
+ *  «сети нет». */
+async function isBackendReachable(): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
+  try {
+    const res = await fetch(HEALTH_URL, { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -94,22 +113,42 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (!wasOnline && online) setOnlineAt(Date.now());
   }, []);
 
-  // Подписка на события сети. Ни одного запроса от нас — состояние
-  // присылает система, а редкую проверку /health делает сам NetInfo.
+  // Сырое мнение системы — может ошибаться (см. комментарий выше), поэтому
+  // применяется напрямую только когда оно «онлайн»; «офлайн» ещё проверяется.
+  const [nativeOnline, setNativeOnline] = useState(true);
+
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => applyState(isOnlineFrom(state)));
-    NetInfo.fetch().then(state => applyState(isOnlineFrom(state))).catch(() => null);
+    const unsubscribe = NetInfo.addEventListener(state => setNativeOnline(isOnlineFrom(state)));
+    NetInfo.fetch().then(state => setNativeOnline(isOnlineFrom(state))).catch(() => null);
     return () => unsubscribe();
-  }, [applyState]);
+  }, []);
 
   // При возврате в приложение состояние сети могло измениться, пока оно спало.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state !== 'active') return;
-      NetInfo.refresh().then(s => applyState(isOnlineFrom(s))).catch(() => null);
+      NetInfo.refresh().then(s => setNativeOnline(isOnlineFrom(s))).catch(() => null);
     });
     return () => sub.remove();
-  }, [applyState]);
+  }, []);
+
+  // Система говорит «онлайн» — верим сразу, без лишнего запроса. Говорит
+  // «офлайн» — не верим на слово (см. комментарий у isBackendReachable) и
+  // спрашиваем сами; пока не отпустит, перепроверяем раз в HEALTH_RECHECK_INTERVAL_MS.
+  useEffect(() => {
+    if (nativeOnline) {
+      applyState(true);
+      return;
+    }
+    let cancelled = false;
+    const check = async () => {
+      const reachable = await isBackendReachable();
+      if (!cancelled) applyState(reachable);
+    };
+    check();
+    const timer = setInterval(check, HEALTH_RECHECK_INTERVAL_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [nativeOnline, applyState]);
 
   // Полная синхронизация при старте — если пора и если есть сеть.
   useEffect(() => {
