@@ -792,7 +792,7 @@ export default function ProfileScreen() {
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
         <Text style={[s.aboutText, { color: C.muted }]}>Данные с msu.tj</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.37</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.38</Text>
       </View>
     </ScrollView>
   );

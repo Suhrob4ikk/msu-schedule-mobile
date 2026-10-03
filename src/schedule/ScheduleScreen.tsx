@@ -125,6 +125,8 @@ export default function ScheduleScreenNew() {
   const rel: WeekRel = selectedWeek ? weekRel(selectedWeek.week_start, now) : 'current';
   const daysRef = useRef(days);
   const keyRef = useRef('');
+  // Пришла другая неделя/группа — часы освежаем сразу, а не на следующем тике
+  useEffect(() => { setNow(new Date()); }, [days]);
   useEffect(() => {
     daysRef.current = days;
     keyRef.current = selectedWeek ? stateKey(now, days, rel) : '';
@@ -184,6 +186,22 @@ export default function ScheduleScreenNew() {
     applyReminders(ls, week.week_start);
     writeWidgetData(group, ls, week.week_start).then(() => refreshLiveLesson()).catch(() => null);
   }, [applyReminders]);
+
+  // Переключатели напоминаний живут в Кабинете — при возврате на вкладку
+  // пересобираем напоминания из уже загруженных пар (если ничего не
+  // изменилось, applyReminders сам ничего не делает).
+  useFocusEffect(
+    useCallback(() => {
+      const g = selectedGroupRef.current;
+      const w = selectedWeekRef.current;
+      const ls = lessonsRef.current;
+      if (!g || !w || !ls.length || g.id !== myGroupIdRef.current) return;
+      const r = weekRel(w.week_start, new Date());
+      if (r === 'past' || (r === 'future' && picked())) return;
+      applyReminders(ls, w.week_start);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [applyReminders]),
+  );
 
   // ─── Загрузка ─────────────────────────────────────────────────────────
 
@@ -452,14 +470,16 @@ export default function ScheduleScreenNew() {
     if (scrolledFor.current === key) return;
     const ys = dayY.current;
     for (let i = 0; i < 7; i++) if (ys[i] == null) return;
+    if (!viewportH.current) return;
     const n = new Date();
     const r = weekRel(w.week_start, n);
     const f = computeFocus(n, daysRef.current, r);
-    if (f && !focusBox.current) return; // карточка ещё не измерена
-    let target = f ? daysRef.current.findIndex(d => d.date === f.block.date) : 0;
+    const focusDay = f ? daysRef.current.findIndex(d => d.date === f.block.date) : -1;
+    const fb = focusBox.current && focusBox.current.day === focusDay ? focusBox.current : null;
+    if (f && !fb) return; // карточка ещё не измерена
+    let target = focusDay >= 0 ? focusDay : 0;
     if (r === 'current') {
       const todayIdx = daysRef.current.findIndex(d => d.date === isoOf(n));
-      const fb = focusBox.current;
       const fits = !fb || (ys[fb.day]! + fb.y + fb.h - ys[todayIdx]!) <= viewportH.current;
       if (todayIdx >= 0 && fits) target = todayIdx;
     }
@@ -470,8 +490,12 @@ export default function ScheduleScreenNew() {
     setVisible(target);
   }, []);
 
-  // Новая неделя/группа — мерки старых дней недействительны
-  useEffect(() => { dayY.current = []; focusBox.current = null; }, [selectedWeek?.id, selectedGroup?.id]);
+  // Сменилась группа при той же неделе — дни могли не пересчитать размеры
+  // (onLayout не придёт), поэтому пробуем прокрутить и по смене данных.
+  useEffect(() => {
+    const id = setTimeout(tryInitialScroll, 60);
+    return () => clearTimeout(id);
+  }, [lessons, selectedWeek?.id, selectedGroup?.id, tryInitialScroll]);
 
   const onDayLayout = useCallback((i: number, e: LayoutChangeEvent) => {
     dayY.current[i] = e.nativeEvent.layout.y;
@@ -597,7 +621,7 @@ export default function ScheduleScreenNew() {
         ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 + (rel !== 'current' ? TOUCH_MIN + 12 : 0) }}
-        onLayout={e => { viewportH.current = e.nativeEvent.layout.height; }}
+        onLayout={e => { viewportH.current = e.nativeEvent.layout.height; requestAnimationFrame(tryInitialScroll); }}
         onScroll={onScroll}
         onScrollBeginDrag={() => { lockRef.current = false; }}
         scrollEventThrottle={32}
