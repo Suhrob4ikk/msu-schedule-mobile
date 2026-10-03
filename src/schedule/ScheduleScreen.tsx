@@ -16,11 +16,13 @@ import { useFocusEffect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useFonts, Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
 } from '@expo-google-fonts/onest';
-import { api, invalidateApiCache, Group, Lesson, WeekInfo, shortGroupName } from '../api';
+import { api, invalidateApiCache, Group, Lesson, WeekInfo, shortGroupName, weekRangeStr } from '../api';
 import { useThemeMode } from '../theme';
 import { useSyncStatus } from '../SyncContext';
 import { scheduleExamReminders, scheduleLessonReminders, NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY } from '../examNotifications';
@@ -29,6 +31,7 @@ import { refreshLiveLesson } from '../liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey } from '../studyData';
 import { onScheduleUpdated } from '../scheduleEvents';
 import CourseCheckBanner from '../CourseCheckBanner';
+import ScheduleShareCard from '../ScheduleShareCard';
 import { useTokens, GUTTER, RADIUS, TOUCH_MIN, DAY_CELL, scaledWidth } from './tokens';
 import {
   Block, DayData, WeekRel, addDays, buildWeek, computeFocus, doneTodayAt, headerTitle, isoOf,
@@ -39,6 +42,8 @@ import ScheduleHeader, { LinkState } from './ScheduleHeader';
 import DaySection, { Marks } from './DaySection';
 import DayBar from './DayBar';
 import { COL_GAP, COL_ROOM, COL_TIME, ROW_PAD_X } from './LessonRow';
+import WeekSheet from './WeekSheet';
+import LessonSheet from './LessonSheet';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -499,8 +504,35 @@ export default function ScheduleScreenNew() {
   }, []);
 
   // ─── Действия ─────────────────────────────────────────────────────────
-  const openHeaderSheet = useCallback(() => { /* лист недели и группы — следующим шагом */ }, []);
-  const openLesson = useCallback((_b: Block) => { /* лист пары — следующим шагом */ }, []);
+  const [headerSheet, setHeaderSheet] = useState(false);
+  const [lessonSheet, setLessonSheet] = useState<Block | null>(null);
+  const openHeaderSheet = useCallback(() => { Haptics.selectionAsync(); setHeaderSheet(true); }, []);
+  const openLesson = useCallback((b: Block) => { Haptics.selectionAsync(); setLessonSheet(b); }, []);
+
+  // «Поделиться расписанием» — картинка недели (тот же ScheduleShareCard, что раньше)
+  const shareCardRef = useRef<View>(null);
+  const sharingRef = useRef(false);
+  const byDay = useMemo(() => {
+    const out: Record<string, Lesson[]> = {};
+    for (const d of days) if (d.blocks.length) out[d.day] = d.blocks.flatMap(b => b.lessons);
+    return out;
+  }, [days]);
+  const share = useCallback(async () => {
+    if (sharingRef.current) return;
+    sharingRef.current = true;
+    try {
+      // Лист ещё закрывается — даём ему уехать, иначе он попадёт в кадр системного меню
+      await new Promise(r => setTimeout(r, 250));
+      const uri = await captureRef(shareCardRef, { format: 'png', quality: 1 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Расписание' });
+      }
+    } catch {
+      Alert.alert('Не получилось', 'Не удалось создать картинку. Попробуйте ещё раз.');
+    } finally {
+      sharingRef.current = false;
+    }
+  }, []);
   const onFocusPress = useCallback(() => { if (focus) openLesson(focus.block); }, [focus, openLesson]);
 
   const toThisWeek = useCallback(() => {
@@ -644,6 +676,41 @@ export default function ScheduleScreenNew() {
           </Pressable>
         </View>
       )}
+
+      {/* Невидимая карточка для снимка — за пределами экрана, но смонтирована */}
+      {selectedGroup && selectedWeek && (
+        <View style={{ position: 'absolute', left: -9999, top: 0 }} pointerEvents="none">
+          <ScheduleShareCard
+            ref={shareCardRef}
+            groupLabel={`${shortGroupName(selectedGroup.name)} · ${selectedGroup.year} курс`}
+            weekLabel={weekRangeStr(selectedWeek.week_start)}
+            lessonsByDay={byDay}
+          />
+        </View>
+      )}
+
+      <WeekSheet
+        visible={headerSheet}
+        onClose={() => setHeaderSheet(false)}
+        k={k}
+        weeks={weeks}
+        selectedWeek={selectedWeek}
+        groups={groups}
+        group={selectedGroup}
+        myGroup={groups.find(g => g.id === myGroupId) ?? null}
+        onPickWeek={switchWeek}
+        onPickGroup={g => { if (g.id !== selectedGroup?.id) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); loadGroup(g); } }}
+        onShare={share}
+        canShare={lessons.length > 0}
+      />
+      <LessonSheet
+        block={lessonSheet}
+        onClose={() => setLessonSheet(null)}
+        k={k}
+        showAttendance={showAttendance}
+        showNotes={showNotes}
+        onChanged={loadMarks}
+      />
 
       {days.length > 0 && (
         <DayBar days={days} k={k} todayIso={isoOf(now)} visible={visibleDay} onPick={pickDay} />
