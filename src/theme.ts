@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ThemeReveal from './ThemeReveal';
 
@@ -136,11 +137,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [pref, setPrefState] = useState<ThemePref>('system');
   const mode: ThemeMode = pref === 'system' ? system : pref;
 
-  // Пока круг растёт, тема ещё старая — переключаем её в момент, когда он
-  // накрыл экран (см. ThemeReveal). Без origin меняем сразу, без анимации.
-  const [reveal, setReveal] = useState<{ x: number; y: number; color: string } | null>(null);
-  // Что применить, когда круг накроет экран — обычный useState тут не подойдёт:
-  // onCovered читает значение в отдельном колбэке, а не в этом рендере.
+  // Смена темы с анимацией: снимок старого экрана поверх, тема меняется под
+  // ним, снимок растворяется (см. ThemeReveal). Без origin — сразу, без анимации.
+  const rootRef = useRef<View>(null);
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  const switching = useRef(false);
+  // Что применить, когда снимок показан — обычный useState тут не подойдёт:
+  // onShown читает значение в отдельном колбэке, а не в этом рендере.
   const pendingPref = useRef<ThemePref>('system');
 
   // Дефолт — «Фиолетовый» (редизайн сен 2026). Старые green/blue, выбранные
@@ -169,19 +172,36 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const choose = useCallback((next: ThemePref, origin?: { x: number; y: number }) => {
     const nextMode: ThemeMode = next === 'system' ? system : next;
     // Без точки нажатия или без видимой смены цвета — анимировать нечего
+    // Нажали ещё раз, пока идёт растворение, — применяем сразу и запоминаем,
+    // чтобы ещё не показанный снимок не вернул предыдущий выбор
+    if (switching.current) {
+      pendingPref.current = next;
+      applyPref(next);
+      return;
+    }
     if (!origin || nextMode === mode) {
       applyPref(next);
       return;
     }
     pendingPref.current = next;
-    const nextColors = nextMode === 'dark' ? darkColors : lightColors;
-    setReveal({ x: origin.x, y: origin.y, color: nextColors.bg });
+    switching.current = true;
+    captureRef(rootRef, { format: 'jpg', quality: 0.9, result: 'tmpfile' })
+      .then(uri => setSnapshot(uri))
+      .catch(() => {
+        // Снимок не получился — просто меняем тему без анимации
+        switching.current = false;
+        applyPref(next);
+      });
   }, [mode, system, applyPref]);
 
-  const onCovered = useCallback(() => {
+  const onSnapshotShown = useCallback(() => {
     applyPref(pendingPref.current);
-    setReveal(null);
   }, [applyPref]);
+
+  const onSnapshotDone = useCallback(() => {
+    switching.current = false;
+    setSnapshot(null);
+  }, []);
 
   const baseColors = mode === 'dark' ? darkColors : lightColors;
   const withPrimary = accent === 'blue'
@@ -206,9 +226,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return React.createElement(
     ThemeCtx.Provider,
     { value },
-    children,
-    reveal
-      ? React.createElement(ThemeReveal, { key: 'reveal', ...reveal, onCovered })
+    // Корень, который фотографируется при смене темы. collapsable={false} —
+    // иначе Android может «схлопнуть» обёртку, и снимать будет нечего.
+    React.createElement(View, { ref: rootRef, style: { flex: 1 }, collapsable: false }, children),
+    snapshot
+      ? React.createElement(ThemeReveal, {
+        key: snapshot, uri: snapshot, onShown: onSnapshotShown, onDone: onSnapshotDone,
+      })
       : null,
   );
 }

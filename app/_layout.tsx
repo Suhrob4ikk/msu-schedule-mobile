@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, AppState, AppStateStatus, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, AppState, AppStateStatus, TouchableOpacity, Animated, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,17 +30,38 @@ import UpdateBanner from '../src/UpdateBanner';
  */
 function onRemotePush(content: Notifications.NotificationContent): void {
   if (content.data?.type) return; // наше локальное напоминание
+  if (content.data?.kind === 'app_update') return; // «Вышла новая версия» — расписание ни при чём
   invalidateApiCache('/schedule/');
   emitScheduleUpdated();
 }
 
+const HANDLED_TAP_KEY = 'handled_notification_tap';
+
 function useRemotePushRefresh(): void {
   useEffect(() => {
     const sub1 = Notifications.addNotificationReceivedListener(n => onRemotePush(n.request.content));
-    const sub2 = Notifications.addNotificationResponseReceivedListener(r => {
-      onRemotePush(r.notification.request.content);
+    const onTap = async (r: Notifications.NotificationResponse) => {
+      // Один и тот же тап может прийти дважды: слушателем и через
+      // getLastNotificationResponseAsync при холодном старте. А «последний
+      // ответ» Android помнит и после перезапуска — без этой метки ссылка на
+      // APK открывалась бы при каждом запуске приложения.
+      const id = r.notification.request.identifier;
+      if ((await AsyncStorage.getItem(HANDLED_TAP_KEY)) === id) return;
+      await AsyncStorage.setItem(HANDLED_TAP_KEY, id);
+
+      const content = r.notification.request.content;
+      // «Вышла новая версия» — тап сразу открывает ссылку на скачивание APK
+      const url = content.data?.url;
+      if (content.data?.kind === 'app_update' && typeof url === 'string') {
+        Linking.openURL(url).catch(() => null);
+        return;
+      }
+      if (content.data?.type) return; // наше локальное напоминание
+      onRemotePush(content);
       router.push('/notifications');
-    });
+    };
+    Notifications.getLastNotificationResponseAsync().then(r => { if (r) onTap(r); }).catch(() => null);
+    const sub2 = Notifications.addNotificationResponseReceivedListener(onTap);
     return () => { sub1.remove(); sub2.remove(); };
   }, []);
 }

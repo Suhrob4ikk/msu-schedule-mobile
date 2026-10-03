@@ -1,52 +1,63 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import { Animated, Image, StyleSheet } from 'react-native';
 
 /**
- * Круг новой темы, расходящийся от нажатой кнопки — то же, что делает
- * View Transitions API на сайте (globals.css → theme-switching).
+ * Плавная смена темы: снимок старого экрана поверх, под ним уже новая тема,
+ * снимок растворяется.
  *
- * В RN снимка старого экрана нет, поэтому играем наоборот: поверх текущего
- * интерфейса растёт круг цвета НОВОГО фона, и в момент, когда он накрыл
- * экран целиком, ThemeProvider переключает тему и убирает оверлей —
- * подмены не видно.
+ * Раньше поверх интерфейса рос круг сплошного цвета новой темы, и только
+ * когда он накрывал экран, тема менялась. Всё это время текст был закрыт
+ * чёрным или белым, а потом телефон ещё перерисовывал все экраны — на
+ * глазах около секунды. Теперь текст виден всё время: сверху — снимок
+ * старого экрана с текстом, снизу — уже перерисованный новый, и между ними
+ * короткое растворение.
  */
+const FADE_MS = 220;
+/** Если снимок почему-то не показался — не держим экран замороженным. */
+const SAFETY_MS = 800;
+
 export default function ThemeReveal({
-  x, y, color, onCovered,
+  uri, onShown, onDone,
 }: {
-  x: number;
-  y: number;
-  color: string;
-  /** Круг накрыл экран — пора менять тему и убирать оверлей. */
-  onCovered: () => void;
+  /** Снимок экрана до смены темы (файл от react-native-view-shot). */
+  uri: string;
+  /** Снимок уже на экране — пора менять тему под ним. */
+  onShown: () => void;
+  /** Снимок растворился — убрать оверлей. */
+  onDone: () => void;
 }) {
-  const progress = useRef(new Animated.Value(0)).current;
-  const { width, height } = Dimensions.get('window');
-  // Радиус — до самого дальнего угла экрана, чтобы круг накрыл всё
-  const radius = Math.hypot(Math.max(x, width - x), Math.max(y, height - y));
+  const opacity = useRef(new Animated.Value(1)).current;
+  const started = useRef(false);
+
+  const start = () => {
+    if (started.current) return;
+    started.current = true;
+    onShown();
+    // Два кадра — чтобы под снимком успела отрисоваться новая тема,
+    // иначе растворение открыло бы недорисованный экран.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      Animated.timing(opacity, { toValue: 0, duration: FADE_MS, useNativeDriver: true })
+        .start(() => onDone());
+    }));
+  };
 
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 340,
-      useNativeDriver: true,
-    }).start(({ finished }) => { if (finished) onCovered(); });
-    // Круг живёт один проход: координаты и цвет на лету не меняются.
-  }, [progress, onCovered]);
+    const t = setTimeout(start, SAFETY_MS);
+    return () => clearTimeout(t);
+    // Оверлей живёт один проход: снимок на лету не меняется.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Animated.View
-        style={{
-          position: 'absolute',
-          left: x - radius,
-          top: y - radius,
-          width: radius * 2,
-          height: radius * 2,
-          borderRadius: radius,
-          backgroundColor: color,
-          transform: [{ scale: progress }],
-        }}
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity }]} pointerEvents="none">
+      <Image
+        source={{ uri }}
+        onLoad={start}
+        // На Android у Image своя анимация появления (300 мс) — здесь она
+        // показала бы на мгновение новую тему без снимка.
+        fadeDuration={0}
+        resizeMode="stretch"
+        style={StyleSheet.absoluteFill}
       />
-    </View>
+    </Animated.View>
   );
 }

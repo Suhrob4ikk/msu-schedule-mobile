@@ -461,6 +461,11 @@ async function repairSavedGroup(groups: Group[]): Promise<void> {
   }
 }
 
+/** Своя версия приложения (app.json → expo.version) — для регистрации на сервере. */
+const APP_VERSION_QS = Constants.expoConfig?.version
+  ? `&app_version=${encodeURIComponent(Constants.expoConfig.version)}`
+  : '';
+
 export const api = {
   getGroups: async () => {
     const gs = await get<Group[]>('/schedule/groups');
@@ -491,12 +496,13 @@ export const api = {
   getBulkSync: () => get<BulkSyncData>('/schedule/bulk-sync', 0),
   // silent — тихая перерегистрация после деплоя бэкенда (src/pushToken.ts),
   // без письма владельцу о «новом пользователе».
+  // app_version — по ней сервер решает, кому слать push «Вышла новая версия».
   registerUser: (deviceId: string, name: string, groupId: number, silent = false) =>
-    fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}${silent ? '&silent=true' : ''}`, { method: 'POST' })
+    fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}${silent ? '&silent=true' : ''}${APP_VERSION_QS}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
-  /** Токен для мгновенных push об изменении расписания своей группы (см. src/pushToken.ts). */
+  /** Токен для мгновенных push: изменения расписания своей группы, новая неделя, новая версия (см. src/pushToken.ts). */
   setPushToken: (deviceId: string, token: string) =>
-    fetch(`${API_BASE}/user/push-token?device_id=${encodeURIComponent(deviceId)}&token=${encodeURIComponent(token)}`, { method: 'POST' })
+    fetch(`${API_BASE}/user/push-token?device_id=${encodeURIComponent(deviceId)}&token=${encodeURIComponent(token)}${APP_VERSION_QS}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
   // 5 минут — совпадает с кэшем на бэкенде, чтобы уведомление о новой
   // версии доходило быстро, а не через час после релиза.

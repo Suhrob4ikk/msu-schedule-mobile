@@ -570,8 +570,8 @@ export default function ProfileScreen() {
       )}
 
       {/* Тема — один переключатель на всё: «как в системе» темнеет вместе
-          с телефоном, «Светлая»/«Тёмная» ставят её явно. Круг новой темы
-          расходится от нажатого чипа (как на сайте). */}
+          с телефоном, «Светлая»/«Тёмная» ставят её явно. Смена — плавным
+          растворением старого экрана, текст виден всё время (src/ThemeReveal.tsx). */}
       <View style={[s.themePrefRow, { backgroundColor: C.card, borderColor: C.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <Ionicons name={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} size={16} color={C.muted} />
