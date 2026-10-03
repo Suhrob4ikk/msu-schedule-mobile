@@ -29,6 +29,7 @@ import InviteCard from '../src/InviteCard';
 import { hasUnreadNotifHistory } from '../src/notificationHistory';
 import { loadMyChanges, countUnseenChanges } from '../src/changesFeed';
 import TipsHint from '../src/TipsHint';
+import { useNewScheduleFlag, setNewScheduleEnabled } from '../src/schedule/flag';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts.
 // ВАЖНО: не выносить в константу модуля — она вычислялась бы один раз при старте
@@ -281,6 +282,31 @@ const ft = StyleSheet.create({
 });
 
 /** Склонение: 1 пара, 2 пары, 5 пар */
+/** Скрытый переключатель «Новый экран расписания» — открывается долгим
+ *  нажатием на «Режим разработчика». Пока владелец не скажет «оставляем»,
+ *  по умолчанию остаётся прежний экран. */
+function NewScheduleRow() {
+  const C = useTheme();
+  const on = useNewScheduleFlag() === true;
+  return (
+    <TouchableOpacity
+      onPress={() => { Haptics.selectionAsync(); setNewScheduleEnabled(!on); }}
+      activeOpacity={0.7}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: on }}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border, marginBottom: 12 }]}
+    >
+      <View style={ft.text}>
+        <Text style={[ft.label, { color: C.fg }]}>Новый экран расписания</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>Вариант «Табло»</Text>
+      </View>
+      <View style={[ft.track, { backgroundColor: on ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: on ? 20 : 2 }] }]} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function pluralPairs(n: number): string {
   const d10 = n % 10, d100 = n % 100;
   if (d10 === 1 && d100 !== 11) return 'пара';
@@ -415,6 +441,9 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [devOpen, setDevOpen] = useState(false);
+  // Включённый флаг виден и без долгого нажатия — чтобы его было легко выключить
+  const newScheduleOn = useNewScheduleFlag() === true;
 
   useEffect(() => {
     // Список групп — сначала с диска (иначе в офлайне выбор группы пустой),
@@ -747,14 +776,17 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
-      {/* Режим разработчика — открывает скрытую веб-панель /dev (вход по паролю) */}
+      {/* Режим разработчика — открывает скрытую веб-панель /dev (вход по паролю).
+          Долгое нажатие — переключатели для проверки (новый экран расписания). */}
       <TouchableOpacity
         onPress={() => Linking.openURL(`${WEB_URL}/dev`)}
+        onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setDevOpen(v => !v); }}
         activeOpacity={0.6}
         style={{ alignSelf: 'center', paddingVertical: 8, marginBottom: 8 }}
       >
         <Text style={{ color: C.muted, fontSize: 12, opacity: 0.6 }}>Режим разработчика</Text>
       </TouchableOpacity>
+      {(devOpen || newScheduleOn) && <NewScheduleRow />}
 
       {/* Инфо о приложении */}
       <View style={s.about}>
