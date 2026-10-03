@@ -31,6 +31,8 @@ import { refreshLiveLesson } from '../src/liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson, todayIso } from '../src/studyData';
 import CourseCheckBanner from '../src/CourseCheckBanner';
 import { onScheduleUpdated } from '../src/scheduleEvents';
+import ScheduleScreenNew from '../src/schedule/ScheduleScreen';
+import { useNewScheduleFlag } from '../src/schedule/flag';
 
 // На старой архитектуре Android LayoutAnimation работает только после этого
 // вызова; на новой (Fabric, включена по умолчанию в этом проекте) метод
@@ -714,7 +716,7 @@ function pickWeek(
   return current ?? wks.find(w => w.is_latest) ?? wks[0];
 }
 
-export default function ScheduleScreen() {
+function LegacyScheduleScreen() {
   const C = useTheme();
   const { offlineBannerText, onlineAt, isOnline } = useSyncStatus();
   const [groups, setGroups] = useState<Group[]>([]);
@@ -1813,6 +1815,17 @@ export default function ScheduleScreen() {
     )}
     </KeyboardAvoidingView>
   );
+}
+
+/**
+ * Новый экран «Табло» (src/schedule/) включается флагом «Новый экран
+ * расписания» в Режиме разработчика; по умолчанию — прежний экран.
+ */
+export default function ScheduleScreen() {
+  const C = useTheme();
+  const flag = useNewScheduleFlag();
+  if (flag === null) return <View style={{ flex: 1, backgroundColor: C.bg }} />;
+  return flag ? <ScheduleScreenNew /> : <LegacyScheduleScreen />;
 }
 
 const s = StyleSheet.create({

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, AppState, AppStateStatus, TouchableOpacity, Animated, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Tabs, router } from 'expo-router';
+import { Tabs, router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -12,11 +12,11 @@ import { formatSyncTime } from '../src/syncService';
 import { setupNotifications } from '../src/examNotifications';
 import { refreshLiveLesson } from '../src/liveLesson';
 import { syncWithServer } from '../src/pushToken';
-import { getUnreadNotifCount, subscribeNotifHistory } from '../src/notificationHistory';
-import { loadMyChanges, countUnseenChanges } from '../src/changesFeed';
-import { emitScheduleUpdated, onScheduleUpdated } from '../src/scheduleEvents';
+import { useUnreadNotifCount } from '../src/useUnreadNotifCount';
+import { emitScheduleUpdated } from '../src/scheduleEvents';
 import { invalidateApiCache } from '../src/api';
 import UpdateBanner from '../src/UpdateBanner';
+import { useNewScheduleFlag } from '../src/schedule/flag';
 
 /**
  * Push с сервера («вышла новая неделя», «расписание изменилось» — см.
@@ -64,31 +64,6 @@ function useRemotePushRefresh(): void {
     const sub2 = Notifications.addNotificationResponseReceivedListener(onTap);
     return () => { sub1.remove(); sub2.remove(); };
   }, []);
-}
-
-/** Счётчик непрочитанных уведомлений для колокольчика в шапке. Обновляется
- *  по подписке (новая запись/прочтение) и при возврате приложения на передний
- *  план — колокольчик рисуется один раз для всех вкладок, своего useFocusEffect
- *  на экран у него нет. */
-function useUnreadNotifCount(): number {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    let mounted = true;
-    // Непрочитанные напоминания о зачётах + новые изменения своей группы
-    const refresh = async () => {
-      const [exams, changes] = await Promise.all([
-        getUnreadNotifCount(),
-        loadMyChanges().then(countUnseenChanges).catch(() => 0),
-      ]);
-      if (mounted) setCount(exams + changes);
-    };
-    refresh();
-    const unsub = subscribeNotifHistory(refresh);
-    const unsubPush = onScheduleUpdated(refresh);
-    const sub = AppState.addEventListener('change', (s: AppStateStatus) => { if (s === 'active') refresh(); });
-    return () => { mounted = false; unsub(); unsubPush(); sub.remove(); };
-  }, []);
-  return count;
 }
 
 /** Колокольчик в шапке — то же, что кнопка «Уведомления» в кабинете, но
@@ -223,6 +198,11 @@ function AppTabs() {
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const C = useTheme();
+  // Новый экран расписания рисует свою шапку со статусом связи и
+  // колокольчиком — общую шапку и плавающую точку статуса на нём прячем.
+  const newSchedule = useNewScheduleFlag() === true;
+  const pathname = usePathname();
+  const ownHeader = newSchedule && (pathname === '/' || pathname === '/index');
 
   useRemotePushRefresh();
 
@@ -261,7 +241,7 @@ function AppTabs() {
 
   return (
     <View style={{ flex: 1 }}>
-      <SyncStatusIndicator />
+      {!ownHeader && <SyncStatusIndicator />}
       <Tabs
         screenOptions={{
           animation: 'fade',
@@ -284,6 +264,7 @@ function AppTabs() {
           options={{
             title: 'Расписание',
             tabBarLabel: 'Расписание',
+            headerShown: !newSchedule,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="calendar-outline" size={size} color={color} />
             ),

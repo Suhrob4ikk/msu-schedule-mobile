@@ -1,0 +1,653 @@
+/**
+ * Вкладка «Расписание», вариант «Табло» (ТЗ от 3 окт 2026). Неделя — одна
+ * лента; текущая или следующая пара раскрыта прямо в ней.
+ *
+ * Загрузка данных — та же, что у старого экрана (app/index.tsx): сначала
+ * кэш AsyncStorage (общий с полной синхронизацией), потом молча сеть.
+ * «Что идёт сейчас» считается на телефоне (state.ts) — без сети и без
+ * запросов /schedule/now.
+ */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert, AppState, LayoutAnimation, LayoutChangeEvent, Platform, Pressable, RefreshControl,
+  ScrollView, StatusBar, UIManager, View, useWindowDimensions,
+} from 'react-native';
+import { useFocusEffect, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  useFonts, Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+} from '@expo-google-fonts/onest';
+import { api, invalidateApiCache, Group, Lesson, WeekInfo, shortGroupName } from '../api';
+import { useThemeMode } from '../theme';
+import { useSyncStatus } from '../SyncContext';
+import { scheduleExamReminders, scheduleLessonReminders, NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY } from '../examNotifications';
+import { writeWidgetData } from '../widgetData';
+import { refreshLiveLesson } from '../liveLesson';
+import { skipKey, noteWeeklyKey, noteDatedKey } from '../studyData';
+import { onScheduleUpdated } from '../scheduleEvents';
+import CourseCheckBanner from '../CourseCheckBanner';
+import { useTokens, GUTTER, RADIUS, TOUCH_MIN, DAY_CELL, scaledWidth } from './tokens';
+import {
+  Block, DayData, WeekRel, addDays, buildWeek, computeFocus, doneTodayAt, headerTitle, isoOf,
+  stampLabel, stateKey, weekIsOver, weekRel, weekStatsLine,
+} from './state';
+import { Txt } from './ui';
+import ScheduleHeader, { LinkState } from './ScheduleHeader';
+import DaySection, { Marks } from './DaySection';
+import DayBar from './DayBar';
+import { COL_GAP, COL_ROOM, COL_TIME, ROW_PAD_X } from './LessonRow';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const UPDATED_AT_KEY = 'schedule_updated_at';
+const TICK_MS = 30_000;
+const EMPTY_MARKS: Marks = { notes: new Set(), skips: new Set() };
+
+/** Раскрытие карточки при смене состояния — высота и прозрачность, 220 мс. */
+const EXPAND_ANIM = {
+  duration: 220,
+  create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+  update: { type: LayoutAnimation.Types.easeInEaseOut },
+  delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+};
+
+const currentWeekOf = (wks: WeekInfo[], now: Date): WeekInfo =>
+  wks.find(w => weekRel(w.week_start, now) === 'current') ?? wks.find(w => w.is_latest) ?? wks[0];
+
+export default function ScheduleScreenNew() {
+  const k = useTokens();
+  const { mode } = useThemeMode();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const [fontsLoaded, fontError] = useFonts({
+    Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+  });
+  const { isOnline, isSyncing, lastSyncTime, onlineAt } = useSyncStatus();
+
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [myGroupId, setMyGroupId] = useState<number | null>(null);
+  const [weeks, setWeeks] = useState<WeekInfo[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState<WeekInfo | null>(null);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /** Последний запрос не прошёл, хотя телефон считает, что сеть есть. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [featureAttendance, setFeatureAttendance] = useState(false);
+  const [featureNotes, setFeatureNotes] = useState(false);
+  const [marks, setMarks] = useState<Marks>(EMPTY_MARKS);
+
+  const selectedGroupRef = useRef<Group | null>(null);
+  const selectedWeekRef = useRef<WeekInfo | null>(null);
+  const myGroupIdRef = useRef<number | null>(null);
+  const lessonsRef = useRef<Lesson[]>([]);
+  useEffect(() => { selectedGroupRef.current = selectedGroup; }, [selectedGroup]);
+  useEffect(() => { selectedWeekRef.current = selectedWeek; }, [selectedWeek]);
+  useEffect(() => { myGroupIdRef.current = myGroupId; }, [myGroupId]);
+  useEffect(() => { lessonsRef.current = lessons; }, [lessons]);
+  /** Неделю выбрали руками — тогда не перескакиваем по дате. Выбор живёт
+   *  до конца дня: назавтра неделя снова выбирается по календарю, иначе
+   *  приложение, сутками висящее в памяти, застревало бы на старой неделе. */
+  const userPickedWeekRef = useRef(false);
+  const pickedOnRef = useRef('');
+  const picked = () => {
+    if (userPickedWeekRef.current && pickedOnRef.current !== isoOf(new Date())) userPickedWeekRef.current = false;
+    return userPickedWeekRef.current;
+  };
+  const regroupAsked = useRef(false);
+  /** Номер запроса: ответ на устаревший (сменили группу/неделю) отбрасываем. */
+  const reqRef = useRef(0);
+
+  useEffect(() => {
+    AsyncStorage.getItem(UPDATED_AT_KEY).then(v => { if (v) setUpdatedAt(new Date(v)); }).catch(() => null);
+  }, []);
+
+  // ─── Часы: лента перерисовывается только на границах пар и в полночь ──
+  const [now, setNow] = useState(() => new Date());
+  const days: DayData[] = useMemo(
+    () => (selectedWeek ? buildWeek(lessons, selectedWeek.week_start) : []),
+    [lessons, selectedWeek],
+  );
+  const rel: WeekRel = selectedWeek ? weekRel(selectedWeek.week_start, now) : 'current';
+  const daysRef = useRef(days);
+  const keyRef = useRef('');
+  useEffect(() => {
+    daysRef.current = days;
+    keyRef.current = selectedWeek ? stateKey(now, days, rel) : '';
+  }, [days, now, rel, selectedWeek]);
+
+  const autoAdvanceRef = useRef<() => void>(() => {});
+  const recheck = useCallback(() => {
+    const w = selectedWeekRef.current;
+    if (!w) return;
+    const n = new Date();
+    const r = weekRel(w.week_start, n);
+    const key = stateKey(n, daysRef.current, r);
+    if (key === keyRef.current) return;
+    keyRef.current = key;
+    LayoutAnimation.configureNext(EXPAND_ANIM);
+    setNow(n);
+    // Неделя кончилась прямо при открытом экране (суббота после последней пары)
+    if (r === 'current' && !picked() && weekIsOver(n, daysRef.current)) autoAdvanceRef.current();
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(recheck, TICK_MS);
+    const sub = AppState.addEventListener('change', s => { if (s === 'active') recheck(); });
+    return () => { clearInterval(id); sub.remove(); };
+  }, [recheck]);
+
+  const focus = useMemo(() => computeFocus(now, days, rel), [now, days, rel]);
+  const doneToday = rel === 'current' && doneTodayAt(now, days);
+
+  // ─── Напоминания, виджет, строка «идёт пара» ──────────────────────────
+  const remindersSigRef = useRef('');
+  const applyReminders = useCallback(async (ls: Lesson[], weekStart: string) => {
+    try {
+      const prefs = await AsyncStorage.multiGet([NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY]);
+      const body = ls
+        .map(l => `${l.lesson_date ?? l.day_of_week}${l.pair_number}${l.subject}${l.room?.name ?? ''}${l.lesson_type ?? ''}`)
+        .join('|');
+      const sig = `${prefs[0][1]}|${prefs[1][1]}|${weekStart}|${body}`;
+      if (sig === remindersSigRef.current) return;
+      remindersSigRef.current = sig;
+      await scheduleExamReminders(ls, weekStart);
+      await scheduleLessonReminders(ls, weekStart);
+    } catch {
+      remindersSigRef.current = '';
+    }
+  }, []);
+
+  /**
+   * Только для СВОЕЙ группы и только для недели, выбранной автоматически
+   * (текущая или следующая, когда текущая кончилась) — иначе просмотр архива
+   * или чужой группы подменял бы напоминания и виджет (см. CLAUDE.md).
+   */
+  const feedDevice = useCallback((group: Group, week: WeekInfo, ls: Lesson[]) => {
+    if (group.id !== myGroupIdRef.current) return;
+    const r = weekRel(week.week_start, new Date());
+    if (r === 'past' || (r === 'future' && picked())) return;
+    applyReminders(ls, week.week_start);
+    writeWidgetData(group, ls, week.week_start).then(() => refreshLiveLesson()).catch(() => null);
+  }, [applyReminders]);
+
+  // ─── Загрузка ─────────────────────────────────────────────────────────
+
+  /**
+   * Какую неделю показать: явно выбранную → выбранную раньше руками →
+   * текущую; а если в текущей пар больше нет — следующую (ТЗ: «в субботу
+   * после последней пары и в воскресенье — следующая неделя»).
+   */
+  const chooseWeek = useCallback(async (
+    wks: WeekInfo[],
+    explicitId: number | undefined,
+    get: (w: WeekInfo) => Promise<Lesson[] | null>,
+  ): Promise<{ week: WeekInfo; lessons: Lesson[] } | null> => {
+    if (!wks.length) return null;
+    let target: WeekInfo | undefined;
+    if (explicitId) target = wks.find(w => w.id === explicitId);
+    if (!target && picked() && selectedWeekRef.current) {
+      target = wks.find(w => w.week_start === selectedWeekRef.current!.week_start);
+    }
+    if (target) {
+      const ls = await get(target);
+      return ls ? { week: target, lessons: ls } : null;
+    }
+    const n = new Date();
+    const cur = currentWeekOf(wks, n);
+    const ls = await get(cur);
+    if (!ls) return null;
+    if (weekRel(cur.week_start, n) === 'current' && weekIsOver(n, buildWeek(ls, cur.week_start))) {
+      const next = wks.find(w => w.week_start === addDays(cur.week_start, 7));
+      if (next) {
+        const nl = await get(next);
+        if (nl) return { week: next, lessons: nl };
+      }
+    }
+    return { week: cur, lessons: ls };
+  }, []);
+
+  const loadSchedule = useCallback(async (group: Group, weekId?: number, silent = false): Promise<boolean> => {
+    const req = ++reqRef.current;
+    const stale = () => req !== reqRef.current;
+    setError(null);
+
+    // 1. С диска — экран заполняется за миллисекунды
+    let painted = false;
+    if (!silent) {
+      try {
+        const raw = await AsyncStorage.getItem(`cache_weeks_${group.id}`);
+        if (raw) {
+          const wks: WeekInfo[] = JSON.parse(raw);
+          const r = await chooseWeek(wks, weekId, async w => {
+            const s = await AsyncStorage.getItem(`cache_schedule_${group.id}_${w.id}`);
+            return s ? JSON.parse(s) : null;
+          });
+          if (r && !stale()) {
+            setWeeks(wks);
+            setSelectedWeek(r.week);
+            setLessons(r.lessons);
+            painted = true;
+          }
+        }
+      } catch { /* битый кэш — ждём сеть */ }
+      if (!stale()) setLoading(!painted);
+    }
+
+    // 2. Свежие данные
+    try {
+      const wks = await api.getGroupWeeks(group.id);
+      if (stale()) return false;
+      setWeeks(wks);
+      AsyncStorage.setItem(`cache_weeks_${group.id}`, JSON.stringify(wks)).catch(() => null);
+      const r = await chooseWeek(wks, weekId, async w => {
+        const s = await api.getGroupSchedule(group.id, w.id);
+        AsyncStorage.setItem(`cache_schedule_${group.id}_${w.id}`, JSON.stringify(s)).catch(() => null);
+        return s;
+      });
+      if (stale()) return false;
+      if (r) {
+        setSelectedWeek(r.week);
+        setLessons(r.lessons);
+        feedDevice(group, r.week, r.lessons);
+      } else {
+        setLessons([]);
+      }
+      const at = new Date();
+      setUpdatedAt(at);
+      AsyncStorage.setItem(UPDATED_AT_KEY, at.toISOString()).catch(() => null);
+      setLoadFailed(false);
+      return true;
+    } catch {
+      if (stale()) return false;
+      setLoadFailed(true);
+      if (!painted && lessonsRef.current.length === 0) setError('Нет соединения с сервером');
+      return false;
+    } finally {
+      if (!stale()) { setLoading(false); setRefreshing(false); }
+    }
+  }, [chooseWeek, feedDevice]);
+
+  autoAdvanceRef.current = () => {
+    const g = selectedGroupRef.current;
+    if (g) loadSchedule(g, undefined, true);
+  };
+
+  const loadGroup = useCallback(async (group: Group) => {
+    setSelectedGroup(group);
+    selectedGroupRef.current = group;
+    setWeeks([]);
+    setSelectedWeek(null);
+    setLessons([]);
+    userPickedWeekRef.current = false;
+    await AsyncStorage.setItem('schedule_view_group_id', String(group.id));
+    await loadSchedule(group);
+  }, [loadSchedule]);
+
+  const switchWeek = useCallback((week: WeekInfo) => {
+    const g = selectedGroupRef.current;
+    if (!g || selectedWeekRef.current?.id === week.id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    userPickedWeekRef.current = true;
+    pickedOnRef.current = isoOf(new Date());
+    setSelectedWeek(week);
+    selectedWeekRef.current = week;
+    loadSchedule(g, week.id);
+  }, [loadSchedule]);
+
+  const onRefresh = useCallback(() => {
+    const g = selectedGroupRef.current;
+    if (!g) return;
+    setRefreshing(true);
+    invalidateApiCache('/schedule/');
+    loadSchedule(g, picked() ? selectedWeekRef.current?.id : undefined, true);
+  }, [loadSchedule]);
+
+  // Возврат в приложение (>5 мин) и push «расписание изменилось» — перечитать
+  const lastLoadAtRef = useRef(Date.now());
+  useEffect(() => {
+    const reload = () => {
+      const g = selectedGroupRef.current;
+      if (!g) return;
+      lastLoadAtRef.current = Date.now();
+      invalidateApiCache('/schedule/');
+      loadSchedule(g, picked() ? selectedWeekRef.current?.id : undefined, true);
+    };
+    const sub = AppState.addEventListener('change', st => {
+      if (st === 'active' && Date.now() - lastLoadAtRef.current > 5 * 60_000) reload();
+    });
+    const off = onScheduleUpdated(reload);
+    return () => { sub.remove(); off(); };
+  }, [loadSchedule]);
+
+  // Интернет вернулся — тихо обновляемся
+  useEffect(() => {
+    if (onlineAt === 0) return;
+    const g = selectedGroupRef.current;
+    if (g) loadSchedule(g, picked() ? selectedWeekRef.current?.id : undefined, true);
+  }, [onlineAt, loadSchedule]);
+
+  // Группы — сначала из кэша, потом с сервера
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cached = await AsyncStorage.getItem('cache_groups');
+        if (cached && !cancelled) {
+          const gs: Group[] = JSON.parse(cached);
+          if (gs.length) { setGroups(gs); setGroupsLoaded(true); }
+        }
+      } catch { /* ждём сервер */ }
+      try {
+        const gs = await api.getGroups();
+        if (cancelled) return;
+        setGroups(gs);
+        setGroupsLoaded(true);
+        AsyncStorage.setItem('cache_groups', JSON.stringify(gs)).catch(() => null);
+      } catch {
+        if (cancelled) return;
+        setLoadFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // На фокусе: своя группа, функции пропусков/заметок, цвет статус-бара
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle(mode === 'dark' ? 'light-content' : 'dark-content');
+      AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(p => {
+        setFeatureAttendance(p[0][1] === '1');
+        setFeatureNotes(p[1][1] === '1');
+      });
+      if (groupsLoaded && groups.length) {
+        AsyncStorage.multiGet(['selected_group_id', 'schedule_view_group_id']).then(pairs => {
+          const myId = pairs[0][1];
+          const viewId = pairs[1][1];
+          if (myId) setMyGroupId(Number(myId));
+          else if (!regroupAsked.current) {
+            regroupAsked.current = true;
+            Alert.alert(
+              'Выберите группу',
+              'Список групп обновился — выберите свою группу заново, и расписание вернётся.',
+              [{ text: 'Выбрать', onPress: () => router.push('/profile') }],
+            );
+            return;
+          }
+          const target = Number(viewId ?? myId);
+          if (!target || selectedGroupRef.current?.id === target) return;
+          const g = groups.find(x => x.id === target);
+          if (g) loadGroup(g);
+        });
+      }
+      // Остальные вкладки — со старой цветной шапкой и светлыми значками
+      return () => { StatusBar.setBarStyle('light-content'); };
+    }, [mode, groupsLoaded, groups, loadGroup]),
+  );
+
+  const isMyGroup = selectedGroup != null && myGroupId != null && selectedGroup.id === myGroupId;
+  const showAttendance = featureAttendance && isMyGroup;
+  const showNotes = featureNotes && isMyGroup;
+
+  // Значки «есть заметка» / «пропуск» в строках
+  const loadMarks = useCallback(async () => {
+    const ls = lessonsRef.current;
+    if ((!showAttendance && !showNotes) || !ls.length) { setMarks(EMPTY_MARKS); return; }
+    const keyed = ls.map(l => {
+      const gid = l.group?.id ?? 'g';
+      return {
+        id: String(l.id),
+        skip: l.lesson_date ? skipKey(gid, l.lesson_date, l.pair_number) : null,
+        weekly: noteWeeklyKey(gid, l.day_of_week, l.pair_number),
+        dated: l.lesson_date ? noteDatedKey(gid, l.lesson_date, l.pair_number) : null,
+      };
+    });
+    const keys = keyed.flatMap(x => [x.skip, x.weekly, x.dated]).filter((x): x is string => !!x);
+    try {
+      const vals = new Map(await AsyncStorage.multiGet([...new Set(keys)]));
+      const has = (key: string | null) => !!key && !!(vals.get(key) ?? '').trim();
+      setMarks({
+        notes: new Set(showNotes ? keyed.filter(x => has(x.weekly) || has(x.dated)).map(x => x.id) : []),
+        skips: new Set(showAttendance ? keyed.filter(x => !!x.skip && vals.get(x.skip) != null).map(x => x.id) : []),
+      });
+    } catch { setMarks(EMPTY_MARKS); }
+  }, [showAttendance, showNotes]);
+  useEffect(() => { loadMarks(); }, [loadMarks, lessons]);
+
+  // ─── Прокрутка ────────────────────────────────────────────────────────
+  const scrollRef = useRef<ScrollView>(null);
+  const dayY = useRef<(number | undefined)[]>([]);
+  const focusBox = useRef<{ day: number; y: number; h: number } | null>(null);
+  const viewportH = useRef(0);
+  const scrolledFor = useRef('');
+  const lockRef = useRef(false);
+  const [visibleDay, setVisibleDay] = useState(0);
+  const visibleRef = useRef(0);
+  const setVisible = (i: number) => { if (visibleRef.current !== i) { visibleRef.current = i; setVisibleDay(i); } };
+
+  /**
+   * При открытии сверху — заголовок сегодняшнего дня; если раскрытая
+   * карточка из-за этого не помещается на экран — заголовок её дня.
+   * Для другой недели — день раскрытой пары или понедельник.
+   */
+  const tryInitialScroll = useCallback(() => {
+    const g = selectedGroupRef.current;
+    const w = selectedWeekRef.current;
+    if (!g || !w || !daysRef.current.length) return;
+    const key = `${g.id}|${w.id}`;
+    if (scrolledFor.current === key) return;
+    const ys = dayY.current;
+    for (let i = 0; i < 7; i++) if (ys[i] == null) return;
+    const n = new Date();
+    const r = weekRel(w.week_start, n);
+    const f = computeFocus(n, daysRef.current, r);
+    if (f && !focusBox.current) return; // карточка ещё не измерена
+    let target = f ? daysRef.current.findIndex(d => d.date === f.block.date) : 0;
+    if (r === 'current') {
+      const todayIdx = daysRef.current.findIndex(d => d.date === isoOf(n));
+      const fb = focusBox.current;
+      const fits = !fb || (ys[fb.day]! + fb.y + fb.h - ys[todayIdx]!) <= viewportH.current;
+      if (todayIdx >= 0 && fits) target = todayIdx;
+    }
+    if (target < 0) target = 0;
+    scrolledFor.current = key;
+    scrollRef.current?.scrollTo({ y: Math.max(0, ys[target]!), animated: false });
+    lockRef.current = true;
+    setVisible(target);
+  }, []);
+
+  // Новая неделя/группа — мерки старых дней недействительны
+  useEffect(() => { dayY.current = []; focusBox.current = null; }, [selectedWeek?.id, selectedGroup?.id]);
+
+  const onDayLayout = useCallback((i: number, e: LayoutChangeEvent) => {
+    dayY.current[i] = e.nativeEvent.layout.y;
+    requestAnimationFrame(tryInitialScroll);
+  }, [tryInitialScroll]);
+
+  const onFocusLayout = useCallback((day: number, e: LayoutChangeEvent) => {
+    const { y, height } = e.nativeEvent.layout;
+    focusBox.current = { day, y, h: height };
+    requestAnimationFrame(tryInitialScroll);
+  }, [tryInitialScroll]);
+
+  const onScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    if (lockRef.current) return;
+    const y = e.nativeEvent.contentOffset.y;
+    let idx = 0;
+    dayY.current.forEach((dy, i) => { if (dy != null && dy <= y + 24) idx = i; });
+    setVisible(idx);
+  }, []);
+
+  const pickDay = useCallback((i: number) => {
+    const y = dayY.current[i];
+    if (y == null) return;
+    Haptics.selectionAsync();
+    // Подсветка — сразу на выбранный день; пока палец не тронет ленту,
+    // промежуточные дни при анимированной прокрутке её не перебивают.
+    lockRef.current = true;
+    setVisible(i);
+    scrollRef.current?.scrollTo({ y, animated: true });
+  }, []);
+
+  // ─── Действия ─────────────────────────────────────────────────────────
+  const openHeaderSheet = useCallback(() => { /* лист недели и группы — следующим шагом */ }, []);
+  const openLesson = useCallback((_b: Block) => { /* лист пары — следующим шагом */ }, []);
+  const onFocusPress = useCallback(() => { if (focus) openLesson(focus.block); }, [focus, openLesson]);
+
+  const toThisWeek = useCallback(() => {
+    const cur = weeks.length ? currentWeekOf(weeks, new Date()) : null;
+    if (cur && weekRel(cur.week_start, new Date()) === 'current') switchWeek(cur);
+  }, [weeks, switchWeek]);
+
+  // ─── Статус связи ─────────────────────────────────────────────────────
+  const stamp = [updatedAt, lastSyncTime].filter((d): d is Date => !!d)
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  const link: LinkState = isSyncing || refreshing
+    ? { kind: 'sync', text: 'Синхронизация' }
+    : !isOnline || loadFailed
+      ? { kind: 'offline', text: stamp ? `Нет сети · ${stampLabel(stamp, now)}` : 'Нет сети' }
+      : { kind: 'online', text: stamp ? `обновлено ${stampLabel(stamp, now)}` : 'обновляется' };
+
+  // ─── Отрисовка ────────────────────────────────────────────────────────
+  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: k.bg }} />;
+
+  const subtitle = selectedGroup
+    ? `${shortGroupName(selectedGroup.name)} · ${selectedGroup.year} курс${rel === 'current' && selectedWeek ? ' · эта неделя' : ''}`
+    : 'Группа не выбрана';
+  const title = selectedWeek ? headerTitle(selectedWeek.week_start, now) : selectedGroup ? 'Расписание' : 'Выберите группу';
+  const hasThisWeek = weeks.some(w => weekRel(w.week_start, now) === 'current');
+  const colTime = scaledWidth(COL_TIME, fontScale);
+  const colRoom = scaledWidth(COL_ROOM, fontScale);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: k.bg }}>
+      <ScheduleHeader
+        k={k}
+        topInset={insets.top}
+        subtitle={subtitle}
+        title={title}
+        link={link}
+        onOpen={openHeaderSheet}
+      />
+
+      {/* Статистика — только когда открыта другая неделя */}
+      {selectedWeek && rel !== 'current' && lessons.length > 0 && (
+        <View style={{ paddingHorizontal: GUTTER + 4, paddingBottom: 4 }}>
+          <Txt t="caption" color={k.textSecondary}>
+            <Txt t="captionStrong" color={k.text}>{weekStatsLine(days, lessons).split(' · ')[0]}</Txt>
+            {' · '}{weekStatsLine(days, lessons).split(' · ').slice(1).join(' · ')}
+          </Txt>
+        </View>
+      )}
+
+      {/* Заголовок колонок по сетке строки */}
+      {selectedGroup && (
+        <View
+          importantForAccessibility="no-hide-descendants"
+          style={{ flexDirection: 'row', columnGap: COL_GAP, paddingHorizontal: GUTTER + ROW_PAD_X, paddingVertical: 6 }}
+        >
+          <Txt t="overline" color={k.textSecondary} style={{ width: colTime }}>Время</Txt>
+          <Txt t="overline" color={k.textSecondary} style={{ flex: 1 }}>Предмет</Txt>
+          <Txt t="overline" color={k.textSecondary} style={{ width: colRoom, textAlign: 'right' }}>Ауд.</Txt>
+        </View>
+      )}
+
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 + (rel !== 'current' ? TOUCH_MIN + 12 : 0) }}
+        onLayout={e => { viewportH.current = e.nativeEvent.layout.height; }}
+        onScroll={onScroll}
+        onScrollBeginDrag={() => { lockRef.current = false; }}
+        scrollEventThrottle={32}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={k.accentText}
+            colors={[k.accent]}
+            progressBackgroundColor={k.surface}
+          />
+        }
+      >
+        <CourseCheckBanner />
+
+        {error && !lessons.length && (
+          <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+            <Txt t="body" color={k.statusOffline}>{error}</Txt>
+          </View>
+        )}
+
+        {!selectedGroup && groupsLoaded && (
+          <Pressable
+            onPress={openHeaderSheet}
+            accessibilityRole="button"
+            style={{ marginTop: 24, backgroundColor: k.card, borderRadius: RADIUS.card, padding: 16, alignItems: 'center' }}
+          >
+            <Txt t="body" color={k.accentText}>Выберите группу</Txt>
+          </Pressable>
+        )}
+
+        {loading && !lessons.length && [0, 1, 2].map(i => (
+          <View key={i} style={{ marginTop: 16, height: 120, borderRadius: RADIUS.card, backgroundColor: k.card }} />
+        ))}
+
+        {!loading && selectedWeek && lessons.length === 0 && !error && (
+          <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+            <Txt t="body" color={k.textSecondary}>На этой неделе занятий нет</Txt>
+          </View>
+        )}
+
+        {lessons.length > 0 && days.map(d => (
+          <DaySection
+            key={d.date}
+            d={d}
+            k={k}
+            now={now}
+            rel={rel}
+            focus={focus}
+            doneToday={doneToday}
+            marks={marks}
+            onRowPress={openLesson}
+            onFocusPress={onFocusPress}
+            onExpire={recheck}
+            onLayout={onDayLayout}
+            onFocusLayout={onFocusLayout}
+          />
+        ))}
+      </ScrollView>
+
+      {/* «К этой неделе» — плавающая пилюля над рядом дней */}
+      {selectedWeek && rel !== 'current' && hasThisWeek && (
+        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: DAY_CELL + 12, alignItems: 'center' }}>
+          <Pressable
+            onPress={toThisWeek}
+            accessibilityRole="button"
+            accessibilityLabel="К этой неделе"
+            style={{
+              minHeight: TOUCH_MIN, paddingHorizontal: 18, borderRadius: RADIUS.pill,
+              flexDirection: 'row', alignItems: 'center', columnGap: 6, backgroundColor: k.text,
+              elevation: 4,
+            }}
+          >
+            <Ionicons name="chevron-up" size={16} color={k.bg} />
+            <Txt t="labelStrong" color={k.bg}>К этой неделе</Txt>
+          </Pressable>
+        </View>
+      )}
+
+      {days.length > 0 && (
+        <DayBar days={days} k={k} todayIso={isoOf(now)} visible={visibleDay} onPick={pickDay} />
+      )}
+    </View>
+  );
+}
