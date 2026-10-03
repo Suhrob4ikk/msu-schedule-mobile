@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo-google-fonts/onest": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "12.0.1",
     "@react-native-picker/picker": "^2.11.4",
     "@react-navigation/bottom-tabs": "^7.18.3",
     "@react-navigation/native": "^7.3.4",
+    "culori": "^4.0.2",
     "expo": "~56.0.12",
     "expo-blur": "~56.0.4",
     "expo-constants": "~56.0.18",
@@ -28,6 +30,7 @@
     "react-native-view-shot": "5.1.0"
   },
   "devDependencies": {
+    "@types/culori": "^4.0.1",
     "@types/react": "~19.2.2",
     "jimp": "^1.6.1",
     "typescript": "~6.0.3"
