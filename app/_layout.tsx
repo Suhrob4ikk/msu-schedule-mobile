@@ -11,37 +11,35 @@ import { SyncProvider, useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
 import { setupNotifications } from '../src/examNotifications';
 import { refreshLiveLesson } from '../src/liveLesson';
-import { syncPushToken } from '../src/pushToken';
-import { addNotifHistory, getUnreadNotifCount, subscribeNotifHistory } from '../src/notificationHistory';
+import { syncWithServer } from '../src/pushToken';
+import { getUnreadNotifCount, subscribeNotifHistory } from '../src/notificationHistory';
+import { loadMyChanges, countUnseenChanges } from '../src/changesFeed';
+import { emitScheduleUpdated, onScheduleUpdated } from '../src/scheduleEvents';
+import { invalidateApiCache } from '../src/api';
 import UpdateBanner from '../src/UpdateBanner';
 
 /**
- * Пуш об изменении расписания — единственный тип уведомлений, который шлёт
- * сервер (см. backend/app/services/push.py → notify_group_changes). У наших
- * СВОИХ локальных напоминаний (зачёты/пары) всегда стоит data.type — по его
- * отсутствию и отличаем «пришло с сервера» от «сами запланировали».
- * Слушаем и получение (пока приложение открыто), и тап по уведомлению
- * (включая холодный старт из шторки) — иначе часть уведомлений в историю
- * не попадёт.
+ * Push с сервера («вышла новая неделя», «расписание изменилось» — см.
+ * backend/app/services/push.py) — сигнал, что данные на телефоне устарели.
+ * Забываем закэшированные ответы и будим экран расписания и колокольчик.
+ *
+ * Свои локальные напоминания (зачёты/пары) отличаем по data.type — он есть
+ * только у них. Сами изменения в локальный журнал больше не пишем: вкладка
+ * «Изменения» берёт ленту с сервера (src/changesFeed.ts), там они видны,
+ * даже если push смахнули, не открыв.
  */
-function logRemoteNotification(content: Notifications.NotificationContent, date: Date): void {
-  if (content.data?.type) return; // это наше локальное — уже в истории
-  const title = content.title ?? 'Уведомление';
-  const body = content.body ?? '';
-  const minuteKey = date.toISOString().slice(0, 16);
-  addNotifHistory({ id: `change:${title}:${body}:${minuteKey}`, category: 'change', title, body, date: date.toISOString() });
+function onRemotePush(content: Notifications.NotificationContent): void {
+  if (content.data?.type) return; // наше локальное напоминание
+  invalidateApiCache('/schedule/');
+  emitScheduleUpdated();
 }
 
-function useLogRemoteNotifications(): void {
+function useRemotePushRefresh(): void {
   useEffect(() => {
-    Notifications.getLastNotificationResponseAsync().then(r => {
-      if (r) logRemoteNotification(r.notification.request.content, new Date(r.notification.date));
-    });
-    const sub1 = Notifications.addNotificationReceivedListener(n => {
-      logRemoteNotification(n.request.content, new Date(n.date));
-    });
+    const sub1 = Notifications.addNotificationReceivedListener(n => onRemotePush(n.request.content));
     const sub2 = Notifications.addNotificationResponseReceivedListener(r => {
-      logRemoteNotification(r.notification.request.content, new Date(r.notification.date));
+      onRemotePush(r.notification.request.content);
+      router.push('/notifications');
     });
     return () => { sub1.remove(); sub2.remove(); };
   }, []);
@@ -55,11 +53,19 @@ function useUnreadNotifCount(): number {
   const [count, setCount] = useState(0);
   useEffect(() => {
     let mounted = true;
-    const refresh = () => getUnreadNotifCount().then(c => { if (mounted) setCount(c); });
+    // Непрочитанные напоминания о зачётах + новые изменения своей группы
+    const refresh = async () => {
+      const [exams, changes] = await Promise.all([
+        getUnreadNotifCount(),
+        loadMyChanges().then(countUnseenChanges).catch(() => 0),
+      ]);
+      if (mounted) setCount(exams + changes);
+    };
     refresh();
     const unsub = subscribeNotifHistory(refresh);
+    const unsubPush = onScheduleUpdated(refresh);
     const sub = AppState.addEventListener('change', (s: AppStateStatus) => { if (s === 'active') refresh(); });
-    return () => { mounted = false; unsub(); sub.remove(); };
+    return () => { mounted = false; unsub(); unsubPush(); sub.remove(); };
   }, []);
   return count;
 }
@@ -197,17 +203,22 @@ function AppTabs() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const C = useTheme();
 
-  useLogRemoteNotifications();
+  useRemotePushRefresh();
 
   useEffect(() => {
     AsyncStorage.getItem('selected_group_id').then(id => {
       setNeedsOnboarding(!id);
       setReady(true);
       // Уже зарегистрированные пользователи не проходят онбординг заново —
-      // это единственное место, где им перепадёт push-токен, если разрешение
-      // на уведомления они уже дали раньше (для напоминаний о зачётах).
-      if (id) syncPushToken();
+      // здесь они напоминают серверу о себе (регистрация + push-токен).
+      if (id) syncWithServer();
     });
+    // И при каждом возврате в приложение: после деплоя бэкенда база на
+    // сервере пустая. Чаще раза в 30 минут не ходит (см. src/pushToken.ts).
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') syncWithServer();
+    });
+    return () => sub.remove();
   }, []);
 
   // Страховка для строки «идёт пара»: обычно её пересобирает будильник на

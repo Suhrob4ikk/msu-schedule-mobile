@@ -35,8 +35,7 @@ export default function CourseCheckBanner() {
         <View style={{ flex: 1 }}>
           <Text style={[s.title, { color: C.fg }]}>Начался новый учебный год</Text>
           <Text style={[s.desc, { color: C.muted }]}>
-            Проверь, что выбран нужный курс — он не переключается сам. Если в прошлом
-            году ты был на первом курсе, теперь нужен второй.
+            Проверьте курс — он не переключается сам.
           </Text>
           <View style={s.actions}>
             <TouchableOpacity

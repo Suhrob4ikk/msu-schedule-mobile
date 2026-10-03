@@ -19,7 +19,7 @@ import * as Notifications from 'expo-notifications';
 import { useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
 
-import { featuresUnlocked, daysUntilUnlock, markGroupChosen } from '../src/features';
+import { markGroupChosen } from '../src/features';
 import { collectSkips, collectNotes, type SkipStats as SkipStatsType } from '../src/studyData';
 import {
   isLiveLessonEnabled, setLiveLessonEnabled,
@@ -27,6 +27,7 @@ import {
 } from '../src/liveLesson';
 import InviteCard from '../src/InviteCard';
 import { hasUnreadNotifHistory } from '../src/notificationHistory';
+import { loadMyChanges, countUnseenChanges } from '../src/changesFeed';
 import TipsHint from '../src/TipsHint';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts.
@@ -83,11 +84,7 @@ function NotificationRow() {
 
   const desc = status === 'denied'
     ? 'Запрещены в настройках телефона — нажмите, чтобы открыть'
-    : isOn
-    ? 'Придёт напоминание накануне и в день зачёта'
-    : status === 'granted'
-    ? 'Выключено — нажмите, чтобы включить'
-    : 'Нажмите, чтобы включить напоминания о зачётах';
+    : 'Накануне в 20:00 и в день в 07:00';
 
   return (
     <TouchableOpacity
@@ -129,13 +126,12 @@ function LessonReminderRow() {
         // Без системного разрешения включать нечего — сначала спрашиваем
         const ok = await requestNotificationPermission();
         if (!ok) {
-          Alert.alert('Нужно разрешение', 'Разреши уведомления в настройках телефона, иначе напоминания не придут.');
+          Alert.alert('Нужно разрешение', 'Разрешите уведомления в настройках телефона, иначе напоминания не придут.');
           return;
         }
         setEnabled(true);
         await AsyncStorage.setItem(LESSON_NOTIF_PREF_KEY, '1');
-        // Сами напоминания встанут при следующей загрузке расписания
-        Alert.alert('Готово', `Напомним за ${MINUTES_BEFORE_LESSON} минут до каждой пары. Открой расписание, чтобы напоминания встали.`);
+        // Сами напоминания встанут при возврате на вкладку расписания
       }
     } finally {
       setBusy(false);
@@ -150,11 +146,7 @@ function LessonReminderRow() {
     >
       <View style={ft.text}>
         <Text style={[ft.label, { color: C.fg }]}>Напоминать перед парой</Text>
-        <Text style={[ft.desc, { color: C.muted }]}>
-          {enabled
-            ? `Придёт за ${MINUTES_BEFORE_LESSON} минут до начала — с предметом и аудиторией`
-            : `Уведомление за ${MINUTES_BEFORE_LESSON} минут до каждой пары`}
-        </Text>
+        <Text style={[ft.desc, { color: C.muted }]}>За {MINUTES_BEFORE_LESSON} минут до пары</Text>
       </View>
       <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
         <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
@@ -183,12 +175,7 @@ function LiveLessonRow() {
       const result = await setLiveLessonEnabled(want);
       setEnabled(result);
       if (want && !result) {
-        Alert.alert('Нужно разрешение', 'Разреши уведомления в настройках телефона, иначе строка не появится.');
-      } else if (want) {
-        Alert.alert(
-          'Готово',
-          'Пока идёт пара, в шторке будет строка с предметом, аудиторией и отсчётом до конца. Появится с началом ближайшей пары.',
-        );
+        Alert.alert('Нужно разрешение', 'Разрешите уведомления в настройках телефона, иначе строка не появится.');
       }
     } finally {
       setBusy(false);
@@ -203,11 +190,7 @@ function LiveLessonRow() {
     >
       <View style={ft.text}>
         <Text style={[ft.label, { color: C.fg }]}>Показывать текущую пару</Text>
-        <Text style={[ft.desc, { color: C.muted }]}>
-          {enabled
-            ? 'Предмет, аудитория и отсчёт до конца пары — видно, не открывая приложение'
-            : 'Строка в шторке уведомлений, пока идёт пара'}
-        </Text>
+        <Text style={[ft.desc, { color: C.muted }]}>Строка в шторке, пока идёт пара</Text>
       </View>
       <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
         <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
@@ -239,7 +222,7 @@ function BackgroundWorkRow() {
     if (!exempt) await requestIgnoreBatteryOptimizations();
     Alert.alert(
       'Если виджет всё равно отстаёт',
-      'На Xiaomi, Redmi, POCO и некоторых других телефонах этого может быть недостаточно — там есть отдельная настройка. Зайди в настройки телефона → Приложения → МГУ Расписание → Автозапуск и включи его, а в разделе «Экономия заряда» для этого приложения выбери «Без ограничений».',
+      'На Xiaomi, Redmi и POCO включите ещё: Настройки → Приложения → МГУ Расписание → Автозапуск, а в «Экономии заряда» выберите «Без ограничений».',
     );
   };
 
@@ -252,9 +235,7 @@ function BackgroundWorkRow() {
       <View style={ft.text}>
         <Text style={[ft.label, { color: C.fg }]}>Разрешить работу в фоне</Text>
         <Text style={[ft.desc, { color: C.muted }]}>
-          {exempt
-            ? 'Разрешено — нажми, если виджет или «идёт пара» всё равно отстают'
-            : 'Если виджет или «идёт пара» отстают по времени — включи здесь'}
+          {exempt ? 'Разрешено' : 'Если виджет или «идёт пара» отстают'}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={C.muted} />
@@ -265,12 +246,10 @@ function BackgroundWorkRow() {
 function FeatureToggle({ label, description, storageKey }: { label: string; description: string; storageKey: string }) {
   const C = useTheme();
   const [enabled, setEnabled] = useState(false);
-  const locked = !featuresUnlocked();
   useEffect(() => {
     AsyncStorage.getItem(storageKey).then(v => setEnabled(v === '1'));
   }, [storageKey]);
   const toggle = async () => {
-    if (locked) return;
     const next = !enabled;
     setEnabled(next);
     await AsyncStorage.setItem(storageKey, next ? '1' : '0');
@@ -278,24 +257,15 @@ function FeatureToggle({ label, description, storageKey }: { label: string; desc
   return (
     <TouchableOpacity
       onPress={toggle}
-      style={[ft.row, { backgroundColor: C.card, borderColor: C.border, opacity: locked ? 0.6 : 1 }]}
-      activeOpacity={locked ? 1 : 0.7}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border }]}
+      activeOpacity={0.7}
     >
       <View style={ft.text}>
-        <View style={ft.labelRow}>
-          <Text style={[ft.label, { color: C.fg }]}>{label}</Text>
-          {locked && (
-            <View style={[ft.badge, { backgroundColor: C.tag }]}>
-              <Text style={[ft.badgeText, { color: C.muted }]}>с 1 сентября</Text>
-            </View>
-          )}
-        </View>
-        <Text style={[ft.desc, { color: C.muted }]}>
-          {locked ? `${description} · откроется 1 сентября, осталось ${daysUntilUnlock()} дн.` : description}
-        </Text>
+        <Text style={[ft.label, { color: C.fg }]}>{label}</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>{description}</Text>
       </View>
-      <View style={[ft.track, { backgroundColor: (!locked && enabled) ? C.primary : C.border }]}>
-        <View style={[ft.thumb, { transform: [{ translateX: (!locked && enabled) ? 20 : 2 }] }]} />
+      <View style={[ft.track, { backgroundColor: enabled ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: enabled ? 20 : 2 }] }]} />
       </View>
     </TouchableOpacity>
   );
@@ -306,9 +276,6 @@ const ft = StyleSheet.create({
   text: { flex: 1, marginRight: 12 },
   label: { fontSize: 14, fontWeight: '600' },
   desc: { fontSize: 12, marginTop: 2 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  badgeText: { fontSize: 10, fontWeight: '600' },
   track: { width: 44, height: 24, borderRadius: 12, position: 'relative' },
   thumb: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 },
 });
@@ -350,7 +317,7 @@ function SkipStats() {
       <View style={[ft.row, { backgroundColor: C.card, borderColor: C.border, flexDirection: 'column', alignItems: 'stretch' }]}>
         <Text style={[ft.label, { color: C.fg }]}>Пропуски</Text>
         <Text style={[ft.desc, { color: C.muted }]}>
-          Пока ни одного пропуска. Отмечай пропущенные пары в расписании — здесь будет видно, сколько их по каждому предмету.
+          Пропусков нет
         </Text>
       </View>
     );
@@ -424,7 +391,10 @@ function useHasUnreadNotifs(): boolean {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      hasUnreadNotifHistory().then(v => { if (!cancelled) setHasUnread(v); });
+      Promise.all([
+        hasUnreadNotifHistory(),
+        loadMyChanges().then(countUnseenChanges).catch(() => 0),
+      ]).then(([exams, changes]) => { if (!cancelled) setHasUnread(exams || changes > 0); });
       return () => { cancelled = true; };
     }, []),
   );
@@ -445,9 +415,6 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  // Считаем на каждый рендер, а не один раз при старте приложения — см.
-  // комментарий у импорта featuresUnlocked.
-  const featuresLocked = !featuresUnlocked();
 
   useEffect(() => {
     // Список групп — сначала с диска (иначе в офлайне выбор группы пустой),
@@ -515,16 +482,7 @@ export default function ProfileScreen() {
     }, 800);
   };
 
-  const handleChangeGroup = () => {
-    Alert.alert(
-      'Изменить данные?',
-      'Можно поменять имя или группу — например при переходе на новый курс.',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Изменить', onPress: () => setIsEditing(true) },
-      ]
-    );
-  };
+  const handleChangeGroup = () => setIsEditing(true);
 
   const handleSync = async () => {
     if (isSyncing) return;
@@ -561,7 +519,7 @@ export default function ProfileScreen() {
           <Text style={[s.label, { color: C.muted }]}>ИМЯ</Text>
           <TextInput
             style={[s.input, { backgroundColor: C.inputBg, borderColor: C.inputBorder, color: C.fg }]}
-            placeholder="Введи своё имя..."
+            placeholder="Ваше имя"
             placeholderTextColor={C.muted}
             value={name}
             onChangeText={setName}
@@ -579,10 +537,6 @@ export default function ProfileScreen() {
               C={C}
             />
           )}
-
-          <View style={[s.hint, { backgroundColor: C.tag }]}>
-            <Text style={[s.hintText, { color: C.muted }]}>Выбери свою группу. После сохранения приложение перейдёт на расписание.</Text>
-          </View>
 
           <TouchableOpacity
             style={[s.saveBtn, { backgroundColor: C.primary }, (!selectedGroupId || saving) && s.saveBtnDisabled]}
@@ -621,9 +575,7 @@ export default function ProfileScreen() {
       <View style={[s.themePrefRow, { backgroundColor: C.card, borderColor: C.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <Ionicons name={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} size={16} color={C.muted} />
-          <Text style={[s.themePrefLabel, { color: C.muted }]}>
-            Тема · «как в системе» темнеет вместе с телефоном
-          </Text>
+          <Text style={[s.themePrefLabel, { color: C.muted }]}>Тема</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {([
@@ -703,12 +655,12 @@ export default function ProfileScreen() {
         <BackgroundWorkRow />
         <FeatureToggle
           label="Пропуски"
-          description="Отмечай только пары, которые пропустил. Здесь будет видно, сколько пропусков накопилось по каждому предмету"
+          description="Отмечайте только пропущенные пары"
           storageKey="feature_attendance"
         />
         <FeatureToggle
           label="Заметки к парам"
-          description="Домашка и что принести. Заметку можно закрепить за парой — тогда она появится в этот день каждую неделю"
+          description="Домашка и что принести"
           storageKey="feature_notes"
         />
       </View>
@@ -720,17 +672,15 @@ export default function ProfileScreen() {
           пропусков, и два блока с одинаковым заголовком оказывались в разных
           концах экрана — выглядело как ошибка. */}
       <View style={s.section}>
-        {!featuresLocked && <SkipStats />}
-        {!featuresLocked && (
-          <TouchableOpacity
-            onPress={exportMyData}
-            activeOpacity={0.7}
-            style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 10 }]}
-          >
-            <Ionicons name="share-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
-            <Text style={[s.changeBtnText, { color: C.muted }]}>Поделиться заметками и посещаемостью</Text>
-          </TouchableOpacity>
-        )}
+        <SkipStats />
+        <TouchableOpacity
+          onPress={exportMyData}
+          activeOpacity={0.7}
+          style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 10 }]}
+        >
+          <Ionicons name="share-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
+          <Text style={[s.changeBtnText, { color: C.muted }]}>Поделиться заметками и посещаемостью</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push('/compare')}
           activeOpacity={0.7}
@@ -809,8 +759,8 @@ export default function ProfileScreen() {
       {/* Инфо о приложении */}
       <View style={s.about}>
         <Text style={[s.aboutTitle, { color: C.muted }]}>МГУ Душанбе · Расписание</Text>
-        <Text style={[s.aboutText, { color: C.muted }]}>Автообновление с msu.tj каждые 2 часа</Text>
-        <Text style={[s.version, { color: C.border }]}>v1.9.36</Text>
+        <Text style={[s.aboutText, { color: C.muted }]}>Данные с msu.tj</Text>
+        <Text style={[s.version, { color: C.border }]}>v1.9.37</Text>
       </View>
     </ScrollView>
   );

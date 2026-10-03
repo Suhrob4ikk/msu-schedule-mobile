@@ -1,10 +1,10 @@
 /**
  * Локальный журнал уведомлений — «Уведомления» в кабинете.
  *
- * Уведомления в приложении и так приходят (напоминания о зачётах, пуш об
- * изменении расписания), но пропадают без следа, стоит смахнуть шторку.
- * Здесь просто сохраняем то же самое на устройстве, чтобы список можно было
- * открыть заново. Аккаунтов у нас нет — поэтому история только локальная,
+ * Напоминания о зачётах приходят и пропадают без следа, стоит смахнуть
+ * шторку. Здесь сохраняем их на устройстве, чтобы список можно было открыть
+ * заново. Изменения расписания сюда больше не пишутся — их показывает лента
+ * с сервера (src/changesFeed.ts). Аккаунтов у нас нет — поэтому история только локальная,
  * как заметки и пропуски (см. src/studyData.ts).
  */
 
@@ -36,6 +36,9 @@ export function subscribeNotifHistory(fn: Listener): () => void {
 function notifyListeners(): void {
   listeners.forEach(fn => fn());
 }
+/** Пересчитать колокольчик снаружи — например, после просмотра ленты изменений
+ *  (она живёт не здесь, а на сервере, см. src/changesFeed.ts). */
+export const notifyNotifHistoryChanged = notifyListeners;
 
 async function readAll(): Promise<NotifEntry[]> {
   try {
@@ -79,12 +82,15 @@ export async function markCategoryRead(category: NotifCategory): Promise<void> {
   if (changed) { await writeAll(all); notifyListeners(); }
 }
 
+// Записи категории 'change' — наследие прошлых версий, когда изменения
+// расписания тоже копились здесь. Теперь их показывает лента с сервера
+// (src/changesFeed.ts), поэтому старые локальные записи не считаем.
 export async function hasUnreadNotifHistory(): Promise<boolean> {
   const all = await readAll();
-  return all.some(e => !e.read);
+  return all.some(e => !e.read && e.category !== 'change');
 }
 
 export async function getUnreadNotifCount(): Promise<number> {
   const all = await readAll();
-  return all.filter(e => !e.read).length;
+  return all.filter(e => !e.read && e.category !== 'change').length;
 }

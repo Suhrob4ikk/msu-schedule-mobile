@@ -191,7 +191,7 @@ export async function scheduleExamReminders(
     eveBefore.setHours(20, 0, 0, 0);
     if (eveBefore > new Date()) {
       const title = '⏰ Завтра зачёт!';
-      const body = `${subject}${time ? ` в ${time}` : ''}. Готовься, ты сможешь! 💪`;
+      const body = `${subject}${time ? ` в ${time}` : ''}. Готовьтесь, вы сможете! 💪`;
       await Notifications.scheduleNotificationAsync({
         content: { title, body, data: { type: 'exam' }, sound: true },
         trigger: {
@@ -208,7 +208,7 @@ export async function scheduleExamReminders(
     dayOf.setHours(7, 0, 0, 0);
     if (dayOf > new Date()) {
       const title = '🍀 Сегодня зачёт!';
-      const body = `${subject}${time ? ` в ${time}` : ''}. Удачи тебе!`;
+      const body = `${subject}${time ? ` в ${time}` : ''}. Удачи вам!`;
       await Notifications.scheduleNotificationAsync({
         content: { title, body, data: { type: 'exam' }, sound: true },
         trigger: {

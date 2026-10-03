@@ -228,7 +228,7 @@ export default function RoomsScreen() {
       </TouchableOpacity>
       {noSlotHint && (
         <Text style={[s.nowHint, { color: C.muted }]}>
-          Сейчас занятий нет — вечер или выходной. Выбери день и пару вручную.
+          Сейчас пар нет
         </Text>
       )}
 
@@ -335,7 +335,7 @@ export default function RoomsScreen() {
             <View style={[s.statusDot, { backgroundColor: C.red }]} />
             <Text style={[s.countHeader, { color: C.fg }]}>Занятых: {busy.length}</Text>
             {busy.length > 0 && (
-              <Text style={[s.hintText, { color: C.muted }]}>нажми, чтобы узнать кто</Text>
+              <Text style={[s.hintText, { color: C.muted }]}>нажмите, чтобы узнать кто</Text>
             )}
           </View>
 
@@ -428,8 +428,7 @@ export default function RoomsScreen() {
 
                     {r.occupied_until && (
                       <Text style={[s.sheetNote, { color: C.muted }]}>
-                        Освободится в {r.occupied_until}. Это время считается по всем парам подряд —
-                        занимать аудиторию до него может не одна группа, а несколько.
+                        Освободится в {r.occupied_until}.
                       </Text>
                     )}
                   </>

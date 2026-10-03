@@ -18,7 +18,7 @@ const WEB_URL =
 export default function InviteCard({ C }: { C: Colors }) {
   const share = () => {
     Share.share({
-      message: `МГУ Душанбе — расписание занятий, свободные аудитории и изменения. Заходи: ${WEB_URL}`,
+      message: `МГУ Душанбе — расписание занятий, свободные аудитории и изменения. Заходите: ${WEB_URL}`,
     }).catch(() => {});
   };
 
@@ -29,7 +29,7 @@ export default function InviteCard({ C }: { C: Colors }) {
         <QRCode value={WEB_URL} size={140} color="#111111" backgroundColor="#ffffff" />
       </View>
       <Text style={[s.hint, { color: C.muted }]}>
-        Пусть отсканируют камерой телефона — откроется сайт с расписанием, ничего устанавливать не нужно.
+        Наведите камеру на QR-код
       </Text>
       <TouchableOpacity onPress={share} activeOpacity={0.85} style={[s.btn, { backgroundColor: C.primary }]}>
         <Ionicons name="share-outline" size={16} color={C.primaryFg} style={{ marginRight: 8 }} />

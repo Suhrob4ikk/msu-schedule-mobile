@@ -9,7 +9,7 @@ import { api, Group, shortGroupName, rememberGroup } from '../src/api';
 import GroupSelector from '../src/GroupSelector';
 import { useTheme, useThemeMode } from '../src/theme';
 import { requestNotificationPermission } from '../src/examNotifications';
-import { syncPushToken } from '../src/pushToken';
+import { syncWithServer } from '../src/pushToken';
 import { markGroupChosen } from '../src/features';
 
 type Props = { onDone?: () => void };
@@ -58,7 +58,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
     // Если разрешение дали — тут же отправляем push-токен, чтобы об
     // изменении расписания узнать мгновенно, а не только при следующем
     // открытии приложения.
-    await syncPushToken();
+    await syncWithServer(true);
     setSaving(false);
     if (onDone) { onDone(); } else { router.replace('/'); }
   };
@@ -101,7 +101,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
         <Text style={[s.label, { color: C.muted }]}>ИМЯ</Text>
         <TextInput
           style={[s.input, { backgroundColor: C.card, borderColor: C.border, color: C.fg }]}
-          placeholder="Введи своё имя..."
+          placeholder="Ваше имя"
           placeholderTextColor={C.muted}
           value={name}
           onChangeText={setName}
@@ -139,10 +139,10 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
         {(!name.trim() || !selected) && (
           <Text style={[s.requiredHint, { color: C.muted }]}>
             {!name.trim() && !selected
-              ? 'Введи имя и выбери группу'
+              ? 'Введите имя и выберите группу'
               : !name.trim()
-              ? 'Введи своё имя'
-              : 'Выбери группу'}
+              ? 'Введите имя'
+              : 'Выберите группу'}
           </Text>
         )}
       </View>

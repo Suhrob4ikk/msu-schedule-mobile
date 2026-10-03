@@ -12,7 +12,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import {
   api, invalidateApiCache, Group, Lesson, TodayItem, WeekInfo, Stats,
-  DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, leadingGap, shortGroupName,
+  DAYS_ORDER, DAY_LABELS, breakLabel, gapBetween, leadingGap, humanDuration, shortGroupName,
   weekRangeStr, PAIR_TIMES, PAIR_NUMBERS,
 } from '../src/api';
 import ScheduleShareCard from '../src/ScheduleShareCard';
@@ -26,12 +26,11 @@ import {
 import GroupSelector from '../src/GroupSelector';
 import RadialProgress from '../src/RadialProgress';
 import { Ionicons } from '@expo/vector-icons';
-import { featuresUnlocked } from '../src/features';
 import { writeWidgetData } from '../src/widgetData';
 import { refreshLiveLesson } from '../src/liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey, isPastLesson, todayIso } from '../src/studyData';
-import FeatureHint from '../src/FeatureHint';
 import CourseCheckBanner from '../src/CourseCheckBanner';
+import { onScheduleUpdated } from '../src/scheduleEvents';
 
 // На старой архитектуре Android LayoutAnimation работает только после этого
 // вызова; на новой (Fabric, включена по умолчанию в этом проекте) метод
@@ -105,17 +104,17 @@ function isTodayDay(dayName: string, weekStart: string): boolean {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   ТАЙМЛАЙН ДНЯ
-   Слева время и «рельса» с точками-станциями: прошедшие пары приглушены,
-   текущая горит пульсирующей точкой, окна разрывают линию пунктиром, между
-   парами едет маркер текущего времени. Смысл не в красоте — окна и перемены
-   видно глазами, не читая текст. То же самое сделано на сайте.
+   ТАЙМЛАЙН ДНЯ — так же, как на сайте (components/DaySchedule.tsx).
+   Время пары — внутри карточки, крупно слева. Прошедшие пары приглушены,
+   идущая — в цветной рамке с пульсирующей точкой, окно — пунктир во всю
+   ширину с подписью, между парами — маркер текущего времени.
 
-   Три колонки вместо абсолютных отрицательных отступов: на Android так
-   надёжнее — вылезающие за границы родителя элементы там иногда обрезаются.
+   Раньше слева была отдельная колонка со временем фиксированной ширины
+   (36 точек). На части телефонов и при крупном шрифте в настройках Android
+   «08:00» в неё не влезало и переносилось: «08:0» / «0». Теперь ширина ни у
+   чего не фиксирована: время занимает столько места, сколько ему нужно, и
+   всегда пишется в одну строку; переносится, если тесно, только тип пары.
    ───────────────────────────────────────────────────────────────────────── */
-const TIME_W = 36;  // колонка со временем
-const RAIL_W = 22;  // колонка с линией и точками
 
 /** Минуты от начала суток из строки «08:30». */
 const toMin = (t: string): number => {
@@ -155,36 +154,17 @@ function PulseDot({ C }: { C: ReturnType<typeof useTheme> }) {
 }
 
 /**
- * Колонка-рельса: сплошная или пунктирная линия во всю высоту строки.
- * Вынесена на верхний уровень намеренно: объявленный внутри DayTimeline
- * компонент пересоздавался бы при каждом тике таймера, React считал бы его
- * новым типом и размонтировал поддерево — пульсация точки сбрасывалась бы.
+ * Горизонтальный пунктир во всю ширину — граница «окна» между парами.
+ * Набран штрихами, а не borderStyle: 'dashed': пунктир на одной стороне
+ * Android рисует непредсказуемо. Лишние штрихи обрезает overflow, поэтому
+ * ширина экрана не важна.
  */
-function Rail({ C, dashed, children }: {
-  C: ReturnType<typeof useTheme>;
-  dashed?: boolean;
-  children?: React.ReactNode;
-}) {
+function DashedLine({ C }: { C: ReturnType<typeof useTheme> }) {
   return (
-    <View style={{ width: RAIL_W, alignItems: 'center' }}>
-      {dashed ? (
-        // Пунктир набран короткими штрихами, а не borderStyle: 'dashed':
-        // вертикальный dashed-бордюр Android рисует непредсказуемо.
-        // Лишние штрихи обрезает overflow, поэтому высота строки не важна.
-        <View style={{ position: 'absolute', left: 10, top: 0, bottom: 0, width: 2, overflow: 'hidden' }}>
-          {Array.from({ length: 14 }).map((_, k) => (
-            <View
-              key={k}
-              style={{ width: 2, height: 4, marginBottom: 3, borderRadius: 1, backgroundColor: C.border }}
-            />
-          ))}
-        </View>
-      ) : (
-        <View
-          style={{ position: 'absolute', left: 10, top: 0, bottom: 0, width: 2, backgroundColor: C.border }}
-        />
-      )}
-      {children}
+    <View style={{ height: 2, flexDirection: 'row', overflow: 'hidden', marginBottom: 6 }}>
+      {Array.from({ length: 80 }).map((_, k) => (
+        <View key={k} style={{ width: 6, height: 2, marginRight: 4, borderRadius: 1, backgroundColor: C.border }} />
+      ))}
     </View>
   );
 }
@@ -254,7 +234,6 @@ function DayTimeline({
     <View>
       {runs.map((run, i) => {
         const l = run[0];
-        const last = run[run.length - 1];
         // У первой пары дня сравнивать не с чем — leadingGap меряет от
         // начала дня (I пара), а не от предыдущего занятия.
         const gap = i > 0
@@ -264,100 +243,47 @@ function DayTimeline({
 
         return (
           <View key={l.id}>
-            {/* Свободные пары — отдельной строкой на каждую, а не одной
-                сводкой «окно 1 ч 30 мин». Так сразу видно, что, например,
-                первые две пары свободны и к третьей можно не спешить.
-                Строки появляются только ДО последней занятой пары: хвост
-                пустых слотов после конца занятий — шум. */}
-            {gap?.pairs.map(freePair => {
-              const times = PAIR_TIMES[freePair];
-              return (
-                <View key={`free-${l.id}-${freePair}`} style={{ flexDirection: 'row' }}>
-                  <View style={{ width: TIME_W, alignItems: 'flex-end', paddingRight: 6, paddingTop: 10 }}>
-                    <Text style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>{times?.[0]}</Text>
-                    <Text style={{ fontSize: 11, color: C.muted, opacity: 0.45 }}>{times?.[1]}</Text>
-                  </View>
-                  <Rail C={C} dashed />
-                  <View
-                    style={{
-                      flex: 1, marginVertical: 4, paddingVertical: 10, paddingHorizontal: 12,
-                      borderRadius: 12, borderWidth: 1, borderStyle: 'dashed',
-                      borderColor: C.border, justifyContent: 'center',
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, color: C.muted }}>
-                      {freePair} пара · свободно
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-
-            {markerIdx === i && (
-              <View style={{ flexDirection: 'row' }}>
-                <View style={{ width: TIME_W, alignItems: 'flex-end', paddingRight: 6, paddingTop: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary }}>{nowLabel}</Text>
-                </View>
-                <Rail C={C}>
-                  <View
-                    style={{
-                      marginTop: 6, width: 8, height: 8, borderRadius: 4,
-                      backgroundColor: C.primary,
-                    }}
-                  />
-                </Rail>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 4 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: C.primary, opacity: 0.35 }} />
-                  <Text style={{ fontSize: 11, color: C.muted }}>сейчас</Text>
-                </View>
+            {/* Окно = пропущенный слот пары, одной строкой — как на сайте.
+                Обычный перерыв между соседними парами окном не считается. */}
+            {gap && (
+              <View style={{ marginBottom: 10 }} accessibilityLabel="Окно в расписании">
+                <DashedLine C={C} />
+                <Text style={{ fontSize: 11, color: C.muted }}>
+                  окно {humanDuration(gap.minutes)} · свободн{gap.pairs.length > 1 ? 'ы' : 'а'}{' '}
+                  {gap.pairs.join(', ')} пар{gap.pairs.length > 1 ? 'ы' : 'а'}
+                </Text>
               </View>
             )}
 
-            <View
-              style={{
-                flexDirection: 'row',
-                opacity: dimPast && state === 'past' ? 0.5 : 1,
-              }}
-            >
-              {/* Время живёт здесь, поэтому в карточке его прячем (compactTime) */}
-              <View style={{ width: TIME_W, alignItems: 'flex-end', paddingRight: 6, paddingTop: 17 }}>
-                <Text
+            {markerIdx === i && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <View
                   style={{
-                    fontSize: 11, fontWeight: '600',
-                    color: state === 'current' ? C.primary : C.fg,
+                    width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary,
+                    borderWidth: 3, borderColor: withAlpha(C.primary, 0.25),
                   }}
-                >
-                  {l.pair_time_start}
-                </Text>
-                <Text style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>{last.pair_time_end}</Text>
-              </View>
-              <Rail C={C}>
-                <View style={{ marginTop: 19 }}>
-                  {state === 'current' ? (
-                    <PulseDot C={C} />
-                  ) : (
-                    <View
-                      style={{
-                        width: 12, height: 12, borderRadius: 6, borderWidth: 2,
-                        borderColor: state === 'past' ? C.border : C.primary,
-                        backgroundColor: state === 'past' ? C.border : C.card,
-                      }}
-                    />
-                  )}
-                </View>
-              </Rail>
-              <View style={{ flex: 1 }}>
-                <LessonCard
-                  lesson={l}
-                  mergedWith={run.length > 1 ? run.slice(1) : undefined}
-                  C={C}
-                  compactTime
-                  links
-                  current={state === 'current'}
-                  showAttendance={showAttendance}
-                  showNotes={showNotes}
                 />
+                <Text
+                  numberOfLines={1}
+                  style={{ fontSize: 11, fontWeight: '700', color: C.primary, fontVariant: ['tabular-nums'] }}
+                >
+                  {nowLabel}
+                </Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: C.primary, opacity: 0.4 }} />
+                <Text style={{ fontSize: 11, color: C.muted }}>сейчас</Text>
               </View>
+            )}
+
+            <View style={{ opacity: dimPast && state === 'past' ? 0.5 : 1 }}>
+              <LessonCard
+                lesson={l}
+                mergedWith={run.length > 1 ? run.slice(1) : undefined}
+                C={C}
+                links
+                current={state === 'current'}
+                showAttendance={showAttendance}
+                showNotes={showNotes}
+              />
             </View>
           </View>
         );
@@ -418,7 +344,7 @@ function GroupSelectorSkeleton({ C }: { C: ReturnType<typeof useTheme> }) {
   );
 }
 
-function LessonCard({ lesson, mergedWith, C, showAttendance, showNotes, compactTime, current, links }: {
+function LessonCard({ lesson, mergedWith, C, showAttendance, showNotes, current, links }: {
   lesson: Lesson;
   /** Ещё пары, слитые с этой в одну карточку (см. groupConsecutive) — идущие
    *  подряд без окна, с тем же предметом/преподавателем/аудиторией/типом.
@@ -427,8 +353,6 @@ function LessonCard({ lesson, mergedWith, C, showAttendance, showNotes, compactT
   C: ReturnType<typeof useTheme>;
   showAttendance?: boolean;
   showNotes?: boolean;
-  /** Внутри таймлайна время показано на рельсе слева — здесь не дублируем. */
-  compactTime?: boolean;
   /** Пара идёт прямо сейчас — подсвечиваем рамку. */
   current?: boolean;
   /** Делать ФИО и аудиторию тапабельными: ФИО → расписание преподавателя,
@@ -448,18 +372,32 @@ function LessonCard({ lesson, mergedWith, C, showAttendance, showNotes, compactT
 
   return (
     <View style={[cardStyles.card, { backgroundColor: C.card, borderWidth: 1, borderColor: current ? C.primary : C.border, borderLeftWidth: 4, borderLeftColor: accent }]}>
+      {/* Шапка как на сайте (components/LessonCard.tsx): время крупно слева,
+          «N пара», справа тип. Ширина времени не задана — колонка растёт
+          вместе со шрифтом, а numberOfLines={1} не даёт цифрам переноситься.
+          Если места мало (крупный шрифт в настройках), переносится тип пары. */}
       <View style={cardStyles.header}>
-        <View style={[cardStyles.pairBadge, { backgroundColor: C.blueBg }]}>
-          <Text style={[cardStyles.pairText, { color: C.primary }]}>
-            {allLessons.length > 1 ? `${allLessons.length} пары` : `${lesson.pair_number} пара`}
-            {!compactTime && ` · ${lesson.pair_time_start}–${lastLesson.pair_time_end}`}
+        <View style={cardStyles.timeCol}>
+          <Text numberOfLines={1} style={[cardStyles.timeStart, { color: current ? C.primary : C.fg }]}>
+            {lesson.pair_time_start}
+          </Text>
+          <Text numberOfLines={1} style={[cardStyles.timeEnd, { color: C.muted }]}>
+            {lastLesson.pair_time_end}
           </Text>
         </View>
-        {label && (
-          <View style={[cardStyles.typeBadge, { backgroundColor: color + '20' }]}>
-            <Text style={[cardStyles.typeText, { color }]}>{label}</Text>
+        <View style={cardStyles.headerRest}>
+          <View style={cardStyles.pairTitleRow}>
+            <Text style={[cardStyles.pairTitle, { color: C.fg }]}>
+              {allLessons.length > 1 ? `${allLessons.length} пары` : `${lesson.pair_number} пара`}
+            </Text>
+            {current && <PulseDot C={C} />}
           </View>
-        )}
+          {label && (
+            <View style={[cardStyles.typeBadge, { backgroundColor: color + '20' }]}>
+              <Text style={[cardStyles.typeText, { color }]}>{label}</Text>
+            </View>
+          )}
+        </View>
       </View>
       <Text style={[cardStyles.subject, { color: C.fg }]}>{lesson.subject}</Text>
       <View style={cardStyles.meta}>
@@ -634,7 +572,7 @@ function LessonActions({ lesson, C, showAttendance, showNotes, pairLabel }: {
             onPress={toggleSkip}
             accessibilityRole="button"
             accessibilityState={{ selected: skipped }}
-            accessibilityLabel={skipped ? 'Пропуск отмечен, нажми чтобы убрать' : 'Отметить пропуск'}
+            accessibilityLabel={skipped ? 'Пропуск отмечен, нажмите, чтобы убрать' : 'Отметить пропуск'}
             style={({ pressed }) => [cardStyles.attBtn, {
               backgroundColor: skipped ? '#ef4444' : 'transparent',
               borderColor: skipped ? '#ef4444' : C.border,
@@ -644,7 +582,7 @@ function LessonActions({ lesson, C, showAttendance, showNotes, pairLabel }: {
           >
             {skipped && <Ionicons name="close-circle" size={13} color="#fff" />}
             <Text style={[cardStyles.attBtnText, { color: skipped ? '#fff' : C.muted }]}>
-              {skipped ? 'Пропустил' : 'Отметить пропуск'}
+              {skipped ? 'Пропущено' : 'Отметить пропуск'}
             </Text>
           </Pressable>
         </View>
@@ -719,9 +657,16 @@ function LessonActions({ lesson, C, showAttendance, showNotes, pairLabel }: {
 
 const cardStyles = StyleSheet.create({
   card: { borderRadius: 16, padding: 14, marginBottom: 10, elevation: 1, shadowOpacity: 0.05, shadowRadius: 5 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
-  pairBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  pairText: { fontSize: 12, fontWeight: '700' },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
+  timeCol: { flexShrink: 0 },
+  timeStart: { fontSize: 22, lineHeight: 26, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  timeEnd: { fontSize: 12, fontWeight: '500', marginTop: 1, fontVariant: ['tabular-nums'] },
+  headerRest: {
+    flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
+    columnGap: 8, rowGap: 4, paddingTop: 1,
+  },
+  pairTitleRow: { flexGrow: 1, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pairTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', flexShrink: 1 },
   typeBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5 },
   typeText: { fontSize: 11, fontWeight: '600' },
   subject: { fontSize: 15.5, fontWeight: '700', marginBottom: 4 },
@@ -1089,6 +1034,30 @@ export default function ScheduleScreen() {
     loadSchedule(selectedGroup, selectedWeek?.id, true).then(ok => { if (ok) showRefreshToast(); });
   }, [selectedGroup, selectedWeek, loadSchedule, showRefreshToast]);
 
+  // Новая неделя без ручного обновления. Android держит приложение в памяти
+  // сутками, и открытие из списка недавних экран не пересоздаёт — без этого
+  // расписание, вышедшее в субботу, появлялось только после перезапуска или
+  // «потянуть вниз». Перечитываем недели и пары при возврате в приложение
+  // (если с прошлой загрузки прошло больше 5 минут) и сразу, когда пришёл
+  // push «вышла новая неделя» / «расписание изменилось» (src/scheduleEvents.ts).
+  const lastLoadAtRef = useRef(Date.now());
+  useEffect(() => {
+    const reload = () => {
+      const g = selectedGroupRef.current;
+      if (!g) return;
+      lastLoadAtRef.current = Date.now();
+      invalidateApiCache('/schedule/');
+      // Неделю, выбранную кнопкой, сохраняем; иначе — выбор по сегодняшней дате
+      const w = userPickedWeekRef.current ? selectedWeekRef.current?.id : undefined;
+      loadSchedule(g, w, true);
+    };
+    const sub = AppState.addEventListener('change', st => {
+      if (st === 'active' && Date.now() - lastLoadAtRef.current > 5 * 60_000) reload();
+    });
+    const off = onScheduleUpdated(reload);
+    return () => { sub.remove(); off(); };
+  }, [loadSchedule]);
+
   // Когда интернет появился — тихо обновляем данные и снимаем офлайн-баннер
   useEffect(() => {
     if (onlineAt === 0) return;
@@ -1132,12 +1101,10 @@ export default function ScheduleScreen() {
   // При фокусе — загружаем сохранённую группу и фичи-флаги
   useFocusEffect(
     useCallback(() => {
-      if (featuresUnlocked()) {
-        AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(pairs => {
-          setFeatureAttendance(pairs[0][1] === '1');
-          setFeatureNotes(pairs[1][1] === '1');
-        });
-      }
+      AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(pairs => {
+        setFeatureAttendance(pairs[0][1] === '1');
+        setFeatureNotes(pairs[1][1] === '1');
+      });
       if (!groupsLoaded || groups.length === 0) return;
       AsyncStorage.multiGet(['selected_group_id', 'schedule_view_group_id']).then(pairs => {
         const myId = pairs.find(([k]) => k === 'selected_group_id')?.[1];
@@ -1396,7 +1363,7 @@ export default function ScheduleScreen() {
       {/* Подсказка — только до выбора группы */}
       {!selectedGroup && (
         <View style={[s.hint, { backgroundColor: C.tag, borderColor: C.border }]}>
-          <Text style={[s.hintText, { color: C.muted }]}>Выберите группу ниже и нажмите на день недели. Листайте дни свайпом.</Text>
+          <Text style={[s.hintText, { color: C.muted }]}>Листайте дни свайпом</Text>
         </View>
       )}
 
@@ -1602,13 +1569,6 @@ export default function ScheduleScreen() {
                     )
                   ) : null}
                 </View>
-                {nextItem.break_minutes != null && (
-                  <Text style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>
-                    {nextItem.break_minutes <= 20
-                      ? 'Не уходи далеко — скоро начнётся:'
-                      : 'Дальше по расписанию:'}
-                  </Text>
-                )}
                 <Text style={[s.nowSubject, { color: C.fg }]}>{nextItem.subject}</Text>
                 {/* Аудиторию — отдельно и крупно: на перемене это главный вопрос */}
                 <View style={s.roomRow}>
@@ -1646,11 +1606,6 @@ export default function ScheduleScreen() {
             <Text style={[s.statLabel, { color: C.muted }]}>педагогов</Text>
           </View>
         </View>
-      )}
-
-      {/* Одноразовая подсказка — только когда функции включены и только своей группе */}
-      {isMyGroup && (featureAttendance || featureNotes) && (
-        <FeatureHint skips={featureAttendance} notes={featureNotes} />
       )}
 
       {/* Фильтр по дню: «Вся неделя» — отдельная широкая кнопка сверху (в
@@ -1815,8 +1770,7 @@ export default function ScheduleScreen() {
 
           {selectedGroup && Object.keys(byDay).length === 0 && (
             <View style={s.emptyState}>
-              <Text style={[s.emptyTitle, { color: C.fg }]}>Занятий не найдено</Text>
-              <Text style={[s.emptyText, { color: C.muted }]}>
+              <Text style={[s.emptyTitle, { color: C.fg }]}>
                 {selectedDay !== 'all' ? 'В этот день пар нет' : 'На этой неделе занятий нет'}
               </Text>
             </View>
@@ -1824,7 +1778,6 @@ export default function ScheduleScreen() {
           {!selectedGroup && (
             <View style={s.emptyState}>
               <Text style={[s.emptyTitle, { color: C.fg }]}>Выберите группу выше</Text>
-              <Text style={[s.emptyText, { color: C.muted }]}>Чтобы увидеть расписание</Text>
             </View>
           )}
         </Animated.View>

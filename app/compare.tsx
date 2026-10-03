@@ -109,8 +109,8 @@ export default function CompareScreen() {
       <Text style={[s.title, { color: C.fg }]}>Сравнить с другой группой</Text>
       <Text style={[s.sub, { color: C.muted }]}>
         {myGroup
-          ? `Когда у тебя (${shortGroupName(myGroup.name)} · ${myGroup.year} курс) и у выбранной группы одновременно нет пар.`
-          : 'Сначала укажи свою группу в кабинете.'}
+          ? `Когда у вас (${shortGroupName(myGroup.name)} · ${myGroup.year} курс) и у выбранной группы одновременно нет пар.`
+          : 'Сначала укажите свою группу в кабинете.'}
       </Text>
 
       {myGroup && (
@@ -127,7 +127,6 @@ export default function CompareScreen() {
       {myGroup && otherGroup && !loading && activeDays.length === 0 && (
         <View style={s.empty}>
           <Text style={[s.emptyTitle, { color: C.fg }]}>Занятий нет ни у одной из групп</Text>
-          <Text style={[s.emptyText, { color: C.muted }]}>Сессия или каникулы — сравнивать нечего</Text>
         </View>
       )}
 
@@ -183,7 +182,7 @@ export default function CompareScreen() {
             </View>
             <View style={s.legendItem}>
               <View style={[s.legendDot, { backgroundColor: C.redBg, borderColor: C.red }]} />
-              <Text style={[s.legendText, { color: C.muted }]}>занята твоя</Text>
+              <Text style={[s.legendText, { color: C.muted }]}>занята ваша</Text>
             </View>
             <View style={s.legendItem}>
               <View style={[s.legendDot, { backgroundColor: otherBusyColors.bg, borderColor: otherBusyColors.border }]} />
@@ -201,8 +200,7 @@ export default function CompareScreen() {
 
       {myGroup && !otherGroup && (
         <View style={s.empty}>
-          <Text style={[s.emptyTitle, { color: C.fg }]}>Выбери группу выше</Text>
-          <Text style={[s.emptyText, { color: C.muted }]}>Покажем, когда вы оба свободны</Text>
+          <Text style={[s.emptyTitle, { color: C.fg }]}>Выберите группу выше</Text>
         </View>
       )}
     </ScrollView>

@@ -489,8 +489,10 @@ export const api = {
     get<Change[]>(`/schedule/changes${groupId ? `?group_id=${groupId}` : ''}`),
   // ttl=0 — полная синхронизация всегда должна тянуть свежие данные, не из кэша
   getBulkSync: () => get<BulkSyncData>('/schedule/bulk-sync', 0),
-  registerUser: (deviceId: string, name: string, groupId: number) =>
-    fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}`, { method: 'POST' })
+  // silent — тихая перерегистрация после деплоя бэкенда (src/pushToken.ts),
+  // без письма владельцу о «новом пользователе».
+  registerUser: (deviceId: string, name: string, groupId: number, silent = false) =>
+    fetch(`${API_BASE}/user/register?device_id=${encodeURIComponent(deviceId)}&name=${encodeURIComponent(name)}&group_id=${groupId}${silent ? '&silent=true' : ''}`, { method: 'POST' })
       .then(r => r.json()).catch(() => null),
   /** Токен для мгновенных push об изменении расписания своей группы (см. src/pushToken.ts). */
   setPushToken: (deviceId: string, token: string) =>

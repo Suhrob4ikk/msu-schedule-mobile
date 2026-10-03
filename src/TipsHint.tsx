@@ -32,8 +32,7 @@ export default function TipsHint() {
     <View style={[s.box, { backgroundColor: C.card, borderColor: C.border }]}>
       <Ionicons name="bulb-outline" size={18} color={C.primary} style={{ marginTop: 1 }} />
       <Text style={[s.text, { color: C.muted }]}>
-        Включи напоминания о зачётах ниже — не пропустишь. А ещё у приложения есть виджет
-        на рабочий стол: долгое нажатие на пустом месте экрана → виджеты → МГУ Душанбе.
+        Есть виджет: долгое нажатие на экран → Виджеты → МГУ Душанбе
       </Text>
       <TouchableOpacity onPress={dismiss} hitSlop={10} accessibilityLabel="Скрыть подсказку">
         <Ionicons name="close" size={16} color={C.muted} />
