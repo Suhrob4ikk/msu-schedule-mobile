@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, AppState, LayoutAnimation, LayoutChangeEvent, Platform, Pressable, RefreshControl,
-  ScrollView, StatusBar, UIManager, View,
+  Animated, ScrollView, StatusBar, UIManager, View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -385,20 +385,32 @@ export default function ScheduleScreenNew() {
     return () => { cancelled = true; };
   }, []);
 
-  // ─── Переход с группой и неделей (чип группы в расписании педагога) ───
-  // group, week_start; back=teachers — «Назад» вернёт в расписание педагога.
-  const params = useLocalSearchParams<{ group?: string; week_start?: string; back?: string }>();
+  // ─── Переход с группой и неделей (чип группы у педагога, Уведомления, История) ───
+  // group, week_start; date + pair — прокрутить к дню и открыть лист пары;
+  // back=teachers|notifications|changes — «Назад» вернёт туда, откуда пришли.
+  const params = useLocalSearchParams<{
+    group?: string; week_start?: string; date?: string; pair?: string; back?: string;
+  }>();
   const navTokenRef = useRef(0);
   const armBack = useBackTo();
+  /** Какой день открыть и какую пару показать листом после перехода. */
+  const pendingRef = useRef<{ date: string; pair: string; weekStart: string; until: number } | null>(null);
   useEffect(() => {
     const id = Number(params.group);
     if (!id || !groupsLoaded) return;
     const g = groups.find(x => x.id === id);
     navTokenRef.current += 1;
     if (params.back === 'teachers') armBack('/teachers');
-    router.setParams({ group: '', week_start: '', back: '' });
-    if (!g) return;
+    else if (params.back === 'notifications') armBack('/notifications');
+    else if (params.back === 'changes') armBack('/changes');
     const ws = params.week_start || undefined;
+    pendingRef.current = params.date
+      ? { date: params.date, pair: params.pair ?? '', weekStart: ws ?? '', until: Date.now() + 8000 }
+      : null;
+    router.setParams({ group: '', week_start: '', date: '', pair: '', back: '' });
+    if (!g) return;
+    // Прокрутить заново, даже если группа и неделя те же
+    scrolledFor.current = '';
     if (selectedGroupRef.current?.id === g.id) {
       const w = ws ? weeks.find(x => x.week_start === ws) : undefined;
       if (w && w.id !== selectedWeekRef.current?.id) {
@@ -407,6 +419,8 @@ export default function ScheduleScreenNew() {
         setSelectedWeek(w);
         selectedWeekRef.current = w;
         loadSchedule(g, w.id);
+      } else {
+        requestAnimationFrame(tryInitialScroll);
       }
       return;
     }
@@ -481,6 +495,8 @@ export default function ScheduleScreenNew() {
 
   // ─── Прокрутка ────────────────────────────────────────────────────────
   const scrollRef = useRef<ScrollView>(null);
+  // Прокрутка ленты для большого названия дня (уменьшается и гаснет при уходе вверх)
+  const scrollY = useRef(new Animated.Value(0)).current;
   const dayY = useRef<(number | undefined)[]>([]);
   const focusBox = useRef<{ day: number; y: number; h: number } | null>(null);
   const viewportH = useRef(0);
@@ -504,6 +520,26 @@ export default function ScheduleScreenNew() {
     const ys = dayY.current;
     for (let i = 0; i < 7; i++) if (ys[i] == null) return;
     if (!viewportH.current) return;
+    // Переход из Уведомлений / Истории: нужный день и лист пары
+    const pend = pendingRef.current;
+    if (pend && Date.now() > pend.until) pendingRef.current = null;
+    else if (pend) {
+      const idx = daysRef.current.findIndex(d => d.date === pend.date);
+      if (idx < 0) {
+        // Эта неделя загружена, а дня в ней нет — переход не удался, ведём себя как обычно
+        if (pend.weekStart && w.week_start !== pend.weekStart) return;
+        pendingRef.current = null;
+      } else {
+        pendingRef.current = null;
+        scrolledFor.current = key;
+        scrollRef.current?.scrollTo({ y: Math.max(0, ys[idx]!), animated: false });
+        lockRef.current = true;
+        setVisible(idx);
+        const b = pend.pair ? daysRef.current[idx].blocks.find(x => x.pairs.includes(pend.pair)) : undefined;
+        if (b) setTimeout(() => setLessonSheet(b), 250);
+        return;
+      }
+    }
     const n = new Date();
     const r = weekRel(w.week_start, n);
     const f = computeFocus(n, daysRef.current, r);
@@ -632,12 +668,12 @@ export default function ScheduleScreenNew() {
         </View>
       )}
 
-      <ScrollView
-        ref={scrollRef}
+      <Animated.ScrollView
+        ref={scrollRef as React.Ref<any>}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 + (rel !== 'current' ? TOUCH_MIN + 12 : 0) }}
         onLayout={e => { viewportH.current = e.nativeEvent.layout.height; requestAnimationFrame(tryInitialScroll); }}
-        onScroll={onScroll}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true, listener: onScroll })}
         onScrollBeginDrag={() => { lockRef.current = false; }}
         scrollEventThrottle={32}
         refreshControl={
@@ -688,6 +724,7 @@ export default function ScheduleScreenNew() {
             focus={focus}
             doneToday={doneToday}
             marks={marks}
+            scrollY={scrollY}
             onRowPress={openLesson}
             onFocusPress={onFocusPress}
             onExpire={recheck}
@@ -695,7 +732,7 @@ export default function ScheduleScreenNew() {
             onFocusLayout={onFocusLayout}
           />
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* «К этой неделе» — плавающая пилюля над рядом дней */}
       {selectedWeek && rel !== 'current' && hasThisWeek && (

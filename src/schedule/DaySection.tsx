@@ -3,8 +3,9 @@
  * пар в карточке. Если раскрытая пара в этом дне — карточка дня делится на
  * две части, а между ними встаёт большая карточка (как на макете).
  */
-import React, { memo, useEffect, useState } from 'react';
-import { AppState, LayoutChangeEvent, View } from 'react-native';
+import React, { memo, useEffect, useMemo, useState } from 'react';
+import { Animated, AppState, LayoutChangeEvent, View } from 'react-native';
+import { DAYS_ORDER } from '../api';
 import { Tokens, RADIUS } from './tokens';
 import {
   Block, DayData, Focus, WeekRel, dayMeta, dayTitle, freeFromLabel, gapLabel, isPast, isoOf,
@@ -84,8 +85,11 @@ function DoneLine({ k }: { k: Tokens }) {
   );
 }
 
+/** Высота, на которой большое название дня успевает уменьшиться и погаснуть. */
+const FADE_RANGE = 72;
+
 function DaySection({
-  d, k, now, rel, focus, doneToday, marks, onRowPress, onFocusPress, onExpire, onLayout, onFocusLayout,
+  d, k, now, rel, focus, doneToday, marks, scrollY, onRowPress, onFocusPress, onExpire, onLayout, onFocusLayout,
 }: {
   d: DayData;
   k: Tokens;
@@ -95,6 +99,8 @@ function DaySection({
   /** Сегодня пары кончились — линия «14:10 · на сегодня всё» под днём. */
   doneToday: boolean;
   marks: Marks;
+  /** Прокрутка ленты — большое название дня уменьшается и гаснет, уходя вверх. */
+  scrollY: Animated.Value;
   onRowPress: (b: Block) => void;
   onFocusPress: () => void;
   onExpire: () => void;
@@ -102,6 +108,19 @@ function DaySection({
   onFocusLayout: (dayIndex: number, e: LayoutChangeEvent) => void;
 }) {
   const today = d.date === isoOf(now);
+  // Положение дня в ленте (только координата: размеры из onLayout не берём)
+  const [top, setTop] = useState<number | null>(null);
+  const headStyle = useMemo(() => {
+    if (top == null) return null;
+    const from = top + 8; // при открытии день стоит на top — название ещё целое
+    return {
+      opacity: scrollY.interpolate({ inputRange: [from, from + FADE_RANGE], outputRange: [1, 0], extrapolate: 'clamp' }),
+      transform: [
+        { scale: scrollY.interpolate({ inputRange: [from, from + FADE_RANGE], outputRange: [1, 0.7], extrapolate: 'clamp' }) },
+        { translateY: scrollY.interpolate({ inputRange: [from, from + FADE_RANGE], outputRange: [0, -10], extrapolate: 'clamp' }) },
+      ],
+    };
+  }, [top, scrollY]);
   const focusIdx = focus ? d.blocks.findIndex(b => b.key === focus.block.key) : -1;
   const showDone = today && doneToday;
 
@@ -116,23 +135,29 @@ function DaySection({
   }
 
   return (
-    <View onLayout={e => onLayout(d.dayIndex, e)} style={{ paddingTop: k.dayGap }}>
-      <View
+    <View
+      onLayout={e => { setTop(e.nativeEvent.layout.y); onLayout(d.dayIndex, e); }}
+      style={{ paddingTop: 12 + k.dayGap * 2 }}
+    >
+      {/* Большое название дня по центру; при прокрутке уменьшается и гаснет,
+          следом из-под низа приходит название следующего дня */}
+      <Animated.View
+        accessible
         accessibilityRole="header"
-        style={{
-          flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between',
-          columnGap: 8, paddingHorizontal: 4, paddingBottom: k.dayHeaderPad,
-        }}
+        accessibilityLabel={`${dayTitle(d.date)}, ${dayMeta(d, now, focusIdx >= 0)}`}
+        style={[{ alignItems: 'center', paddingHorizontal: 4, paddingBottom: 6 + k.dayHeaderPad }, headStyle]}
       >
         <Txt
-          t="captionStrong"
+          t="display"
           color={today ? k.accentText : k.text}
-          style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}
+          style={{ fontSize: 32, lineHeight: 38, letterSpacing: 0, textAlign: 'center' }}
         >
-          {dayTitle(d.date)}
+          {DAYS_ORDER[d.dayIndex].charAt(0).toUpperCase() + DAYS_ORDER[d.dayIndex].slice(1)}
         </Txt>
-        <Txt t="caption" color={k.textSecondary}>{dayMeta(d, now, focusIdx >= 0)}</Txt>
-      </View>
+        <Txt t="small" color={k.textSecondary} style={{ textAlign: 'center', marginTop: 2 }}>
+          {dayTitle(d.date).split(', ')[1]} · {dayMeta(d, now, focusIdx >= 0)}
+        </Txt>
+      </Animated.View>
 
       {d.blocks.length === 0 && today && (
         <View style={{ backgroundColor: k.card, borderRadius: RADIUS.card, paddingVertical: 8, alignItems: 'center' }}>
