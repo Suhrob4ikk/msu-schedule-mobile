@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, AppState, LayoutAnimation, LayoutChangeEvent, Platform, Pressable, RefreshControl,
-  ScrollView, StatusBar, UIManager, View, useWindowDimensions,
+  ScrollView, StatusBar, UIManager, View,
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +32,7 @@ import { skipKey, noteWeeklyKey, noteDatedKey } from '../studyData';
 import { onScheduleUpdated } from '../scheduleEvents';
 import CourseCheckBanner from '../CourseCheckBanner';
 import ScheduleShareCard from '../ScheduleShareCard';
-import { useTokens, GUTTER, RADIUS, TOUCH_MIN, DAY_CELL, scaledWidth } from './tokens';
+import { useTokens, GUTTER, RADIUS, TOUCH_MIN, DAY_CELL } from './tokens';
 import {
   Block, DayData, WeekRel, addDays, buildWeek, computeFocus, doneTodayAt, headerTitle, isoOf,
   stampLabel, stateKey, weekIsOver, weekRel, weekStatsLine,
@@ -41,7 +41,6 @@ import { Txt } from './ui';
 import ScheduleHeader, { linkState } from './ScheduleHeader';
 import DaySection, { Marks } from './DaySection';
 import DayBar from './DayBar';
-import { COL_GAP, COL_ROOM, COL_TIME, ROW_PAD_X } from './LessonRow';
 import WeekSheet from './WeekSheet';
 import LessonSheet from './LessonSheet';
 
@@ -68,7 +67,6 @@ export default function ScheduleScreenNew() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const { fontScale } = useWindowDimensions();
   const [fontsLoaded, fontError] = useFonts({
     Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
   });
@@ -577,8 +575,6 @@ export default function ScheduleScreenNew() {
     : 'Группа не выбрана';
   const title = selectedWeek ? headerTitle(selectedWeek.week_start, now) : selectedGroup ? 'Расписание' : 'Выберите группу';
   const hasThisWeek = weeks.some(w => weekRel(w.week_start, now) === 'current');
-  const colTime = scaledWidth(COL_TIME, fontScale);
-  const colRoom = scaledWidth(COL_ROOM, fontScale);
 
   return (
     <View style={{ flex: 1, backgroundColor: k.bg }}>
@@ -591,25 +587,14 @@ export default function ScheduleScreenNew() {
         onOpen={openHeaderSheet}
       />
 
-      {/* Статистика — только когда открыта другая неделя */}
+      {/* Статистика — только когда открыта другая неделя. Отступ до первого
+          заголовка дня (8 dp, «между блоками ленты» по ТЗ) даёт сам день. */}
       {selectedWeek && rel !== 'current' && lessons.length > 0 && (
-        <View style={{ paddingHorizontal: GUTTER + 4, paddingBottom: 4 }}>
+        <View style={{ paddingHorizontal: GUTTER + 4 }}>
           <Txt t="caption" color={k.textSecondary}>
             <Txt t="captionStrong" color={k.text}>{weekStatsLine(days, lessons).split(' · ')[0]}</Txt>
             {' · '}{weekStatsLine(days, lessons).split(' · ').slice(1).join(' · ')}
           </Txt>
-        </View>
-      )}
-
-      {/* Заголовок колонок по сетке строки */}
-      {selectedGroup && (
-        <View
-          importantForAccessibility="no-hide-descendants"
-          style={{ flexDirection: 'row', columnGap: COL_GAP, paddingHorizontal: GUTTER + ROW_PAD_X, paddingVertical: 6 }}
-        >
-          <Txt t="overline" color={k.textSecondary} style={{ width: colTime }}>Время</Txt>
-          <Txt t="overline" color={k.textSecondary} style={{ flex: 1 }}>Предмет</Txt>
-          <Txt t="overline" color={k.textSecondary} style={{ width: colRoom, textAlign: 'right' }}>Ауд.</Txt>
         </View>
       )}
 
