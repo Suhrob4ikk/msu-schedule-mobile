@@ -12,7 +12,8 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { addNotifHistory } from './notificationHistory';
+import { syncExamInbox } from './notificationHistory';
+import type { ExamEntry } from './notifications/state';
 
 // Локальный переключатель напоминаний (отдельно от системного разрешения).
 export const NOTIF_PREF_KEY = 'notif_enabled';
@@ -158,23 +159,41 @@ export async function scheduleLessonReminders(
   }
 }
 
-/** Отменяет все запланированные напоминания о зачётах и ставит новые по расписанию. */
+/** Зачёт это или экзамен — для бейджа во «Входящих». */
+function examKind(lesson: { lesson_type?: string | null; subject: string }): ExamEntry['kind'] {
+  return /экзам|экз(?![а-яё])/i.test(`${lesson.lesson_type ?? ''} ${lesson.subject}`) ? 'Экзамен' : 'Зачёт';
+}
+
+/** Id зачёта во «Входящих»: дата, пара, предмет. Его же несёт уведомление (data.examId). */
+export const examIdOf = (date: string, pair: string, subject: string) => `${date}|${pair}|${subject}`;
+
+const isoDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Отменяет все запланированные напоминания о зачётах и ставит новые по расписанию.
+ * Заодно обновляет строки зачётов во «Входящих» (src/notificationHistory.ts).
+ */
 export async function scheduleExamReminders(
-  lessons: Array<{ subject: string; day_of_week: string; pair_number: string; lesson_type?: string | null; lesson_date?: string | null }>,
+  lessons: Array<{
+    subject: string; day_of_week: string; pair_number: string; lesson_type?: string | null;
+    lesson_date?: string | null; room?: { name: string } | null;
+  }>,
   weekStart: string,
 ): Promise<void> {
   const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') return;
+  if (status !== 'granted') { await syncExamInbox([]); return; }
 
   // Уважаем локальный переключатель: если выключен — снимаем все напоминания
   const pref = await AsyncStorage.getItem(NOTIF_PREF_KEY);
-  if (pref === '0') { await cancelExamReminders(); return; }
+  if (pref === '0') { await cancelExamReminders(); await syncExamInbox([]); return; }
 
   // Отменяем только наши напоминания о зачётах
   await cancelExamReminders();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const planned: ExamEntry[] = [];
 
   for (const lesson of lessons) {
     if (!isExam(lesson)) continue;
@@ -182,42 +201,59 @@ export async function scheduleExamReminders(
     if (examDate < today) continue;
 
     const time = PAIR_TIMES[lesson.pair_number] ?? '';
-    const [h, m] = time.split(':').map(Number);
     const subject = lesson.subject;
+    const date = isoDate(examDate);
+    const examId = examIdOf(date, lesson.pair_number, subject);
+    const data = { type: 'exam', examId, date, pair: lesson.pair_number };
+    let firstAt: number | null = null;
 
     // Накануне вечером в 20:00
     const eveBefore = new Date(examDate);
     eveBefore.setDate(eveBefore.getDate() - 1);
     eveBefore.setHours(20, 0, 0, 0);
     if (eveBefore > new Date()) {
-      const title = '⏰ Завтра зачёт!';
-      const body = `${subject}${time ? ` в ${time}` : ''}. Готовьтесь, вы сможете! 💪`;
       await Notifications.scheduleNotificationAsync({
-        content: { title, body, data: { type: 'exam' }, sound: true },
+        content: {
+          title: '⏰ Завтра зачёт!',
+          body: `${subject}${time ? ` в ${time}` : ''}. Готовьтесь, вы сможете! 💪`,
+          data, sound: true,
+        },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: eveBefore,
           channelId: NOTIFICATION_CHANNEL,
         },
       });
-      addNotifHistory({ id: `exam:${subject}:${eveBefore.toISOString()}`, category: 'exam', title, body, date: eveBefore.toISOString() });
+      firstAt = eveBefore.getTime();
     }
 
     // В день экзамена в 7:00
     const dayOf = new Date(examDate);
     dayOf.setHours(7, 0, 0, 0);
     if (dayOf > new Date()) {
-      const title = '🍀 Сегодня зачёт!';
-      const body = `${subject}${time ? ` в ${time}` : ''}. Удачи вам!`;
       await Notifications.scheduleNotificationAsync({
-        content: { title, body, data: { type: 'exam' }, sound: true },
+        content: {
+          title: '🍀 Сегодня зачёт!',
+          body: `${subject}${time ? ` в ${time}` : ''}. Удачи вам!`,
+          data, sound: true,
+        },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: dayOf,
           channelId: NOTIFICATION_CHANNEL,
         },
       });
-      addNotifHistory({ id: `exam:${subject}:${dayOf.toISOString()}`, category: 'exam', title, body, date: dayOf.toISOString() });
+      firstAt = firstAt ?? dayOf.getTime();
+    }
+
+    // Строка во «Входящих» — с первого напоминания. Оба уже прошли — напоминаний
+    // не было, строки тоже нет (если она уже пришла раньше, её сохранит syncExamInbox).
+    if (firstAt != null) {
+      planned.push({
+        id: examId, subject, date, pair: lesson.pair_number, time,
+        room: lesson.room?.name ?? null, kind: examKind(lesson), firstAt, weekStart,
+      });
     }
   }
+  await syncExamInbox(planned);
 }

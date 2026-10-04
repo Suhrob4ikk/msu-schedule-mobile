@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Плашка отсчёта в перемену: фон fill, скругление 10 dp (ТЗ, раздел 4.2).
+     Белая — цвет ставит ScheduleWidget.kt. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="10dp" />
+</shape>

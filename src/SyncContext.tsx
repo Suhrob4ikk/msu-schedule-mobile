@@ -66,6 +66,12 @@ async function isBackendReachable(): Promise<boolean> {
  */
 const SYNC_START_DELAY_MS = 3_000;
 
+/** Короткая причина сбоя для человека: без неё «Не удалось обновить» ни о чём не говорит. */
+function describeSyncError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.length > 80 ? `${msg.slice(0, 77)}...` : msg;
+}
+
 type SyncState = {
   lastSyncTime: Date | null;
   isSyncing: boolean;
@@ -76,6 +82,8 @@ type SyncState = {
   offlineBannerText: string;
   /** Ручной запуск синхронизации. Возвращает true при успехе, false при ошибке. */
   triggerSync: () => Promise<boolean>;
+  /** Причина последней неудачной синхронизации (для карточки в Кабинете); '' — сбоя не было. */
+  syncErrorText: string;
 };
 
 const SyncContext = createContext<SyncState>({
@@ -86,6 +94,7 @@ const SyncContext = createContext<SyncState>({
   onlineAt: 0,
   offlineBannerText: '',
   triggerSync: async () => false,
+  syncErrorText: '',
 });
 
 export function useSyncStatus() {
@@ -98,6 +107,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [syncProgress, setSyncProgress] = useState('');
   const [isOnline, setIsOnline] = useState(true);
   const [onlineAt, setOnlineAt] = useState(0);
+  const [syncErrorText, setSyncErrorText] = useState('');
 
   const isOnlineRef = useRef(true);
   const syncStarted = useRef(false);
@@ -175,9 +185,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setIsSyncing(true);
         try {
           await performFullSync(msg => setSyncProgress(msg));
-          if (!cancelled) setLastSyncTime(new Date());
-        } catch {
+          if (!cancelled) { setLastSyncTime(new Date()); setSyncErrorText(''); }
+        } catch (e) {
           // Сеть отвалилась посреди синхронизации — данные на устройстве целы
+          if (!cancelled) setSyncErrorText(describeSyncError(e));
         } finally {
           if (!cancelled) { setIsSyncing(false); setSyncProgress(''); }
         }
@@ -200,9 +211,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setIsSyncing(true);
       try {
         await performFullSync(msg => setSyncProgress(msg));
-        if (!cancelled) setLastSyncTime(new Date());
-      } catch {
+        if (!cancelled) { setLastSyncTime(new Date()); setSyncErrorText(''); }
+      } catch (e) {
         // Связь опять пропала — попробуем в следующий раз
+        if (!cancelled) setSyncErrorText(describeSyncError(e));
       } finally {
         isSyncingRef.current = false;
         if (!cancelled) { setIsSyncing(false); setSyncProgress(''); }
@@ -221,9 +233,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       clearApiCache(); // чтобы тянуть свежие данные, а не из кэша
       await performFullSync(msg => setSyncProgress(msg));
       setLastSyncTime(new Date());
+      setSyncErrorText('');
       setOnlineAt(Date.now()); // подталкиваем экраны обновиться
       return true;
-    } catch {
+    } catch (e) {
+      setSyncErrorText(describeSyncError(e));
       return false;
     } finally {
       setIsSyncing(false);
@@ -236,7 +250,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     : 'Офлайн · нет сохранённых данных';
 
   return (
-    <SyncContext.Provider value={{ lastSyncTime, isSyncing, syncProgress, isOnline, onlineAt, offlineBannerText, triggerSync }}>
+    <SyncContext.Provider value={{ lastSyncTime, isSyncing, syncProgress, isOnline, onlineAt, offlineBannerText, triggerSync, syncErrorText }}>
       {children}
     </SyncContext.Provider>
   );

@@ -113,7 +113,7 @@ function SlotActions({ lesson, k, showAttendance, showNotes, slotLabel, onChange
           <TextInput
             value={note}
             onChangeText={t => { setNote(t); persistNote(t, repeatWeekly); }}
-            placeholder="Заметка: что задали, что принести"
+            placeholder="Заметка"
             placeholderTextColor={k.textSecondary}
             multiline
             maxFontSizeMultiplier={2}

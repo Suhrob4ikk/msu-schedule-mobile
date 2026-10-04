@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { BackHandler } from 'react-native';
 import { router, useFocusEffect, useNavigation } from 'expo-router';
 
-export type BackTarget = '/teachers' | '/';
+export type BackTarget = '/teachers' | '/' | '/notifications' | '/changes';
 
 export function useBackTo(): (to: BackTarget) => void {
   const target = useRef<BackTarget | null>(null);

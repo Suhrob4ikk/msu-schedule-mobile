@@ -23,7 +23,7 @@ import { setAppearance, resetAppearance, useSelectedAppearance } from '../appear
 import { accentHex, onAccentLine, type Background } from '../appearanceModel';
 import {
   useTokens, Tokens, RADIUS, TOUCH_MIN, TYPE,
-  ACCENT_PRESETS, TYPE_SHADES, BASE_THEMES, normalizeHex, pickOnAccent, accentTokens, deriveAccent,
+  ACCENT_PRESETS, TYPE_SHADES, BASE_THEMES, normalizeHex, pickOnAccent, accentTokens,
   type BaseMode, type Density, type LessonTypeKey, type ShadeId,
 } from '../schedule/tokens';
 import { Txt, Divider, FixedFontScale } from '../schedule/ui';
@@ -32,7 +32,7 @@ import LessonRow from '../schedule/LessonRow';
 import RoomRow from '../rooms/RoomRow';
 import BottomSheet from '../schedule/BottomSheet';
 import type { Focus, Block } from '../schedule/state';
-import type { RoomDay } from '../rooms/state';
+import { parseOccupant, type RoomDay } from '../rooms/state';
 import { PAIR_TIMES, type Lesson } from '../api';
 import { SatValSquare, HueSlider, hexToHsv, hsvToHex, type Hsv } from './ColorPicker';
 
@@ -68,22 +68,28 @@ function demoBlock(l: Lesson): Block {
   };
 }
 
-const DEMO_LIVE = demoLesson(-1, 'II', 'Математический анализ', 'ЛК', 'Иванов И. И.', '406');
+// Настоящие пары ПМиИ 3 курса (октябрь 2026) — образец должен выглядеть как своё расписание
+const DEMO_LIVE = demoLesson(-1, 'II', 'Численные методы', 'ПЗ', 'Хайбуллоев Д.А.', '702');
 const DEMO_FOCUS: Focus = {
   kind: 'live', block: demoBlock(DEMO_LIVE), slot: DEMO_LIVE, pill: 'Идёт · II пара', filled: true,
   countdownLabel: 'до конца', targetAt: DEMO_NOW + 52 * MIN, progressFrom: DEMO_NOW - 38 * MIN,
 };
 const DEMO_ROWS: Block[] = [
-  demoBlock(demoLesson(-2, 'III', 'Языки программирования', 'ПЗ', 'Петрова А. С.', '512')),
-  demoBlock(demoLesson(-3, 'IV', 'История', 'ЛК', 'Сидоров К. М.', '301')),
-  demoBlock(demoLesson(-4, 'V', 'Дифференциальные уравнения', 'ЭКЗ', 'Иванов И. И.', '406')),
+  demoBlock(demoLesson(-2, 'III', 'Практический курс на ЭВМ', 'ПЗ', 'Харисова М.А.', '105')),
+  demoBlock(demoLesson(-3, 'IV', 'Численные методы', 'ЛК', 'Попов А.В.', '403')),
+  demoBlock(demoLesson(-4, 'V', 'Численные методы', 'ЭКЗ', 'Попов А.В.', '403')),
 ];
+// Аудитория 702 во вторник — строки ровно как их отдаёт сервер
 const DEMO_ROOM: RoomDay = {
-  room: '406',
-  occupants: [[], [{
-    group: '3 курс · ПМиИ', course: 3, program: 'ПМиИ', subject: 'Математический анализ', type: 'ЛК', teacher: 'Иванов И. И.',
-  }], [], [], []],
-  cells: ['free', 'busy', 'free', 'free', 'free'],
+  room: '702',
+  occupants: [
+    ['2 курс · МО: Мировая экономика · ЛК · Ганизода Р.Г.'],
+    ['3 курс · ПМиИ: Численные методы · ПЗ · Хайбуллоев Д.А.'],
+    ['1 курс · МО: Иностранный язык · ПЗ · Сабирова С.Г., Хасанова Т.Г.'],
+    ['1 курс · МО: Таджикский язык · ПЗ · Музаффарова Ш.М.'],
+    [],
+  ].map(day => day.map(parseOccupant)),
+  cells: ['busy', 'busy', 'busy', 'busy', 'free'],
 };
 
 const noop = () => {};
@@ -256,8 +262,6 @@ function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
   const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(start));
   const [text, setText] = useState(start);
   const [dragging, setDragging] = useState(false);
-  // Как акцент будет выглядеть текстом — считается по отпусканию, не на каждом движении
-  const [sampleText, setSampleText] = useState(() => accentTokens(start, k.mode).accentText);
 
   // Каждое открытие — с текущего цвета
   const [wasVisible, setWasVisible] = useState(visible);
@@ -266,15 +270,11 @@ function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
     if (visible) {
       setHsv(hexToHsv(start));
       setText(start);
-      setSampleText(accentTokens(start, k.mode).accentText);
     }
   }
 
   const hex = hsvToHex(hsv);
-  const settle = (h: string) => {
-    setSampleText(deriveAccent(h, BASE_THEMES[k.mode]).accentText);
-    onPreview(h);
-  };
+  const settle = (h: string) => onPreview(h);
   const onPick = (v: Hsv) => { setHsv(v); setText(hsvToHex(v)); };
   const onActive = (on: boolean) => {
     setDragging(on);
@@ -324,7 +324,6 @@ function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
         <View style={{ flex: 1 }}>
           <Txt t="titleRow" color={k.text}>{hex}</Txt>
           <Txt t="caption" color={k.textSecondary}>{onAccentLine(hex)}</Txt>
-          <Txt t="caption" color={sampleText}>Так выглядит акцент в тексте</Txt>
         </View>
       </View>
 

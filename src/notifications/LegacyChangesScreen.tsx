@@ -1,14 +1,18 @@
+/**
+ * Прежний экран «История изменений» (до 1.9.44) — ни к чему не подключён.
+ * Удалить, когда владелец скажет «оставляем» про новый (src/notifications/HistoryScreen.tsx).
+ */
 import React, { useState, useEffect } from 'react';
 import {
   View, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
 } from 'react-native';
-import { Text } from '../src/OnestText';
+import { Text } from '../OnestText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, invalidateApiCache, Change, shortGroupName } from '../src/api';
-import { useTheme } from '../src/theme';
-import AppLoader from '../src/AppLoader';
-import ChangeCard from '../src/ChangeCard';
-import { CHANGES_SEEN_KEY } from '../src/changesFeed';
+import { api, invalidateApiCache, Change, shortGroupName } from '../api';
+import { useTheme } from '../theme';
+import AppLoader from '../AppLoader';
+import ChangeCard from '../ChangeCard';
+import { CHANGES_SEEN_KEY } from '../changesFeed';
 
 
 export default function ChangesScreen() {

@@ -4,10 +4,12 @@
  */
 import React, { memo } from 'react';
 import { Pressable, View } from 'react-native';
-import { router } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useUnreadNotifCount } from '../useUnreadNotifCount';
-import { Tokens, HEADER_H, GUTTER, RADIUS, TOUCH_MIN } from './tokens';
+import { Tokens, HEADER_H, GUTTER, RADIUS, TOUCH_MIN, FONT } from './tokens';
+import { openNotifications } from '../notifications/nav';
+import { badgeText, unreadSpoken } from '../notifications/state';
 import { Txt } from './ui';
 import { stampLabel } from './state';
 
@@ -47,26 +49,43 @@ export function StatusPill({ s, k }: { s: LinkState; k: Tokens }) {
   );
 }
 
-export function Bell({ k }: { k: Tokens }) {
+/**
+ * Колокольчик 48×48 со счётчиком (ТЗ «Уведомления», BellButton): пилюля 20,
+ * фон accent, 11/800, кольцо 2 dp цветом фона — рамкой, не тенью; «9+»
+ * свыше 9, при 0 скрыт. active — на самом экране Уведомлений: фон
+ * accent-soft, без счётчика, нажатие прокручивает ленту к началу (onPress).
+ */
+export function Bell({ k, active, onPress }: { k: Tokens; active?: boolean; onPress?: () => void }) {
   const count = useUnreadNotifCount();
+  const path = usePathname();
+  const show = !active && count > 0;
   return (
     <Pressable
-      onPress={() => router.push('/notifications')}
+      onPress={onPress ?? (() => openNotifications(path))}
       accessibilityRole="button"
-      accessibilityLabel={count > 0 ? `Уведомления, непрочитанных: ${count}` : 'Уведомления'}
+      accessibilityState={active ? { selected: true } : undefined}
+      accessibilityLabel={count > 0 ? `Уведомления, ${unreadSpoken(count)}` : 'Уведомления'}
       style={{ width: TOUCH_MIN, height: TOUCH_MIN, alignItems: 'center', justifyContent: 'center' }}
     >
-      <Ionicons name="notifications-outline" size={22} color={k.text} />
-      {count > 0 && (
+      <View
+        style={{
+          width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: active ? k.accentSoft : 'transparent',
+        }}
+      >
+        <Ionicons name={active ? 'notifications' : 'notifications-outline'} size={22} color={active ? k.onAccentSoft : k.text} />
+      </View>
+      {show && (
         <View
           pointerEvents="none"
           style={{
-            position: 'absolute', top: 8, right: 7, minWidth: 16, height: 16, borderRadius: 8,
-            paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center', backgroundColor: k.accent,
+            position: 'absolute', top: 4, right: 2, minWidth: 20, height: 20, borderRadius: 10,
+            paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: k.accent, borderWidth: 2, borderColor: k.bg,
           }}
         >
-          <Txt t="captionStrong" color={k.onAccent} maxFontSizeMultiplier={1.2} style={{ fontSize: 10, lineHeight: 12 }}>
-            {count > 9 ? '9+' : count}
+          <Txt t="captionStrong" color={k.onAccent} maxFontSizeMultiplier={1.3} numberOfLines={1} style={{ fontFamily: FONT[800], fontSize: 11, lineHeight: 13 }}>
+            {badgeText(count)}
           </Txt>
         </View>
       )}

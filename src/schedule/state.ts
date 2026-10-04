@@ -6,7 +6,7 @@
  * Проверяется скриптом с поддельными часами (см. коммит этапа 1).
  */
 import type { Lesson } from '../api';
-import { DAYS_ORDER, PAIR_NUMBERS, humanDuration } from '../api';
+import { BREAK_MAX_MIN, DAYS_ORDER, PAIR_NUMBERS, humanDuration } from '../api';
 
 // ─── Даты и время ──────────────────────────────────────────────────────────
 
@@ -158,16 +158,15 @@ export function buildWeek(lessons: Lesson[], weekStart: string): DayData[] {
 
 // ─── Подписи ───────────────────────────────────────────────────────────────
 
-/** Что между двумя строками дня: перемена / большая перемена / окно. */
+/**
+ * Что между двумя строками дня: до 20 минут — «перемена 15 мин», дольше —
+ * «перерыв 1 ч» (обед, пропущенная пара). Слово «окно» студентам непонятно —
+ * решение владельца, окт 2026; на сайте те же слова (BREAK_MAX_MIN в api.ts).
+ */
 export function gapLabel(prev: Block, next: Block): string | null {
   const minutes = Math.round((next.startAt - prev.endAt) / 60_000);
   if (minutes <= 0) return null;
-  const i = pairIdx(prev.pairs[prev.pairs.length - 1]);
-  const j = pairIdx(next.pairs[0]);
-  // Окно — только когда пропущен целый слот; утро без I пары окном не считается
-  if (i >= 0 && j >= 0 && j - i > 1) return `окно ${humanDuration(minutes)}`;
-  if (minutes >= 60) return `большая перемена ${humanDuration(minutes)}`;
-  return `перемена ${humanDuration(minutes)}`;
+  return `${minutes <= BREAK_MAX_MIN ? 'перемена' : 'перерыв'} ${humanDuration(minutes)}`;
 }
 
 export const freeFromLabel = (last: Block) => `свободны с ${last.end}`;
@@ -288,7 +287,7 @@ export function weekRel(weekStart: string, now: Date): WeekRel {
 }
 
 /**
- * live — идёт пара; break — перемена (или окно) между парами сегодня;
+ * live — идёт пара; break — перемена или перерыв между парами сегодня;
  * morning — сегодня пары ещё не начинались; doneToday — на сегодня всё;
  * noneToday — сегодня пар нет; nextWeek — открыта следующая неделя.
  */
@@ -354,10 +353,10 @@ export function computeFocus(now: Date, days: DayData[], rel: WeekRel): Focus | 
     const next = todaySlots[nextIdx];
     const prev = nextIdx > 0 ? todaySlots[nextIdx - 1] : null;
     if (prev) {
-      const window = pairIdx(next.lesson.pair_number) - pairIdx(prev.lesson.pair_number) > 1;
+      // Любой промежуток после сегодняшней пары, и обед тоже, — «Перемена» (решение владельца)
       return {
         kind: 'break', block: next.block, slot: next.lesson,
-        pill: `${window ? 'Окно' : 'Перемена'} · ${next.lesson.pair_number} пара`,
+        pill: `Перемена · ${next.lesson.pair_number} пара`,
         filled: true, countdownLabel: 'до начала', targetAt: next.startAt, progressFrom: prev.endAt,
       };
     }

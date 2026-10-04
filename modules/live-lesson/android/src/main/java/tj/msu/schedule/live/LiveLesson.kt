@@ -41,9 +41,13 @@ object LiveLesson {
     /** За сколько до первой пары дня показывать строку. */
     private const val LEAD_MS = 30 * 60_000L
 
-    // Те же цвета, что в приложении и на сайте (src/theme.ts, globals.css)
-    private const val COLOR_LESSON = 0xFF0E9B72.toInt() // фирменный изумруд
-    private const val COLOR_BREAK = 0xFF8B94A3.toInt()  // приглушённый серый
+    private const val KEY_THEME = "widget_theme"
+
+    // Пары — акцентом из «Внешнего вида» (ключ widget_theme, пишет
+    // src/widgetTheme.ts; акцент одинаков во всех темах). Нет ключа — синий
+    // по умолчанию, как в приложении. Перемены — приглушённым серым.
+    private const val DEFAULT_ACCENT = 0xFF2F62EA.toInt()
+    private const val COLOR_BREAK = 0xFF8B94A3.toInt()
 
     /** Одна пара в удобном виде. */
     private data class Slot(
@@ -139,6 +143,7 @@ object LiveLesson {
             .setOnlyAlertOnce(true)
             .setCategory(Notification.CATEGORY_STATUS)
             .setContentIntent(openAppIntent(context))
+            .setColor(accentColor(context))
 
         if (current != null) {
             builder
@@ -160,7 +165,7 @@ object LiveLesson {
                 .setChronometerCountDown(true)
         }
 
-        applyDayProgress(builder, today, System.currentTimeMillis(), current, next)
+        applyDayProgress(builder, today, System.currentTimeMillis(), current, next, accentColor(context))
 
         val notification = builder.build()
         // Плашку в статус-баре Android 16 просят флагом, сеттера у Builder нет.
@@ -181,6 +186,7 @@ object LiveLesson {
         now: Long,
         current: Slot?,
         next: Slot?,
+        lessonColor: Int,
     ) {
         if (today.isEmpty()) return
         val dayStart = today.first().start
@@ -211,7 +217,7 @@ object LiveLesson {
                 }
                 style.addProgressSegment(
                     Notification.ProgressStyle.Segment(minutesBetween(slot.start, slot.end))
-                        .setColor(COLOR_LESSON)
+                        .setColor(lessonColor)
                 )
                 prevEnd = slot.end
             }
@@ -271,7 +277,19 @@ object LiveLesson {
      */
     private fun scheduleAt(context: Context, atMs: Long) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return
-        am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, alarmIntent(context))
+        val pi = alarmIntent(context)
+        // На Android 12+ точный будильник без SCHEDULE_EXACT_ALARM разрешён не
+        // всем и иначе бросает SecurityException — тогда setWindow с окном в
+        // минуту (так же в native-widget/ScheduleWidget.kt).
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
+            } else {
+                am.setWindow(AlarmManager.RTC_WAKEUP, atMs, 60_000L, pi)
+            }
+        } catch (_: SecurityException) {
+            am.setWindow(AlarmManager.RTC_WAKEUP, atMs, 60_000L, pi)
+        }
     }
 
     private fun cancelAlarm(context: Context) {
@@ -314,6 +332,15 @@ object LiveLesson {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /** Акцент из «Внешнего вида» (widget_theme, роль fill — заливка, одинакова во всех темах). */
+    private fun accentColor(context: Context): Int = try {
+        val json = readValue(context, KEY_THEME)
+        if (json == null) DEFAULT_ACCENT
+        else android.graphics.Color.parseColor(JSONObject(json).getJSONObject("light").getString("fill"))
+    } catch (_: Exception) {
+        DEFAULT_ACCENT
     }
 
     // ── Мелочи ──────────────────────────────────────────────────────────────

@@ -1,13 +1,17 @@
+/**
+ * Прежний экран «Уведомления» (до 1.9.44) — ни к чему не подключён.
+ * Удалить, когда владелец скажет «оставляем» про новый (src/notifications/NotificationsScreen.tsx).
+ */
 import React, { useCallback, useState } from 'react';
 import { View, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
-import { Text } from '../src/OnestText';
+import { Text } from '../OnestText';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme, type Colors } from '../src/theme';
-import { Change, invalidateApiCache } from '../src/api';
-import { getNotifHistory, markCategoryRead, notifyNotifHistoryChanged, NotifEntry } from '../src/notificationHistory';
-import { loadMyChanges, markChangesSeen } from '../src/changesFeed';
-import ChangeCard from '../src/ChangeCard';
+import { useTheme, type Colors } from '../theme';
+import { Change, invalidateApiCache } from '../api';
+import { getNotifHistory, markCategoryRead, notifyNotifHistoryChanged, NotifEntry } from '../notificationHistory';
+import { loadMyChanges, markChangesSeen } from '../changesFeed';
+import ChangeCard from '../ChangeCard';
 
 type Tab = 'exam' | 'change';
 

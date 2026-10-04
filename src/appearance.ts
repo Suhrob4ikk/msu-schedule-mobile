@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Appearance, DEFAULT_APPEARANCE, migrateLegacy, parseAppearance } from './appearanceModel';
+import { writeWidgetTheme } from './widgetTheme';
 
 const KEY = 'appearance';
 /** Ключи до 1.9.40 — читаются один раз для переноса и не стираются. */
@@ -44,6 +45,8 @@ const loading = load().then(a => {
   selected = a;
   appliedListeners.forEach(l => l(a));
   selectedListeners.forEach(l => l(a));
+  // После обновления приложения виджет должен сразу взять свой цвет, а не ждать смены оформления
+  writeWidgetTheme(a);
   return a;
 });
 
@@ -54,7 +57,10 @@ function scheduleWrite(): void {
   if (writeTimer) clearTimeout(writeTimer);
   writeTimer = setTimeout(() => {
     writeTimer = null;
-    if (applied) AsyncStorage.setItem(KEY, JSON.stringify(applied)).catch(() => null);
+    if (!applied) return;
+    AsyncStorage.setItem(KEY, JSON.stringify(applied)).catch(() => null);
+    // Виджет на рабочем столе перекрашивается вместе с приложением
+    writeWidgetTheme(applied);
   }, WRITE_DELAY_MS);
 }
 

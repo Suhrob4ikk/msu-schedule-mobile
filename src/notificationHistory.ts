@@ -1,5 +1,10 @@
 /**
- * Локальный журнал уведомлений — «Уведомления» в кабинете.
+ * Локальный журнал уведомлений.
+ *
+ * С 1.9.44 «Уведомления» берут отсюда только зачёты (getExamInbox ниже), а
+ * изменения расписания — с сервера (src/notifications/data.ts). Старый журнал
+ * (addNotifHistory и т. д.) нужен лишь прежнему экрану, который ни к чему не
+ * подключён.
  *
  * Напоминания о зачётах приходят и пропадают без следа, стоит смахнуть
  * шторку. Здесь сохраняем их на устройстве, чтобы список можно было открыть
@@ -9,6 +14,8 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ExamEntry } from './notifications/state';
+import { isoOf } from './schedule/state';
 
 export type NotifCategory = 'exam' | 'change' | 'other';
 
@@ -80,6 +87,47 @@ export async function markCategoryRead(category: NotifCategory): Promise<void> {
     if (e.category === category && !e.read) { e.read = true; changed = true; }
   }
   if (changed) { await writeAll(all); notifyListeners(); }
+}
+
+// ─── Зачёты во «Входящих» (с 1.9.44) ──────────────────────────────────────
+//
+// Одна строка на один зачёт. Записывается, когда ставим напоминания, а во
+// «Входящих» видна с момента первого напоминания (firstAt) — раньше оно на
+// телефон не приходило. Напоминания переставляются целиком при каждой
+// загрузке расписания (cancelExamReminders снимает все), поэтому и здесь
+// ещё не пришедшие строки заменяются новым набором: зачёт пропал из
+// расписания до напоминания — строки нет. Пришедшие не трогаем; после даты
+// зачёта строка удаляется.
+
+const EXAM_INBOX_KEY = 'exam_inbox';
+
+async function readExams(): Promise<ExamEntry[]> {
+  try {
+    const raw = await AsyncStorage.getItem(EXAM_INBOX_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getExamInbox(): Promise<ExamEntry[]> {
+  return readExams();
+}
+
+/** planned — зачёты, для которых только что поставлены напоминания (firstAt в будущем). */
+export async function syncExamInbox(planned: ExamEntry[]): Promise<void> {
+  const now = Date.now();
+  const today = isoOf(new Date());
+  const all = await readExams();
+  const fired = all.filter(e => e.firstAt <= now && e.date >= today);
+  const firedIds = new Set(fired.map(e => e.id));
+  const next = [...fired, ...planned.filter(e => !firedIds.has(e.id))];
+  const same = next.length === all.length && JSON.stringify(next) === JSON.stringify(all);
+  if (same) return;
+  try {
+    await AsyncStorage.setItem(EXAM_INBOX_KEY, JSON.stringify(next));
+  } catch { /* необязательно — не роняем приложение */ }
+  notifyListeners();
 }
 
 // Записи категории 'change' — наследие прошлых версий, когда изменения

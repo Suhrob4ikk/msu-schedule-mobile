@@ -66,9 +66,9 @@ async function rawFetch<T>(path: string, timeout: number): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-async function fetchWithRetry<T>(path: string): Promise<T> {
+async function fetchWithRetry<T>(path: string, firstTimeout = FETCH_TIMEOUT_MS): Promise<T> {
   try {
-    return await rawFetch<T>(path, FETCH_TIMEOUT_MS);
+    return await rawFetch<T>(path, firstTimeout);
   } catch (e) {
     if (isTimeout(e)) {
       // Долгий тайм-аут — почти всегда просыпающийся Render. Пауза не нужна:
@@ -100,14 +100,14 @@ async function fetchWithRetry<T>(path: string): Promise<T> {
   }
 }
 
-async function get<T>(path: string, ttl = 180_000): Promise<T> {
+async function get<T>(path: string, ttl = 180_000, firstTimeout = FETCH_TIMEOUT_MS): Promise<T> {
   const hit = _cache.get(path);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
 
   const running = _inflight.get(path);
   if (running) return running as Promise<T>;
 
-  const p = fetchWithRetry<T>(path)
+  const p = fetchWithRetry<T>(path, firstTimeout)
     .then(data => {
       // ttl=0 — ответ, который никогда не переиспользуется (bulk-sync, несколько
       // мегабайт). Держать его в памяти всё время работы приложения незачем.
@@ -192,9 +192,9 @@ export function humanDuration(minutes: number): string {
 }
 
 /**
- * Окно между двумя парами одного дня — то есть ПРОПУЩЕННЫЙ слот пары
- * (есть I и III, а II нет). Обычный перерыв между соседними парами,
- * включая обеденный III→IV, окном не считается.
+ * Пропущенный слот пары между двумя парами одного дня (есть I и III, а II
+ * нет). Обычный промежуток между соседними парами, включая обед III→IV,
+ * сюда не попадает. Подписывать его — словом «перерыв», не «окно».
  */
 export function gapBetween(prevPair: string, nextPair: string): { pairs: string[]; minutes: number } | null {
   const i = PAIR_NUMBERS.indexOf(prevPair);
@@ -258,13 +258,16 @@ export function currentSlot(now = new Date()): { day: string; pair: string } | n
   return null;                              // занятия на сегодня кончились
 }
 
-/** Как назвать перерыв между парами: 15 минут, обед или «окно» на пол-дня. */
+/**
+ * Промежуток между парами: до 20 минут — перемена, дольше — перерыв (обед,
+ * пропущенная пара). Слово «окно» не используем — студентам непонятно
+ * (решение владельца, окт 2026). То же правило на сайте и в виджете.
+ */
+export const BREAK_MAX_MIN = 20;
+
+/** «Перемена · 15 мин», «Перерыв · 1 ч», «Перерыв · 1 ч 30 мин». */
 export function breakLabel(minutes: number): string {
-  if (minutes <= 20) return `Перемена · ${minutes} мин`;
-  if (minutes <= 90) return `Большой перерыв · ${minutes} мин`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `Окно · ${h} ч${m ? ` ${m} мин` : ''}`;
+  return `${minutes <= BREAK_MAX_MIN ? 'Перемена' : 'Перерыв'} · ${humanDuration(minutes)}`;
 }
 
 export const DAYS_ORDER = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
@@ -490,10 +493,12 @@ export const api = {
     }[]>(
       `/schedule/free-rooms?day_of_week=${encodeURIComponent(day)}&pair_number=${pair}${weekStart ? `&week_start=${weekStart}` : ''}`
     ),
+  // limit=200 — больше сервер не отдаёт; «порции по 2 недели» режутся на телефоне
   getChanges: (groupId?: number) =>
-    get<Change[]>(`/schedule/changes${groupId ? `?group_id=${groupId}` : ''}`),
+    get<Change[]>(`/schedule/changes?${groupId ? `group_id=${groupId}&` : ''}limit=200`),
   // ttl=0 — полная синхронизация всегда должна тянуть свежие данные, не из кэша
-  getBulkSync: () => get<BulkSyncData>('/schedule/bulk-sync', 0),
+  // Тяжёлый ответ (~0,6 МБ, сервер собирает его до 13 секунд) — ждём первый ответ 60 секунд, а не 15
+  getBulkSync: () => get<BulkSyncData>('/schedule/bulk-sync', 0, 60_000),
   // silent — тихая перерегистрация после деплоя бэкенда (src/pushToken.ts),
   // без письма владельцу о «новом пользователе».
   // app_version — по ней сервер решает, кому слать push «Вышла новая версия».

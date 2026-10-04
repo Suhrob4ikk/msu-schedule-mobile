@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { View, AppState, AppStateStatus, TouchableOpacity, Animated, Linking, type ColorValue } from 'react-native';
 import { Text } from '../src/OnestText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Tabs, router, usePathname } from 'expo-router';
+import { Tabs, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -16,6 +16,10 @@ import { syncWithServer } from '../src/pushToken';
 import { useUnreadNotifCount } from '../src/useUnreadNotifCount';
 import { emitScheduleUpdated } from '../src/scheduleEvents';
 import { invalidateApiCache } from '../src/api';
+import { isOverlay, openInSchedule, openNotifications, overlayOrigin, type TabPath } from '../src/notifications/nav';
+import { markExamReadById } from '../src/notifications/data';
+import { badgeText } from '../src/notifications/state';
+import { mondayOf } from '../src/teachers/state';
 import UpdateBanner from '../src/UpdateBanner';
 import { useAppearance } from '../src/appearance';
 import { FONT } from '../src/schedule/tokens';
@@ -29,9 +33,9 @@ import {
  * Забываем закэшированные ответы и будим экран расписания и колокольчик.
  *
  * Свои локальные напоминания (зачёты/пары) отличаем по data.type — он есть
- * только у них. Сами изменения в локальный журнал больше не пишем: вкладка
- * «Изменения» берёт ленту с сервера (src/changesFeed.ts), там они видны,
- * даже если push смахнули, не открыв.
+ * только у них. Сами изменения в локальный журнал не пишем: «Уведомления»
+ * берут ленту с сервера (src/notifications/data.ts), там они видны, даже
+ * если push смахнули, не открыв.
  */
 function onRemotePush(content: Notifications.NotificationContent): void {
   if (content.data?.type) return; // наше локальное напоминание
@@ -42,7 +46,7 @@ function onRemotePush(content: Notifications.NotificationContent): void {
 
 const HANDLED_TAP_KEY = 'handled_notification_tap';
 
-function useRemotePushRefresh(): void {
+function useRemotePushRefresh(pathRef: { current: string }): void {
   useEffect(() => {
     const sub1 = Notifications.addNotificationReceivedListener(n => onRemotePush(n.request.content));
     const onTap = async (r: Notifications.NotificationResponse) => {
@@ -61,9 +65,21 @@ function useRemotePushRefresh(): void {
         Linking.openURL(url).catch(() => null);
         return;
       }
-      if (content.data?.type) return; // наше локальное напоминание
+      // Напоминание о зачёте — туда же, куда строка во «Входящих»: день в
+      // Расписании, лист пары; строка отмечается прочитанной.
+      if (content.data?.type === 'exam' && typeof content.data.examId === 'string') {
+        const { examId, date, pair } = content.data as { examId: string; date?: string; pair?: string };
+        markExamReadById(examId).catch(() => null);
+        const gid = await AsyncStorage.getItem('selected_group_id');
+        if (gid && typeof date === 'string') {
+          openInSchedule({ group: Number(gid), weekStart: mondayOf(date), date, pair: pair ?? null, back: 'notifications' });
+        }
+        return;
+      }
+      if (content.data?.type) return; // наше локальное напоминание перед парой
       onRemotePush(content);
-      router.push('/notifications');
+      // В push нет id записей — открываем «Уведомления», новые строки там отмечены
+      openNotifications(pathRef.current);
     };
     Notifications.getLastNotificationResponseAsync().then(r => { if (r) onTap(r); }).catch(() => null);
     const sub2 = Notifications.addNotificationResponseReceivedListener(onTap);
@@ -76,9 +92,10 @@ function useRemotePushRefresh(): void {
 function NotificationBell() {
   const count = useUnreadNotifCount();
   const C = useTheme();
+  const path = usePathname();
   return (
     <TouchableOpacity
-      onPress={() => router.push('/notifications')}
+      onPress={() => openNotifications(path)}
       hitSlop={12}
       accessibilityRole="button"
       accessibilityLabel={count > 0 ? `Уведомления, непрочитанных: ${count}` : 'Уведомления'}
@@ -94,7 +111,7 @@ function NotificationBell() {
             backgroundColor: C.onAccent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
           }}
         >
-          <Text style={{ color: C.accent, fontSize: 9.5, fontWeight: '800' }}>{count > 9 ? '9+' : count}</Text>
+          <Text style={{ color: C.accent, fontSize: 9.5, fontWeight: '800' }}>{badgeText(count)}</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -199,16 +216,23 @@ function SyncStatusIndicator() {
   );
 }
 
-/** Подпись нижней вкладки: Onest 12/16, 500 / 700 у активной, масштаб до ×1,3 (ТЗ, tab-label). */
-function tabLabel(text: string) {
+/** Подпись нижней вкладки: Onest 12/16, 500 / 700 у активной, масштаб до ×1,3 (ТЗ, tab-label).
+ *  lit — вкладка, из которой открыли Уведомления / Историю: они лежат поверх неё. */
+function tabLabel(text: string, lit: boolean, litColor: ColorValue) {
   return ({ focused, color }: { focused: boolean; color: ColorValue }) => (
     <Text
       maxFontSizeMultiplier={1.3}
       numberOfLines={1}
-      style={{ fontFamily: focused ? FONT[700] : FONT[500], fontSize: 12, lineHeight: 16, color }}
+      style={{ fontFamily: focused || lit ? FONT[700] : FONT[500], fontSize: 12, lineHeight: 16, color: lit ? litColor : color }}
     >
       {text}
     </Text>
+  );
+}
+
+function tabIcon(name: keyof typeof Ionicons.glyphMap, lit: boolean, litColor: ColorValue) {
+  return ({ color, size }: { color: ColorValue; size: number }) => (
+    <Ionicons name={name} size={size} color={(lit ? litColor : color) as string} />
   );
 }
 
@@ -219,9 +243,13 @@ function AppTabs() {
   // Экраны «Табло» рисуют свою шапку со статусом связи и колокольчиком —
   // общую шапку и плавающую точку статуса на них прячем.
   const pathname = usePathname();
-  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || pathname === '/rooms' || pathname === '/teachers';
+  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || pathname === '/rooms' || pathname === '/teachers' || isOverlay(pathname);
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
+  // Уведомления и История — поверх вкладки, из которой открыли: она и подсвечена
+  const lit = (tab: TabPath) => isOverlay(pathname) && overlayOrigin() === tab;
 
-  useRemotePushRefresh();
+  useRemotePushRefresh(pathRef);
 
   useEffect(() => {
     AsyncStorage.getItem('selected_group_id').then(id => {
@@ -285,48 +313,41 @@ function AppTabs() {
           name="index"
           options={{
             title: 'Расписание',
-            tabBarLabel: tabLabel('Расписание'),
+            tabBarLabel: tabLabel('Расписание', lit('/'), C.primaryText),
             headerShown: false,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="calendar-outline" size={size} color={color} />
-            ),
+            tabBarIcon: tabIcon('calendar-outline', lit('/'), C.primaryText),
           }}
         />
         <Tabs.Screen
           name="teachers"
           options={{
             title: 'Преподаватели',
-            tabBarLabel: tabLabel('Педагоги'),
+            tabBarLabel: tabLabel('Педагоги', lit('/teachers'), C.primaryText),
             headerShown: false,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="people-outline" size={size} color={color} />
-            ),
+            tabBarIcon: tabIcon('people-outline', lit('/teachers'), C.primaryText),
           }}
         />
         <Tabs.Screen
           name="rooms"
           options={{
             title: 'Аудитории',
-            tabBarLabel: tabLabel('Ауд.'),
+            tabBarLabel: tabLabel('Ауд.', lit('/rooms'), C.primaryText),
             headerShown: false,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="school-outline" size={size} color={color} />
-            ),
+            tabBarIcon: tabIcon('school-outline', lit('/rooms'), C.primaryText),
           }}
         />
-        <Tabs.Screen name="changes" options={{ href: null, title: 'Изменения расписания' }} />
-        <Tabs.Screen name="notifications" options={{ href: null, title: 'Уведомления' }} />
+        {/* «Табло»: своя шапка с «Назад», статусом связи и колокольчиком */}
+        <Tabs.Screen name="changes" options={{ href: null, headerShown: false, title: 'История изменений' }} />
+        <Tabs.Screen name="notifications" options={{ href: null, headerShown: false, title: 'Уведомления' }} />
         <Tabs.Screen name="compare" options={{ href: null, title: 'Сравнить с группой' }} />
         <Tabs.Screen
           name="profile"
           options={{
             title: 'Мой кабинет',
-            tabBarLabel: tabLabel('Кабинет'),
+            tabBarLabel: tabLabel('Кабинет', lit('/profile'), C.primaryText),
             // Своя шапка со статусом связи и колокольчиком («Табло»)
             headerShown: false,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person-outline" size={size} color={color} />
-            ),
+            tabBarIcon: tabIcon('person-outline', lit('/profile'), C.primaryText),
           }}
         />
         <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />

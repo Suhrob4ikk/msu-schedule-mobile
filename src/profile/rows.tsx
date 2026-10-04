@@ -7,6 +7,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Tokens, RADIUS, FONT } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
+import { badgeText, unreadSpoken } from '../notifications/state';
 
 export const ROW_MIN = 56;
 
@@ -90,7 +91,7 @@ export function NavRow({ k, icon, title, value, valueColor, valueStrong, badge, 
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={[title, value, badge ? `непрочитанных: ${badge}` : null].filter(Boolean).join(', ')}
+      accessibilityLabel={[title, value, badge ? unreadSpoken(badge) : null].filter(Boolean).join(', ')}
       accessibilityHint={hint}
       style={({ pressed }) => ({
         minHeight: ROW_MIN, paddingVertical: 8, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', columnGap: 12,
@@ -110,7 +111,7 @@ export function NavRow({ k, icon, title, value, valueColor, valueStrong, badge, 
       ) : null}
       {badge ? (
         <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, backgroundColor: k.accent, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Txt t="captionStrong" color={k.onAccent} maxFontSizeMultiplier={1.3}>{badge > 99 ? '99+' : String(badge)}</Txt>
+          <Txt t="captionStrong" color={k.onAccent} maxFontSizeMultiplier={1.3}>{badgeText(badge)}</Txt>
         </View>
       ) : null}
       <Ionicons name="chevron-forward" size={16} color={k.textSecondary} style={{ flexShrink: 0 }} />

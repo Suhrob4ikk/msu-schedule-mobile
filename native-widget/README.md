@@ -4,14 +4,26 @@
 что должен жить внутри самого приложения. Папка `android/` в `.gitignore`
 (генерируется `expo prebuild`), поэтому исходники хранятся тут.
 
-## Виджет «Следующая пара»
+## Виджет «Расписание» (вариант C «Аудитория», с 1.9.48)
 
-Если `android/` пересоздавался — скопируй файлы обратно:
+Если `android/` пересоздавался или файлы здесь правились — скопируй в `android/app/src/main/`:
 
-- `ScheduleWidget.kt`      → `android/app/src/main/java/tj/msu/schedule/`
-- `widget_schedule.xml`, `widget_schedule_large.xml` → `android/app/src/main/res/layout/`
-- `widget_bg.xml`          → `android/app/src/main/res/drawable/`
-- `schedule_widget_info.xml` → `android/app/src/main/res/xml/`
+| Файл здесь | Куда |
+|---|---|
+| `ScheduleWidget.kt` | `java/tj/msu/schedule/` |
+| `widget_full.xml`, `widget_compact.xml`, `widget_preview.xml` | `res/layout/` |
+| `widget_bg.xml`, `widget_plate.xml` | `res/drawable/` |
+| `widget_bg_v31.xml` | `res/drawable-v31/` **под именем `widget_bg.xml`** |
+| `widget_preview.png` | `res/drawable-nodpi/` |
+| `schedule_widget_info.xml` | `res/xml/` |
+
+`widget_full.xml` и `widget_compact.xml` не правятся руками — их пишет
+`node native-widget/gen-layouts.js` (у них общие id, так они не разъедутся).
+`gen-layouts.js` в `android/` не копируется.
+
+Удалены в 1.9.48 (если остались в `android/` — удалить, иначе висят мёртвым грузом):
+`res/layout/widget_schedule.xml`, `res/layout/widget_schedule_large.xml`,
+`res/drawable/widget_card_bg.xml`, `res/drawable/widget_pill.xml`.
 
 И добавь в AndroidManifest.xml перед `</application>`:
 
@@ -34,7 +46,11 @@
 его объявляет модуль `modules/live-lesson`, и при сборке оно попадает в общий
 манифест.
 
-Данные виджету пишет `src/widgetData.ts` (AsyncStorage, ключ `widget_data`).
+Данные виджету пишет `src/widgetData.ts` (AsyncStorage, ключ `widget_data`),
+цвета — `src/widgetTheme.ts` (ключ `widget_theme`, см. раздел «Виджет» в CLAUDE.md).
+
+⚠️ Правя файлы здесь, копируйте их в `android/` — в APK попадает только та копия.
+До 1.9.47 `ScheduleWidget.kt` в `android/` отставал от этой папки на месяц.
 
 ## Push-уведомления (Firebase/FCM)
 

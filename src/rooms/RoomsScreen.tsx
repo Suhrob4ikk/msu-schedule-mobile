@@ -351,7 +351,7 @@ export default function RoomsScreenNew() {
         k={k}
         icon="cloud-offline-outline"
         title="Нет данных об аудиториях"
-        text="Подключитесь к интернету — список загрузится сам."
+        text="Список загрузится, когда появится сеть."
         action="Повторить"
         onAction={retry}
       />

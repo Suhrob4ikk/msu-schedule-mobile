@@ -1,0 +1,1122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Виджет «Расписание», вариант C «Аудитория» — КОМПАКТНАЯ (170 ≤ H < 245)
+     и МАЛАЯ (H < 170) раскладки. ТЗ widget-C-TZ.md, разделы 2.2 и 3. В малой
+     сетку и распорку прячет код, а содержимое встаёт по центру. Сгенерирована
+     вместе с widget_full.xml — правя одну, правьте и другую (общие id).
+
+     Цвета здесь — заглушки: настоящие ставит ScheduleWidget.kt из widget_theme
+     (подложка — белая картинка, её красит setColorFilter; линии — setBackgroundColor).
+     Крупные цифры — в dp (не растут со шрифтом системы), остальное — в sp.
+     Ряды сетки: на Android 12+ высоту каждого ставит код (формула ТЗ 2.3, ≤ 60 dp),
+     на старых — 44 dp (наименьший ряд ТЗ). Остаток высоты всегда забирает распорка
+     над сеткой (weight), поэтому сетка прижата к нижнему отступу.
+     Только классы RemoteViews: простой <View> лаунчер не покажет. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:id="@+id/widget_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
+
+        <!-- 2. Шапка: слева аудитория, справа блок отсчёта -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="0dp"
+            android:minHeight="44dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/widget_room"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:textSize="44dp"
+                android:fontFamily="sans-serif-black"
+                android:fontFeatureSettings="tnum"
+                android:letterSpacing="-0.02"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="#FFFFFF" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:minWidth="12dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:orientation="vertical"
+                android:gravity="end">
+
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
+
+                    <!-- Плашка отсчёта в перемену: фон fill, скругление 10 dp -->
+                    <ImageView
+                        android:id="@+id/widget_plate"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="fitXY"
+                        android:src="@drawable/widget_plate"
+                        android:visibility="gone"
+                        android:importantForAccessibility="no" />
+
+                    <LinearLayout
+                        android:id="@+id/widget_timer_inner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <!-- Живой отсчёт: тикает сам лаунчер, см. шапку ScheduleWidget.kt -->
+                        <Chronometer
+                            android:id="@+id/widget_countdown"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:gravity="end"
+                            android:textSize="22dp"
+                            android:lineHeight="26dp"
+                            android:fontFamily="sans-serif"
+                            android:textStyle="bold"
+                            android:fontFeatureSettings="tnum"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:textColor="#FFFFFF"
+                            android:visibility="gone" />
+
+                        <!-- «Завтра» / «Пн» вместо отсчёта, когда пар сегодня больше нет -->
+                        <TextView
+                            android:id="@+id/widget_day"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="17dp"
+                            android:lineHeight="26dp"
+                            android:fontFamily="sans-serif"
+                            android:textStyle="bold"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:textColor="#FFFFFF"
+                            android:visibility="gone" />
+                    </LinearLayout>
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/widget_timer_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:lineHeight="14sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 3. Предмет — ровно как с сервера -->
+        <TextView
+            android:id="@+id/widget_subject"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="15sp"
+            android:lineHeight="19sp"
+            android:fontFamily="sans-serif"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF" />
+
+        <!-- 4. Время · тип · преподаватель -->
+        <TextView
+            android:id="@+id/widget_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:lineHeight="16sp"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF" />
+
+        <!-- 5. Распорка: 10 dp + весь остаток высоты — сетка прижата к нижнему отступу -->
+        <LinearLayout
+            android:id="@+id/widget_spacer"
+            android:layout_width="match_parent"
+            android:layout_height="10dp"
+            android:layout_weight="1"
+            android:orientation="vertical" />
+
+        <!-- 6. Сетка следующих пар: линия 1 dp + до 6 рядов по 2 плитки -->
+        <LinearLayout
+            android:id="@+id/widget_grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:importantForAccessibility="noHideDescendants">
+
+            <ImageView
+                android:id="@+id/widget_grid_line"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#FFFFFF"
+                android:importantForAccessibility="no" />
+
+            <LinearLayout
+                android:id="@+id/widget_row1"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingEnd="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t1a_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t1a_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t1a_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_row1_vline"
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="#FFFFFF"
+                        android:importantForAccessibility="no" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingStart="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t1b_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t1b_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t1b_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row2"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_row2_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#FFFFFF"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingEnd="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t2a_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t2a_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t2a_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_row2_vline"
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="#FFFFFF"
+                        android:importantForAccessibility="no" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingStart="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t2b_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t2b_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t2b_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row3"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_row3_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#FFFFFF"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingEnd="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t3a_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t3a_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t3a_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_row3_vline"
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="#FFFFFF"
+                        android:importantForAccessibility="no" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingStart="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t3b_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t3b_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t3b_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row4"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_row4_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#FFFFFF"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingEnd="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t4a_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t4a_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t4a_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_row4_vline"
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="#FFFFFF"
+                        android:importantForAccessibility="no" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingStart="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t4b_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t4b_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t4b_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row5"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_row5_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#FFFFFF"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingEnd="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t5a_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t5a_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t5a_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_row5_vline"
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="#FFFFFF"
+                        android:importantForAccessibility="no" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingStart="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t5b_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t5b_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t5b_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row6"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_row6_line"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#FFFFFF"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingEnd="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t6a_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t6a_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t6a_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_row6_vline"
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="#FFFFFF"
+                        android:importantForAccessibility="no" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingStart="10dp"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/widget_t6b_time"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif"
+                                android:textStyle="bold"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1"
+                                android:minWidth="6dp" />
+
+                            <TextView
+                                android:id="@+id/widget_t6b_room"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="15sp"
+                                android:lineHeight="18sp"
+                                android:fontFamily="sans-serif-black"
+                                android:fontFeatureSettings="tnum"
+                                android:includeFontPadding="false"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/widget_t6b_subj"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:lineHeight="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Пустые состояния: группа сверху, заголовок и подпись прижаты к низу -->
+    <LinearLayout
+        android:id="@+id/widget_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/widget_empty_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:lineHeight="14sp"
+            android:fontFamily="sans-serif"
+            android:textStyle="bold"
+            android:letterSpacing="0.06"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="#FFFFFF" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/widget_empty_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="17sp"
+            android:lineHeight="22sp"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.01"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="13sp"
+            android:lineHeight="18sp"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+</FrameLayout>

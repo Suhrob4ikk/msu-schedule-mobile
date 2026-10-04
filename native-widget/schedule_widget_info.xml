@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Описание виджета: 4x1, обновление раз в 30 минут -->
+<!-- Виджет «Расписание», вариант C «Аудитория» (ТЗ widget-C-TZ.md, раздел 1).
+     Один виджет, тянется по ширине и высоте; раскладку (малая / компактная /
+     полная) выбирает ScheduleWidget.kt по фактической высоте. По умолчанию 4×2.
+     previewLayout — Android 12+, previewImage — для старых. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="110dp"
+    android:minHeight="100dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="100dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/widget_schedule"
+    android:initialLayout="@layout/widget_compact"
+    android:previewLayout="@layout/widget_preview"
+    android:previewImage="@drawable/widget_preview"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

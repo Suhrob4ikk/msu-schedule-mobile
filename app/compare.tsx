@@ -104,11 +104,9 @@ export default function CompareScreen() {
   return (
     <ScrollView style={[s.container, { backgroundColor: C.bg }]} contentContainerStyle={s.content}>
       <Text style={[s.title, { color: C.fg }]}>Сравнить с другой группой</Text>
-      <Text style={[s.sub, { color: C.muted }]}>
-        {myGroup
-          ? `Когда у вас (${shortGroupName(myGroup.name)} · ${myGroup.year} курс) и у выбранной группы одновременно нет пар.`
-          : 'Сначала укажите свою группу в кабинете.'}
-      </Text>
+      {myGroup
+        ? <View style={{ height: 16 }} />
+        : <Text style={[s.sub, { color: C.muted }]}>Сначала укажите свою группу в кабинете.</Text>}
 
       {myGroup && (
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>

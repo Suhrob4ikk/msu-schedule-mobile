@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- То же, что widget_bg.xml, для Android 12+: скругление — системное, как у
+     остальных виджетов на рабочем столе. Копируется в res/drawable-v31/ под
+     именем widget_bg.xml (см. README). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="@android:dimen/system_app_widget_background_radius" />
+</shape>
