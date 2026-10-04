@@ -3,7 +3,7 @@
     "name": "МГУ Расписание",
     "slug": "msu-schedule-mobile",
     "scheme": "msu-schedule",
-    "version": "1.9.41",
+    "version": "1.9.42",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

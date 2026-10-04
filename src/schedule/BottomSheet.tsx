@@ -4,10 +4,18 @@
  * системной кнопкой «Назад» (onRequestClose у Modal) и свайпом вниз за
  * полоску и шапку листа (PanResponder) — на прокручиваемом содержимом
  * свайп не ловим, чтобы он не спорил с прокруткой.
+ *
+ * Клавиатура: до 1.9.42 тут был KeyboardAvoidingView в режиме 'height'. Он
+ * считает свою высоту от собственного измерения (onLayout → setState →
+ * onLayout), и после того как на листе хоть раз открывали клавиатуру, Android
+ * округлял размеры до пикселя то вверх, то вниз — значения скакали между
+ * двумя соседними, каждый скачок ещё и анимировался (LayoutAnimation), и лист
+ * мелко дрожал. Теперь отступ под клавиатуру считается один раз на событие
+ * клавиатуры — от рамки всего окна, которая от этого отступа не зависит.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
+  Animated, Easing, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView,
   StyleSheet, View, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,18 +70,34 @@ export default function BottomSheet({ visible, onClose, k, label, header, topGap
     onPanResponderTerminate: () => Animated.spring(drag, { toValue: 0, useNativeDriver: true, friction: 8 }).start(),
   })).current;
 
+  // Сколько снизу закрывает клавиатура — без обратной связи от раскладки листа
+  const wrapRef = useRef<View>(null);
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    if (!mounted) return;
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', e => {
+      const kbTop = e.endCoordinates.screenY;
+      wrapRef.current?.measureInWindow((_x, y, _w, h) => {
+        setKb(Math.max(0, Math.round(y + h - kbTop)));
+      });
+    });
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKb(0));
+    return () => { show.remove(); hide.remove(); setKb(0); };
+  }, [mounted]);
+
   if (!mounted) return null;
 
-  const maxHeight = topGap != null ? height - topGap - insets.top : height * 0.88;
+  const maxHeight = (topGap != null ? height - topGap - insets.top : height * 0.88) - kb;
 
   return (
     <Modal transparent visible animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: k.scrim, opacity: v.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}>
         <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
       </Animated.View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1, justifyContent: 'flex-end' }}
+      <View
+        ref={wrapRef}
+        collapsable={false}
+        style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: kb }}
         pointerEvents="box-none"
       >
         <Animated.View
@@ -84,7 +108,8 @@ export default function BottomSheet({ visible, onClose, k, label, header, topGap
             backgroundColor: k.surface,
             borderTopLeftRadius: RADIUS.sheet,
             borderTopRightRadius: RADIUS.sheet,
-            paddingBottom: insets.bottom + 8,
+            // Над клавиатурой системная полоса навигации не нужна
+            paddingBottom: kb ? 8 : insets.bottom + 8,
             transform: [{ translateY: Animated.add(v.interpolate({ inputRange: [0, 1], outputRange: [0, height] }), drag) }],
           }}
         >
@@ -98,7 +123,7 @@ export default function BottomSheet({ visible, onClose, k, label, header, topGap
             {children}
           </ScrollView>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
