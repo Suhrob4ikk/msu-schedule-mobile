@@ -34,6 +34,13 @@ export interface BaseTheme {
   statusOffline: string;
   statusOfflineBg: string;
   scrim: string;
+  /** Аудитории (ТЗ «Аудитории», раздел «Цвета»): смысловые, от акцента не зависят. */
+  roomFreeText: string;
+  roomFreeBg: string;
+  roomBusyText: string;
+  roomBusyBg: string;
+  roomConflictText: string;
+  roomConflictBg: string;
 }
 
 export const BASE_THEMES: Record<BaseMode, BaseTheme> = {
@@ -57,6 +64,12 @@ export const BASE_THEMES: Record<BaseMode, BaseTheme> = {
     statusOffline: '#FF8A80',
     statusOfflineBg: '#3A1C1C',
     scrim: 'rgba(0,0,0,0.62)',
+    roomFreeText: '#4ADE80',
+    roomFreeBg: '#12301F',
+    roomBusyText: '#FF8A80',
+    roomBusyBg: '#3A1C1C',
+    roomConflictText: '#FFB547',
+    roomConflictBg: '#3A2A0F',
   },
   light: {
     mode: 'light',
@@ -78,6 +91,12 @@ export const BASE_THEMES: Record<BaseMode, BaseTheme> = {
     statusOffline: '#B42318',
     statusOfflineBg: '#FDE8E6',
     scrim: 'rgba(0,0,0,0.40)',
+    roomFreeText: '#116632',
+    roomFreeBg: '#DCF5E6',
+    roomBusyText: '#B42318',
+    roomBusyBg: '#FDE8E6',
+    roomConflictText: '#8A4B00',
+    roomConflictBg: '#FFF0D6',
   },
   black: {
     mode: 'black',
@@ -99,6 +118,12 @@ export const BASE_THEMES: Record<BaseMode, BaseTheme> = {
     statusOffline: '#FF8A80',
     statusOfflineBg: '#3A1C1C',
     scrim: 'rgba(0,0,0,0.70)',
+    roomFreeText: '#4ADE80',
+    roomFreeBg: '#12301F',
+    roomBusyText: '#FF8A80',
+    roomBusyBg: '#3A1C1C',
+    roomConflictText: '#FFB547',
+    roomConflictBg: '#3A2A0F',
   },
 };
 
