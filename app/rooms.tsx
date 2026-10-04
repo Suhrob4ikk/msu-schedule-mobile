@@ -7,6 +7,8 @@ import { api, invalidateApiCache, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel,
 import { useTheme, withAlpha } from '../src/theme';
 import { useSyncStatus } from '../src/SyncContext';
 import AppLoader from '../src/AppLoader';
+import RoomsScreenNew from '../src/rooms/RoomsScreen';
+import { useTabloFlag } from '../src/tabloFlag';
 
 const DAY_SHORT: Record<string, string> = {
   понедельник: 'Пн', вторник: 'Вт', среда: 'Ср',
@@ -56,7 +58,7 @@ function splitOccupantEntry(entry: string): { top: string; bottom: string } {
   return { top: `${group}: ${subject}`, bottom: rest.slice(1).join(' · ') };
 }
 
-export default function RoomsScreen() {
+function LegacyRoomsScreen() {
   const C = useTheme();
   const { offlineBannerText, onlineAt, isOnline } = useSyncStatus();
   // По умолчанию — сегодняшний день (в воскресенье показываем понедельник)
@@ -440,6 +442,17 @@ export default function RoomsScreen() {
       })()}
     </ScrollView>
   );
+}
+
+/**
+ * Новая вкладка «Аудитории» в стиле «Табло» (src/rooms/) включается флагом
+ * «Новые экраны «Табло»» в Режиме разработчика; по умолчанию — прежний экран.
+ */
+export default function RoomsScreen() {
+  const C = useTheme();
+  const flag = useTabloFlag();
+  if (flag === null) return <View style={{ flex: 1, backgroundColor: C.bg }} />;
+  return flag ? <RoomsScreenNew /> : <LegacyRoomsScreen />;
 }
 
 const s = StyleSheet.create({

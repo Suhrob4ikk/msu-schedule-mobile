@@ -16,6 +16,7 @@ import { useUnreadNotifCount } from '../src/useUnreadNotifCount';
 import { emitScheduleUpdated } from '../src/scheduleEvents';
 import { invalidateApiCache } from '../src/api';
 import UpdateBanner from '../src/UpdateBanner';
+import { useTabloFlag } from '../src/tabloFlag';
 
 /**
  * Push с сервера («вышла новая неделя», «расписание изменилось» — см.
@@ -197,10 +198,12 @@ function AppTabs() {
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const C = useTheme();
-  // Экран расписания рисует свою шапку со статусом связи и колокольчиком —
-  // общую шапку и плавающую точку статуса на нём прячем.
+  // Экраны «Табло» рисуют свою шапку со статусом связи и колокольчиком —
+  // общую шапку и плавающую точку статуса на них прячем. Расписание — всегда,
+  // Аудитории — когда включён флаг «Новые экраны «Табло»».
+  const tablo = useTabloFlag() === true;
   const pathname = usePathname();
-  const ownHeader = pathname === '/' || pathname === '/index';
+  const ownHeader = pathname === '/' || pathname === '/index' || (tablo && pathname === '/rooms');
 
   useRemotePushRefresh();
 
@@ -283,6 +286,7 @@ function AppTabs() {
           options={{
             title: 'Аудитории',
             tabBarLabel: 'Ауд.',
+            headerShown: !tablo,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="school-outline" size={size} color={color} />
             ),

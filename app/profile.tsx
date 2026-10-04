@@ -29,6 +29,7 @@ import InviteCard from '../src/InviteCard';
 import { hasUnreadNotifHistory } from '../src/notificationHistory';
 import { loadMyChanges, countUnseenChanges } from '../src/changesFeed';
 import TipsHint from '../src/TipsHint';
+import { useTabloFlag, setTabloEnabled } from '../src/tabloFlag';
 
 // Автооткрытие 1 сентября 2026 — см. src/features.ts.
 // ВАЖНО: не выносить в константу модуля — она вычислялась бы один раз при старте
@@ -280,6 +281,30 @@ const ft = StyleSheet.create({
   thumb: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 },
 });
 
+/** Скрытый переключатель «Новые экраны «Табло»» — открывается долгим
+ *  нажатием на «Режим разработчика». Сейчас включает новую вкладку «Аудитории». */
+function TabloRow() {
+  const C = useTheme();
+  const on = useTabloFlag() === true;
+  return (
+    <TouchableOpacity
+      onPress={() => { Haptics.selectionAsync(); setTabloEnabled(!on); }}
+      activeOpacity={0.7}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: on }}
+      style={[ft.row, { backgroundColor: C.card, borderColor: C.border, marginBottom: 12 }]}
+    >
+      <View style={ft.text}>
+        <Text style={[ft.label, { color: C.fg }]}>Новые экраны «Табло»</Text>
+        <Text style={[ft.desc, { color: C.muted }]}>Вкладка «Аудитории»</Text>
+      </View>
+      <View style={[ft.track, { backgroundColor: on ? C.primary : C.border }]}>
+        <View style={[ft.thumb, { transform: [{ translateX: on ? 20 : 2 }] }]} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 /** Склонение: 1 пара, 2 пары, 5 пар */
 function pluralPairs(n: number): string {
   const d10 = n % 10, d100 = n % 100;
@@ -415,6 +440,9 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [devOpen, setDevOpen] = useState(false);
+  // Включённый флаг виден и без долгого нажатия — чтобы его было легко выключить
+  const tabloOn = useTabloFlag() === true;
 
   useEffect(() => {
     // Список групп — сначала с диска (иначе в офлайне выбор группы пустой),
@@ -747,14 +775,17 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
-      {/* Режим разработчика — открывает скрытую веб-панель /dev (вход по паролю) */}
+      {/* Режим разработчика — открывает скрытую веб-панель /dev (вход по паролю).
+          Долгое нажатие — переключатели для проверки («Новые экраны «Табло»»). */}
       <TouchableOpacity
         onPress={() => Linking.openURL(`${WEB_URL}/dev`)}
+        onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setDevOpen(v => !v); }}
         activeOpacity={0.6}
         style={{ alignSelf: 'center', paddingVertical: 8, marginBottom: 8 }}
       >
         <Text style={{ color: C.muted, fontSize: 12, opacity: 0.6 }}>Режим разработчика</Text>
       </TouchableOpacity>
+      {(devOpen || tabloOn) && <TabloRow />}
 
       {/* Инфо о приложении */}
       <View style={s.about}>
