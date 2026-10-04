@@ -19,7 +19,6 @@ import { Tokens, GUTTER, RADIUS, TOUCH_MIN, HEADER_H, FONT } from '../schedule/t
 import { Txt } from '../schedule/ui';
 import { addDays, isoOf, weekRel } from '../schedule/state';
 import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
-import DayBar from '../schedule/DayBar';
 import {
   TDay, buildTeacherWeek, defaultWeek, emptyWeekInfo, mondayOf, teacherFocus, teacherStateKey, teacherSummary,
   weekRange,
@@ -250,19 +249,6 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
     setVisible(idx);
   }, []);
 
-  /** День без пар — к ближайшему следующему дню с парами (или предыдущему). */
-  const pickDay = useCallback((i: number) => {
-    const ds = daysRef.current;
-    const target = ds.slice(i).find(d => d.blocks.length) ?? [...ds.slice(0, i)].reverse().find(d => d.blocks.length);
-    if (!target) return;
-    const y = dayY.current[target.dayIndex];
-    if (y == null) return;
-    Haptics.selectionAsync();
-    lockRef.current = true;
-    setVisible(target.dayIndex);
-    scrollRef.current?.scrollTo({ y, animated: true });
-  }, []);
-
   const pickWeek = useCallback((w: Which) => {
     if (w === which) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -405,9 +391,6 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
         ))}
       </Animated.ScrollView>
 
-      {lessons !== undefined && lessons !== null && (
-        <DayBar days={days} k={k} todayIso={today} visible={visibleDay} onPick={pickDay} />
-      )}
     </View>
   );
 }
