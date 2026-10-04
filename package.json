@@ -1,6 +1,6 @@
 {
   "name": "msu-schedule-mobile",
-  "version": "1.9.40",
+  "version": "1.9.41",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/onest": "^0.4.2",
