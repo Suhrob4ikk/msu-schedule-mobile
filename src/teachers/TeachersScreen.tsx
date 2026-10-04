@@ -10,16 +10,17 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AppState, BackHandler, Pressable, RefreshControl, ScrollView, StatusBar, TextInput, View,
+  Animated, AppState, BackHandler, Easing, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet,
+  TextInput, View, useWindowDimensions,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { invalidateApiCache, Teacher, WeekOption } from '../api';
 import { useThemeMode } from '../theme';
 import { useSyncStatus } from '../SyncContext';
 import { useTokens, GUTTER, RADIUS, TOUCH_MIN, HEADER_H, Tokens } from '../schedule/tokens';
-import { Txt, Divider } from '../schedule/ui';
+import { Txt, Divider, useReduceMotion } from '../schedule/ui';
 import { isoOf } from '../schedule/state';
 import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
 import {
@@ -33,6 +34,7 @@ import {
 import { TeacherCard } from './TeacherRow';
 import LetterSheet from './LetterSheet';
 import { EmptyState, SearchField } from './ui';
+import TeacherScreen from './TeacherScreen';
 
 const TICK_MS = 60_000;
 
@@ -155,25 +157,64 @@ export default function TeachersScreen() {
   );
   const ranges = useMemo(() => new Map((matches ?? []).map(m => [m.teacher.id, m.range])), [matches]);
 
-  // ─── Открыть педагога ─────────────────────────────────────────────────
+  // ─── Открыть педагога (экран выезжает справа поверх списка) ─────────────
+  const { width } = useWindowDimensions();
+  const reduce = useReduceMotion();
+  const slide = useRef(new Animated.Value(0)).current; // 0 — на месте, 1 — за правым краем
   const [open, setOpen] = useState<{ teacher: Teacher; back?: 'schedule' } | null>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+
   const openTeacher = useCallback((t: Teacher, back?: 'schedule') => {
     Haptics.selectionAsync();
     inputRef.current?.blur();
     setOpen({ teacher: t, back });
+    slide.setValue(reduce ? 0 : 1);
+    if (!reduce) Animated.timing(slide, { toValue: 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     setRecentIds(ids => {
       const next = pushRecent(ids, t.id);
       writeRecent(next);
       return next;
     });
-  }, []);
+  }, [reduce, slide]);
   const onRowPress = useCallback((t: Teacher) => openTeacher(t), [openTeacher]);
 
-  // Системная «Назад»: клавиатуру закрывает сама система, потом — очистка поиска
+  /** Закрыть экран педагога. Открывали из Расписания — туда же и вернуться. */
+  const closeTeacher = useCallback(() => {
+    const cur = openRef.current;
+    if (!cur) return;
+    const done = () => setOpen(o => (o === cur ? null : o));
+    if (reduce) done();
+    else Animated.timing(slide, { toValue: 1, duration: 200, useNativeDriver: true }).start(done);
+    if (cur.back === 'schedule') router.navigate('/');
+  }, [reduce, slide]);
+
+  // Нажатие на уже открытую вкладку «Педагоги» — назад к списку
+  const navigation = useNavigation();
+  useEffect(() => {
+    const nav = navigation as unknown as { addListener: (e: string, cb: () => void) => () => void; isFocused: () => boolean };
+    return nav.addListener('tabPress', () => { if (nav.isFocused() && openRef.current) closeTeacher(); });
+  }, [navigation, closeTeacher]);
+
+  // Переход из Расписания по нажатию на ФИО (см. openTeacher в schedule/LessonRow)
+  const params = useLocalSearchParams<{ teacher?: string; name?: string; back?: string }>();
+  useEffect(() => {
+    const id = Number(params.teacher);
+    if (!id) return;
+    const t = teachers.find(x => x.id === id) ?? { id, name: params.name ?? '' };
+    openTeacher(t, params.back === 'schedule' ? 'schedule' : undefined);
+    // Гасим сразу: повторное нажатие на то же ФИО должно сработать снова
+    router.setParams({ teacher: '', name: '', back: '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.teacher]);
+
+  // Системная «Назад»: экран педагога → список; клавиатуру закрывает сама
+  // система, потом — очистка поиска
   useFocusEffect(
     useCallback(() => {
       StatusBar.setBarStyle(mode === 'dark' ? 'light-content' : 'dark-content');
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (openRef.current) { closeTeacher(); return true; }
         if (query) { setQuery(''); return true; }
         return false;
       });
@@ -181,7 +222,7 @@ export default function TeachersScreen() {
         sub.remove();
         StatusBar.setBarStyle(k.onAccent === '#FFFFFF' ? 'light-content' : 'dark-content');
       };
-    }, [mode, k.onAccent, query]),
+    }, [mode, k.onAccent, query, closeTeacher]),
   );
 
   // ─── Прокрутка и буквы ────────────────────────────────────────────────
@@ -376,6 +417,20 @@ export default function TeachersScreen() {
         total={teachers.length}
         onPick={pickLetter}
       />
+
+      {open && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { transform: [{ translateX: Animated.multiply(slide, width) }] }]}
+        >
+          <TeacherScreen
+            key={open.teacher.id}
+            teacher={teachers.find(t => t.id === open.teacher.id) ?? open.teacher}
+            k={k}
+            weeksAll={weeksAll}
+            onBack={closeTeacher}
+          />
+        </Animated.View>
+      )}
     </View>
   );
 }
