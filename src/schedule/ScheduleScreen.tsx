@@ -30,7 +30,7 @@ import { onScheduleUpdated } from '../scheduleEvents';
 import { useBackTo } from '../backTo';
 import CourseCheckBanner from '../CourseCheckBanner';
 import ScheduleShareCard from '../ScheduleShareCard';
-import { useTokens, GUTTER, RADIUS, TOUCH_MIN, DAY_CELL } from './tokens';
+import { useTokens, GUTTER, RADIUS, TOUCH_MIN } from './tokens';
 import {
   Block, DayData, WeekRel, addDays, buildWeek, computeFocus, doneTodayAt, headerTitle, isoOf,
   stampLabel, stateKey, weekIsOver, weekRel, weekStatsLine,
@@ -711,6 +711,11 @@ export default function ScheduleScreenNew() {
         </View>
       )}
 
+      {/* Ряд дней — под шапкой и только в режиме «По дням»; в ленте дни листаются прокруткой */}
+      {pagesOn && (
+        <DayBar days={days} k={k} todayIso={isoOf(now)} visible={pageIdx} onPick={pickDay} atTop />
+      )}
+
       {pagesOn ? (
         <>
           <View style={{ paddingHorizontal: GUTTER }}><CourseCheckBanner /></View>
@@ -797,7 +802,7 @@ export default function ScheduleScreenNew() {
 
       {/* «К этой неделе» — плавающая пилюля над рядом дней */}
       {selectedWeek && rel !== 'current' && hasThisWeek && (
-        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: DAY_CELL + 12, alignItems: 'center' }}>
+        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 12, alignItems: 'center' }}>
           <Pressable
             onPress={toThisWeek}
             accessibilityRole="button"
@@ -851,9 +856,6 @@ export default function ScheduleScreenNew() {
         onChanged={loadMarks}
       />
 
-      {days.length > 0 && (
-        <DayBar days={days} k={k} todayIso={isoOf(now)} visible={pagesOn ? pageIdx : visibleDay} onPick={pickDay} />
-      )}
     </View>
   );
 }

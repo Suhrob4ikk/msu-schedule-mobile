@@ -25,6 +25,7 @@ import { useUnreadNotifCount } from '../useUnreadNotifCount';
 import { useTokens, Tokens, RADIUS, GUTTER, HEADER_H, TOUCH_MIN } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
 import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
+import { openHistory, openNotifications } from '../notifications/nav';
 import { Card, SectionTitle, SwitchRow, NavRow, ActionRow, Button } from './rows';
 import ProfileSheet from './ProfileSheet';
 import {
@@ -102,7 +103,6 @@ function SetupCard({ k, onChoose }: { k: Tokens; onChoose: () => void }) {
         <Avatar k={k} letter={null} muted />
         <Txt t="titleScreen" color={k.text} style={{ flex: 1 }}>Группа не выбрана</Txt>
       </View>
-      <Txt t="body" color={k.textSecondary}>Расписание, аудитории и напоминания заработают после выбора группы.</Txt>
       <Button k={k} primary title="Выбрать группу" onPress={onChoose} />
     </View>
   );
@@ -152,8 +152,8 @@ function WidgetHint({ k }: { k: Tokens }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 8, paddingLeft: 4, marginBottom: 4 }}>
       <Ionicons name="bulb-outline" size={16} color={k.accentText} />
-      <Txt t="small" color={k.textSecondary} numberOfLines={1} style={{ flex: 1 }}>
-        Есть виджет: рабочий стол → «Виджеты» → МГУ
+      <Txt t="small" color={k.textSecondary} style={{ flex: 1 }}>
+        Есть виджет: на рабочем столе нажмите и удерживайте → «Виджеты» → МГУ Расписание
       </Txt>
       <Pressable
         onPress={() => { setVisible(false); AsyncStorage.setItem(HINT_KEY, '1').catch(() => null); }}
@@ -186,7 +186,7 @@ export default function ProfileScreen() {
   // Правая колонка блока QR растёт со шрифтом: при крупном шрифте колонки встают друг под друга
   const { fontScale } = useWindowDimensions();
   const qrTextMin = Math.round(140 * Math.min(Math.max(fontScale, 1), 2));
-  const { isSyncing, isOnline, lastSyncTime, triggerSync } = useSyncStatus();
+  const { isSyncing, isOnline, lastSyncTime, triggerSync, syncErrorText } = useSyncStatus();
   const unread = useUnreadNotifCount();
 
   const [groups, setGroups] = useState<Group[]>([]);
@@ -313,6 +313,12 @@ export default function ProfileScreen() {
           ? <SetupCard k={k} onChoose={() => setSheetOpen(true)} />
           : <ProfileCard k={k} name={name} group={group} onEdit={() => setSheetOpen(true)} />}
 
+        {/* Оформление */}
+        <SectionTitle k={k}>Оформление</SectionTitle>
+        <Card k={k}>
+          <NavRow k={k} icon="color-palette-outline" title="Внешний вид" value={appearanceSummary(appearance)} onPress={() => router.push('/appearance')} />
+        </Card>
+
         {/* Учёба */}
         <SectionTitle k={k}>Учёба</SectionTitle>
         <Card k={k}>
@@ -325,8 +331,8 @@ export default function ProfileScreen() {
         {/* Разделы */}
         <SectionTitle k={k}>Разделы</SectionTitle>
         <Card k={k}>
-          <NavRow k={k} icon="notifications-outline" title="Уведомления" badge={unread} onPress={() => router.push('/notifications')} />
-          <NavRow k={k} icon="time-outline" title="История изменений расписания" onPress={() => router.push('/changes')} />
+          <NavRow k={k} icon="notifications-outline" title="Уведомления" badge={unread} onPress={() => openNotifications('/profile')} />
+          <NavRow k={k} icon="time-outline" title="История изменений" onPress={() => openHistory('/profile')} />
           <NavRow k={k} icon="swap-vertical-outline" title="Сравнить с другой группой" onPress={() => router.push('/compare')} />
         </Card>
 
@@ -350,12 +356,6 @@ export default function ProfileScreen() {
           ) : null}
         </Card>
 
-        {/* Оформление */}
-        <SectionTitle k={k}>Оформление</SectionTitle>
-        <Card k={k}>
-          <NavRow k={k} icon="color-palette-outline" title="Внешний вид" value={appearanceSummary(appearance)} onPress={() => router.push('/appearance')} />
-        </Card>
-
         {/* Синхронизация */}
         <View onLayout={e => { syncY.current = e.nativeEvent.layout.y; }}>
           <SectionTitle k={k}>Синхронизация</SectionTitle>
@@ -365,7 +365,7 @@ export default function ProfileScreen() {
                 <Plaque k={k} text={offlineNote(lastSync)} />
               ) : (
                 <>
-                  {syncError && !isSyncing ? <Plaque k={k} text="Не удалось обновить" /> : null}
+                  {syncError && !isSyncing ? <Plaque k={k} text={syncErrorText ? `Не удалось обновить: ${syncErrorText}` : 'Не удалось обновить'} /> : null}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', columnGap: 12, rowGap: 2 }}>
                     <Txt t="rowValue" color={k.textSecondary}>Последнее обновление</Txt>
                     <Txt t="countNum" color={k.text} numberOfLines={1}>{lastSync ?? 'ещё не было'}</Txt>

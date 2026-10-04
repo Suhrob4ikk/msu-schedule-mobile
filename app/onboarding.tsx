@@ -1,28 +1,44 @@
+/**
+ * Первый вход в стиле «Табло»: имя, группа и цвет приложения. Цвет по умолчанию —
+ * изумруд; выбрать другой можно тут же, а потом изменить в любое время:
+ * Кабинет → «Внешний вид».
+ */
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, StatusBar,
-} from 'react-native';
-import { Text, TextInput } from '../src/OnestText';
+import { ActivityIndicator, Pressable, ScrollView, StatusBar, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName, rememberGroup } from '../src/api';
 import GroupSelector from '../src/GroupSelector';
-import { useTheme, useThemeMode } from '../src/theme';
+import { useThemeMode } from '../src/theme';
+import type { Colors } from '../src/theme';
 import { requestNotificationPermission } from '../src/examNotifications';
 import { syncWithServer } from '../src/pushToken';
 import { markGroupChosen } from '../src/features';
+import { useTokens, RADIUS, TOUCH_MIN, type as typeStyle } from '../src/schedule/tokens';
+import { ACCENT_PRESETS, AccentPresetId } from '../src/schedule/colors';
+import { Txt } from '../src/schedule/ui';
+import { setAppearance, useSelectedAppearance } from '../src/appearance';
 
 type Props = { onDone?: () => void };
 
 export default function OnboardingScreen({ onDone }: Props = {}) {
-  const C = useTheme();
+  const k = useTokens();
   const { mode } = useThemeMode();
+  const look = useSelectedAppearance();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selected, setSelected] = useState<Group | null>(null);
   const [name, setName] = useState('');
+  const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Новичку по умолчанию — изумруд (у кого уже есть настройки, сюда не попадают)
+  useEffect(() => {
+    setAppearance(prev => (prev.accent.preset === 'blue' && !prev.accent.custom
+      ? { ...prev, accent: { preset: 'emerald', custom: null } } : prev));
+  }, []);
 
   const loadGroups = useCallback(() => {
     setLoading(true);
@@ -31,12 +47,11 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
       .then(g => { setGroups(g); setLoading(false); })
       .catch(() => { setError('Нет соединения с сервером'); setLoading(false); });
   }, []);
+  useEffect(() => { loadGroups(); }, [loadGroups]);
 
-  useEffect(() => { loadGroups(); }, []);
+  const pickAccent = (id: AccentPresetId) => setAppearance(prev => ({ ...prev, accent: { preset: id, custom: null } }));
 
-  const initials = name.trim()
-    ? name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-    : '?';
+  const ready = !!selected && !!name.trim() && !saving;
 
   const handleStart = async () => {
     if (!selected) return;
@@ -53,129 +68,126 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
       await AsyncStorage.setItem('msu_device_id', deviceId);
     }
     await api.registerUser(deviceId, name.trim() || 'Аноним', selected.id).catch(() => null);
-    // Запрашиваем разрешение на уведомления сразу после регистрации
+    // Разрешение на уведомления — сразу после регистрации, и тут же push-токен,
+    // чтобы об изменении расписания узнать мгновенно.
     await requestNotificationPermission();
-    // Если разрешение дали — тут же отправляем push-токен, чтобы об
-    // изменении расписания узнать мгновенно, а не только при следующем
-    // открытии приложения.
     await syncWithServer(true);
     setSaving(false);
     if (onDone) { onDone(); } else { router.replace('/'); }
   };
 
+  // GroupSelector общий со старыми экранами и ждёт старую палитру — даём её из токенов
+  const legacy = {
+    primary: k.accent, primaryFg: k.onAccent, card: k.surface2, border: k.border, fg: k.text, muted: k.textSecondary,
+  } as unknown as Colors;
+
+  const hint = !name.trim() && !selected ? 'Введите имя и выберите группу' : !name.trim() ? 'Введите имя' : !selected ? 'Выберите группу' : null;
+
   return (
     <ScrollView
-      style={[s.root, { backgroundColor: C.bg }]}
-      contentContainerStyle={s.content}
+      style={{ flex: 1, backgroundColor: k.bg }}
+      contentContainerStyle={{ padding: 16, paddingTop: 40, paddingBottom: 48 }}
       keyboardShouldPersistTaps="handled"
     >
-      {/* У онбординга нет зелёной шапки — строка состояния лежит прямо на фоне
-          экрана, поэтому её цвет зависит от темы. Раньше здесь сравнивался
-          #f5f5f0 — фон из старой палитры, которого давно нет: условие никогда
-          не срабатывало, и в светлой теме часы и батарея были белым по белому. */}
       <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
 
-      {/* Лого */}
-      <View style={s.logoRow}>
-        <View style={[s.logoBox, { backgroundColor: C.primary }]}>
-          <Text style={[s.logoText, { color: C.primaryFg }]}>МГУ</Text>
+      {/* Лого и приветствие */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 12 }}>
+        <View style={{ width: 48, height: 48, borderRadius: RADIUS.md, backgroundColor: k.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt t="labelStrong" color={k.onAccent}>МГУ</Txt>
         </View>
-        <View>
-          <Text style={[s.logoTitle, { color: C.fg }]}>МГУ Душанбе</Text>
-          <Text style={[s.logoSub, { color: C.muted }]}>Расписание занятий</Text>
+        <View style={{ flex: 1 }}>
+          <Txt t="titleCard" color={k.text}>МГУ Душанбе</Txt>
+          <Txt t="small" color={k.textSecondary}>Расписание занятий</Txt>
         </View>
       </View>
+      <Txt t="display" color={k.text} style={{ fontSize: 30, lineHeight: 36, letterSpacing: 0, marginTop: 28 }}>Добро пожаловать</Txt>
+      <Txt t="body" color={k.textSecondary} style={{ marginTop: 4 }}>Три шага, и расписание ваше.</Txt>
 
-      {/* Аватар */}
-      <View style={[s.avatar, { backgroundColor: C.primary, opacity: name.trim() ? 1 : 0.35 }]}>
-        <Text style={[s.avatarText, { color: C.primaryFg }]}>{initials}</Text>
-      </View>
-      {name.trim() && <Text style={[s.displayName, { color: C.fg }]}>{name.trim()}</Text>}
-      {selected && (
-        <Text style={[s.displayGroup, { color: C.muted }]}>
-          {selected.year} курс · {shortGroupName(selected.name)}
-        </Text>
-      )}
-
-      <View style={s.form}>
-        <Text style={[s.label, { color: C.muted }]}>ИМЯ</Text>
+      {/* 1. Имя */}
+      <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: 16, marginTop: 20, rowGap: 8 }}>
+        <Txt t="overline" color={k.textSecondary}>Имя</Txt>
         <TextInput
-          style={[s.input, { backgroundColor: C.card, borderColor: C.border, color: C.fg }]}
-          placeholder="Ваше имя"
-          placeholderTextColor={C.muted}
           value={name}
           onChangeText={setName}
-          autoFocus
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="Как вас зовут"
+          placeholderTextColor={k.textSecondary}
           returnKeyType="done"
+          maxFontSizeMultiplier={2}
+          accessibilityLabel="Имя"
+          style={[typeStyle(16, 22, 500), {
+            color: k.text, backgroundColor: k.surface2, borderRadius: 14, minHeight: TOUCH_MIN,
+            paddingHorizontal: 14, borderWidth: 2, borderColor: focused ? k.accentText : 'transparent',
+          }]}
         />
+      </View>
 
-        <Text style={[s.label, { color: C.muted, marginTop: 16 }]}>ГРУППА</Text>
-
-        {loading && <ActivityIndicator color={C.primaryText} style={{ marginVertical: 12 }} />}
+      {/* 2. Группа */}
+      <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: 16, marginTop: 12 }}>
+        <Txt t="overline" color={k.textSecondary} style={{ marginBottom: 8 }}>Группа</Txt>
+        {loading && <ActivityIndicator color={k.accentText} style={{ marginVertical: 12 }} />}
         {error && (
-          <View style={s.errorBox}>
-            <Text style={[s.errorText, { color: C.statusOffline }]}>{error}</Text>
-            <TouchableOpacity onPress={loadGroups} style={[s.retryBtn, { borderColor: C.primaryText }]}>
-              <Text style={[s.retryText, { color: C.primaryText }]}>Повторить</Text>
-            </TouchableOpacity>
+          <View style={{ alignItems: 'center', rowGap: 10, paddingVertical: 8 }}>
+            <Txt t="body" color={k.statusOffline} style={{ textAlign: 'center' }}>{error}</Txt>
+            <Pressable
+              onPress={loadGroups}
+              accessibilityRole="button"
+              style={{ minHeight: TOUCH_MIN, paddingHorizontal: 20, borderRadius: RADIUS.pill, backgroundColor: k.accent, justifyContent: 'center' }}
+            >
+              <Txt t="labelStrong" color={k.onAccent}>Повторить</Txt>
+            </Pressable>
           </View>
         )}
-
-        {!loading && !error && (
-          <GroupSelector groups={groups} value={selected} onChange={setSelected} C={C} />
-        )}
-
-        <TouchableOpacity
-          style={[s.btn, { backgroundColor: C.primary }, (!selected || !name.trim() || saving) && s.btnDisabled]}
-          onPress={handleStart}
-          disabled={!selected || !name.trim() || saving}
-          activeOpacity={0.85}
-        >
-          {saving
-            ? <ActivityIndicator color={C.primaryFg} />
-            : <Text style={[s.btnText, { color: C.primaryFg }]}>Начать</Text>
-          }
-        </TouchableOpacity>
-        {(!name.trim() || !selected) && (
-          <Text style={[s.requiredHint, { color: C.muted }]}>
-            {!name.trim() && !selected
-              ? 'Введите имя и выберите группу'
-              : !name.trim()
-              ? 'Введите имя'
-              : 'Выберите группу'}
-          </Text>
+        {!loading && !error && <GroupSelector groups={groups} value={selected} onChange={setSelected} C={legacy} />}
+        {selected && (
+          <Txt t="small" color={k.textSecondary} style={{ marginTop: 10 }}>
+            Выбрано: {shortGroupName(selected.name)}, {selected.year} курс
+          </Txt>
         )}
       </View>
+
+      {/* 3. Цвет */}
+      <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: 16, marginTop: 12 }}>
+        <Txt t="overline" color={k.textSecondary} style={{ marginBottom: 12 }}>Цвет приложения</Txt>
+        <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 4, rowGap: 4 }}>
+          {ACCENT_PRESETS.map(p => {
+            const on = look.accent.preset === p.id;
+            return (
+              <Pressable
+                key={p.id}
+                onPress={() => pickAccent(p.id)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`Цвет: ${p.name}`}
+                style={{ width: 52, height: 52, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: p.hex, alignItems: 'center', justifyContent: 'center', borderWidth: on ? 3 : 0, borderColor: k.text }}>
+                  {on && <Ionicons name="checkmark" size={20} color={k.text} />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Txt t="small" color={k.textSecondary} style={{ marginTop: 10 }}>
+          Цвет можно изменить в любое время: Кабинет → «Внешний вид».
+        </Txt>
+      </View>
+
+      <Pressable
+        onPress={handleStart}
+        disabled={!ready}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !ready }}
+        style={{
+          marginTop: 20, minHeight: 52, borderRadius: RADIUS.md, backgroundColor: k.accent,
+          alignItems: 'center', justifyContent: 'center', opacity: ready ? 1 : 0.4,
+        }}
+      >
+        {saving ? <ActivityIndicator color={k.onAccent} /> : <Txt t="labelStrong" color={k.onAccent}>Начать</Txt>}
+      </Pressable>
+      {hint && <Txt t="small" color={k.textSecondary} style={{ textAlign: 'center', marginTop: 10 }}>{hint}</Txt>}
     </ScrollView>
   );
 }
-
-const s = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: 24, paddingBottom: 60, alignItems: 'center' },
-
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28, marginTop: 16, alignSelf: 'flex-start' },
-  logoBox: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  logoText: { fontWeight: '700', fontSize: 11 },
-  logoTitle: { fontWeight: '700', fontSize: 15 },
-  logoSub: { fontSize: 12 },
-
-  avatar: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  avatarText: { fontSize: 32, fontWeight: '700' },
-  displayName: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
-  displayGroup: { fontSize: 13, marginBottom: 16 },
-
-  form: { width: '100%', marginTop: 16 },
-  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6, textTransform: 'uppercase' },
-  input: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, borderWidth: 0.5 },
-
-  btn: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
-  btnDisabled: { opacity: 0.4 },
-  btnText: { fontSize: 16, fontWeight: '700' },
-
-  errorBox: { alignItems: 'center', marginVertical: 12 },
-  errorText: { textAlign: 'center', fontSize: 14, marginBottom: 10 },
-  retryBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8 },
-  retryText: { fontSize: 14, fontWeight: '600' },
-  requiredHint: { textAlign: 'center', fontSize: 12, marginTop: 10 },
-});

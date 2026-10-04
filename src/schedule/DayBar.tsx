@@ -9,19 +9,22 @@ import { Tokens, DAY_CELL, RADIUS } from './tokens';
 import { DayData, dayTitle, plural } from './state';
 import { Txt } from './ui';
 
-function DayBar({ days, k, todayIso, visible, onPick }: {
+function DayBar({ days, k, todayIso, visible, onPick, atTop }: {
   days: DayData[];
   k: Tokens;
   todayIso: string;
   visible: number;
   onPick: (dayIndex: number) => void;
+  /** Ряд стоит под шапкой, а не над вкладками: линия — снизу. */
+  atTop?: boolean;
 }) {
   return (
     <View
       accessibilityRole="tablist"
       style={{
         minHeight: DAY_CELL, flexDirection: 'row', alignItems: 'center',
-        backgroundColor: k.surface, borderTopWidth: 1, borderTopColor: k.border,
+        backgroundColor: k.surface, borderColor: k.border,
+        ...(atTop ? { borderBottomWidth: 1 } : { borderTopWidth: 1 }),
         paddingHorizontal: 4,
       }}
     >
