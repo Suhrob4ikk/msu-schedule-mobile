@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, StatusBar,
+  View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, StatusBar,
 } from 'react-native';
+import { Text, TextInput } from '../src/OnestText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { api, Group, shortGroupName, rememberGroup } from '../src/api';
@@ -111,12 +111,12 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
 
         <Text style={[s.label, { color: C.muted, marginTop: 16 }]}>ГРУППА</Text>
 
-        {loading && <ActivityIndicator color={C.primary} style={{ marginVertical: 12 }} />}
+        {loading && <ActivityIndicator color={C.primaryText} style={{ marginVertical: 12 }} />}
         {error && (
           <View style={s.errorBox}>
-            <Text style={s.errorText}>{error}</Text>
-            <TouchableOpacity onPress={loadGroups} style={[s.retryBtn, { borderColor: C.primary }]}>
-              <Text style={[s.retryText, { color: C.primary }]}>Повторить</Text>
+            <Text style={[s.errorText, { color: C.statusOffline }]}>{error}</Text>
+            <TouchableOpacity onPress={loadGroups} style={[s.retryBtn, { borderColor: C.primaryText }]}>
+              <Text style={[s.retryText, { color: C.primaryText }]}>Повторить</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -156,12 +156,12 @@ const s = StyleSheet.create({
 
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28, marginTop: 16, alignSelf: 'flex-start' },
   logoBox: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  logoText: { color: '#fff', fontWeight: '700', fontSize: 11 },
+  logoText: { fontWeight: '700', fontSize: 11 },
   logoTitle: { fontWeight: '700', fontSize: 15 },
   logoSub: { fontSize: 12 },
 
   avatar: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  avatarText: { color: '#fff', fontSize: 32, fontWeight: '700' },
+  avatarText: { fontSize: 32, fontWeight: '700' },
   displayName: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
   displayGroup: { fontSize: 13, marginBottom: 16 },
 
@@ -171,10 +171,10 @@ const s = StyleSheet.create({
 
   btn: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
   btnDisabled: { opacity: 0.4 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  btnText: { fontSize: 16, fontWeight: '700' },
 
   errorBox: { alignItems: 'center', marginVertical: 12 },
-  errorText: { color: '#dc2626', textAlign: 'center', fontSize: 14, marginBottom: 10 },
+  errorText: { textAlign: 'center', fontSize: 14, marginBottom: 10 },
   retryBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8 },
   retryText: { fontSize: 14, fontWeight: '600' },
   requiredHint: { textAlign: 'center', fontSize: 12, marginTop: 10 },

@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { Text } from './OnestText';
 import { Lesson, shortGroupName } from './api';
 import { useTheme } from './theme';
 
@@ -53,7 +54,7 @@ const ScheduleShareCard = forwardRef<View, Props>(({ groupLabel, weekLabel, less
 
       {days.map(([day, lessons]) => (
         <View key={day} style={{ marginBottom: 18 }}>
-          <Text style={[s.dayTitle, { color: C.primary }]}>{DAY_LABELS_FULL[day] ?? day}</Text>
+          <Text style={[s.dayTitle, { color: C.primaryText }]}>{DAY_LABELS_FULL[day] ?? day}</Text>
           {lessons.map(l => {
             const who = subtitle === 'group'
               ? (l.group ? `${shortGroupName(l.group.name)} · ${l.group.year} курс` : null)
@@ -88,7 +89,7 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   logo: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   // Логотип лежит на фирменном зелёном — белый в обеих темах.
-  logoText: { color: '#fff', fontWeight: '700', fontSize: 11 },
+  logoText: { fontWeight: '700', fontSize: 11 },
   groupText: { fontWeight: '700', fontSize: 15 },
   weekText: { fontSize: 11, marginTop: 2 },
   dayTitle: { fontWeight: '700', fontSize: 11, letterSpacing: 0.5, marginBottom: 6 },

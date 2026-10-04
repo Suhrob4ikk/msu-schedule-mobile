@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text } from './OnestText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,9 +30,9 @@ export default function CourseCheckBanner() {
   if (!visible) return null;
 
   return (
-    <View style={[s.card, { backgroundColor: C.card, borderColor: C.border, borderLeftColor: C.primary }]}>
+    <View style={[s.card, { backgroundColor: C.card, borderColor: C.border, borderLeftColor: C.primaryText }]}>
       <View style={s.row}>
-        <Ionicons name="school-outline" size={20} color={C.primary} style={{ marginTop: 1 }} />
+        <Ionicons name="school-outline" size={20} color={C.primaryText} style={{ marginTop: 1 }} />
         <View style={{ flex: 1 }}>
           <Text style={[s.title, { color: C.fg }]}>Начался новый учебный год</Text>
           <Text style={[s.desc, { color: C.muted }]}>

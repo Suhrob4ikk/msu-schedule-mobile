@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { Text } from './OnestText';
 import { Change } from './api';
-import { useTheme } from './theme';
+import { useTheme, type Colors } from './theme';
 
 /**
  * Карточка одного изменения расписания. Общая для «Истории изменений»
@@ -16,12 +17,17 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   new_week: 'Новая неделя',
 };
 
-const CHANGE_TYPE_COLORS: Record<string, string> = {
-  added: '#22c55e',
-  removed: '#ef4444',
-  changed: '#f59e0b',
-  new_week: '#3b82f6',
-};
+/** Цвет типа изменения — из смысловых токенов: добавлено — «свободно»,
+ *  убрано — «нет сети/занята», изменено — «синхронизация», новая неделя — акцент. */
+function changeColor(type: string, C: Colors): string {
+  switch (type) {
+    case 'added': return C.roomFreeText;
+    case 'removed': return C.statusOffline;
+    case 'changed': return C.statusSync;
+    case 'new_week': return C.primaryText;
+    default: return C.textSecondary;
+  }
+}
 
 const CHANGE_DAY_OFFSET: Record<string, number> = {
   понедельник: 0, вторник: 1, среда: 2, четверг: 3, пятница: 4, суббота: 5, воскресенье: 6,
@@ -61,7 +67,7 @@ export default function ChangeCard({ item, yearByGroupId }: {
   yearByGroupId?: Record<number, number>;
 }) {
   const C = useTheme();
-  const color = CHANGE_TYPE_COLORS[item.change_type] || '#6b7280';
+  const color = changeColor(item.change_type, C);
   const label = CHANGE_TYPE_LABELS[item.change_type] || item.change_type;
   const year = item.group_id != null ? yearByGroupId?.[item.group_id] : undefined;
 
@@ -93,13 +99,13 @@ export default function ChangeCard({ item, yearByGroupId }: {
       {item.change_type === 'removed' && item.old_value && (
         <View style={s.diffRow}>
           <Text style={[s.diffLabel, { color: C.muted }]}>Было:</Text>
-          <Text style={[s.diffValue, s.removed]}>{item.old_value}</Text>
+          <Text style={[s.diffValue, s.removed, { color: C.statusOffline }]}>{item.old_value}</Text>
         </View>
       )}
       {item.change_type === 'added' && item.new_value && (
         <View style={s.diffRow}>
           <Text style={[s.diffLabel, { color: C.muted }]}>Добавлено:</Text>
-          <Text style={[s.diffValue, s.added]}>{item.new_value}</Text>
+          <Text style={[s.diffValue, { color: C.roomFreeText }]}>{item.new_value}</Text>
         </View>
       )}
       {item.change_type === 'changed' && (
@@ -107,13 +113,13 @@ export default function ChangeCard({ item, yearByGroupId }: {
           {item.old_value && (
             <View style={s.diffRow}>
               <Text style={[s.diffLabel, { color: C.muted }]}>Было:</Text>
-              <Text style={[s.diffValue, s.removed]}>{item.old_value}</Text>
+              <Text style={[s.diffValue, s.removed, { color: C.statusOffline }]}>{item.old_value}</Text>
             </View>
           )}
           {item.new_value && (
             <View style={s.diffRow}>
               <Text style={[s.diffLabel, { color: C.muted }]}>Стало:</Text>
-              <Text style={[s.diffValue, s.added]}>{item.new_value}</Text>
+              <Text style={[s.diffValue, { color: C.roomFreeText }]}>{item.new_value}</Text>
             </View>
           )}
         </>
@@ -140,6 +146,5 @@ const s = StyleSheet.create({
   diffRow: { flexDirection: 'row', gap: 6, marginTop: 4, alignItems: 'flex-start', flexWrap: 'wrap' },
   diffLabel: { fontSize: 12, minWidth: 52 },
   diffValue: { fontSize: 12, fontWeight: '500', flex: 1 },
-  removed: { color: '#ef4444', textDecorationLine: 'line-through' },
-  added: { color: '#16a34a' },
+  removed: { textDecorationLine: 'line-through' },
 });

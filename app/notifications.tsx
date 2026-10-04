@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { View, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { Text } from '../src/OnestText';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../src/theme';
+import { useTheme, type Colors } from '../src/theme';
 import { Change, invalidateApiCache } from '../src/api';
 import { getNotifHistory, markCategoryRead, notifyNotifHistoryChanged, NotifEntry } from '../src/notificationHistory';
 import { loadMyChanges, markChangesSeen } from '../src/changesFeed';
@@ -10,9 +11,9 @@ import ChangeCard from '../src/ChangeCard';
 
 type Tab = 'exam' | 'change';
 
-const TABS: { key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { key: 'exam', label: 'Зачёты и экзамены', icon: 'school-outline', color: '#2563EB' },
-  { key: 'change', label: 'Изменения', icon: 'refresh-outline', color: '#f59e0b' },
+const TABS: { key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; color: (C: Colors) => string }[] = [
+  { key: 'exam', label: 'Зачёты и экзамены', icon: 'school-outline', color: C => C.primaryText },
+  { key: 'change', label: 'Изменения', icon: 'refresh-outline', color: C => C.statusSync },
 ];
 
 function formatDate(iso: string): string {
@@ -117,8 +118,8 @@ export default function NotificationsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={C.primary}
-            colors={[C.primary]} progressBackgroundColor={C.card}
+            tintColor={C.primaryText}
+            colors={[C.primaryText]} progressBackgroundColor={C.card}
           />
         }
         renderItem={({ item }) => <ChangeCard item={item} />}
@@ -135,10 +136,10 @@ export default function NotificationsScreen() {
       ListHeaderComponent={header}
       ListEmptyComponent={empty}
       renderItem={({ item }) => (
-        <View style={[s.card, { backgroundColor: C.card, borderColor: C.border, borderLeftColor: activeMeta.color }]}>
+        <View style={[s.card, { backgroundColor: C.card, borderColor: C.border, borderLeftColor: activeMeta.color(C) }]}>
           <View style={s.cardTop}>
             <Text style={[s.title, { color: C.fg }]}>{item.title}</Text>
-            {!item.read && <View style={[s.unreadDot, { backgroundColor: activeMeta.color }]} />}
+            {!item.read && <View style={[s.unreadDot, { backgroundColor: activeMeta.color(C) }]} />}
           </View>
           <Text style={[s.body, { color: C.muted }]}>{item.body}</Text>
           <Text style={[s.time, { color: C.muted }]}>{formatDate(item.date)}</Text>

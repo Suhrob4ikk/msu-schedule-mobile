@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet, RefreshControl,
+  View, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
 } from 'react-native';
+import { Text } from '../src/OnestText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, Change, shortGroupName } from '../src/api';
 import { useTheme } from '../src/theme';
@@ -110,8 +110,8 @@ export default function ChangesScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor={C.primary}
-          colors={[C.primary]} progressBackgroundColor={C.card}
+          tintColor={C.primaryText}
+          colors={[C.primaryText]} progressBackgroundColor={C.card}
         />
       }
       ListHeaderComponent={
@@ -142,7 +142,7 @@ export default function ChangesScreen() {
       ListEmptyComponent={
         error ? (
           <View style={s.center}>
-            <Text style={s.error}>{error}</Text>
+            <Text style={[s.error, { color: C.statusOffline }]}>{error}</Text>
             <TouchableOpacity onPress={() => load(onlyMine ? profileGroupId : null)} style={[s.retryBtn, { backgroundColor: C.primary }]}>
               <Text style={[s.retryText, { color: C.primaryFg }]}>Повторить</Text>
             </TouchableOpacity>
@@ -168,7 +168,7 @@ const s = StyleSheet.create({
   filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
   filterText: { fontSize: 12, fontWeight: '600' },
   empty: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  error: { color: '#dc2626', textAlign: 'center', marginBottom: 16, fontSize: 14 },
+  error: { textAlign: 'center', marginBottom: 16, fontSize: 14 },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
-  retryText: { color: '#fff', fontWeight: '600' },
+  retryText: { fontWeight: '600' },
 });

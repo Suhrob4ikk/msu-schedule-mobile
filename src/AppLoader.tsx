@@ -37,7 +37,7 @@ export default function AppLoader({ size = 64 }: { size?: number }) {
           {
             width: ringSize, height: ringSize, borderRadius: ringSize / 2,
             borderWidth: 3, borderColor: C.border,
-            borderTopColor: C.primary, borderRightColor: C.primary,
+            borderTopColor: C.primaryText, borderRightColor: C.primaryText,
             transform: [{ rotate }],
           },
         ]}

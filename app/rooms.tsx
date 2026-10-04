@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { View, Text, TextInput, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { Text, TextInput } from '../src/OnestText';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, DAYS_ORDER, PAIR_TIMES, WeekOption, weekLabel, isCurrentWeek, currentSlot } from '../src/api';
@@ -206,11 +207,11 @@ function LegacyRoomsScreen() {
     <ScrollView
       style={[s.container, { backgroundColor: C.bg }]}
       contentContainerStyle={s.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} progressBackgroundColor={C.card} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primaryText} colors={[C.primaryText]} progressBackgroundColor={C.card} />}
     >
       {isOffline && isOnline && (
-        <View style={s.offlineBanner}>
-          <Text style={s.offlineText}>{offlineBannerText}</Text>
+        <View style={[s.offlineBanner, { backgroundColor: C.statusOfflineBg }]}>
+          <Text style={[s.offlineText, { color: C.statusOffline }]}>{offlineBannerText}</Text>
         </View>
       )}
 
@@ -296,7 +297,7 @@ function LegacyRoomsScreen() {
                 style={[s.weekBtn, { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border }]}
               >
                 <Text style={[s.weekBtnText, { color: active ? C.primaryFg : C.fg }]}>{weekLabel(w.week_start)}</Text>
-                {cur && <View style={[s.weekDot, { backgroundColor: active ? withAlpha(C.primaryFg, 0.7) : C.primary }]} />}
+                {cur && <View style={[s.weekDot, { backgroundColor: active ? withAlpha(C.primaryFg, 0.7) : C.primaryText }]} />}
               </TouchableOpacity>
             );
           })}
@@ -304,7 +305,7 @@ function LegacyRoomsScreen() {
       )}
 
       {loading && <AppLoader />}
-      {error && <Text style={s.error}>{error}</Text>}
+      {error && <Text style={[s.error, { color: C.statusOffline }]}>{error}</Text>}
 
       {!loading && !error && (
         <>
@@ -371,7 +372,7 @@ function LegacyRoomsScreen() {
         const [pairStart, pairEnd] = PAIR_TIMES[pair] ?? ['', ''];
         return (
           <Modal transparent visible animationType="fade" onRequestClose={() => setOpenRoom(null)}>
-            <Pressable style={s.sheetBackdrop} onPress={() => setOpenRoom(null)}>
+            <Pressable style={[s.sheetBackdrop, { backgroundColor: C.scrim }]} onPress={() => setOpenRoom(null)}>
               <Pressable style={[s.sheet, { backgroundColor: C.card }]} onPress={() => {}}>
                 <View style={s.sheetHead}>
                   <View style={{ flex: 1 }}>
@@ -409,8 +410,8 @@ function LegacyRoomsScreen() {
                     </View>
 
                     {r.conflict && (
-                      <View style={[s.conflictBanner, { backgroundColor: C.examAccent }]}>
-                        <Text style={s.conflictBannerText}>
+                      <View style={[s.conflictBanner, { backgroundColor: C.roomConflictBg }]}>
+                        <Text style={[s.conflictBannerText, { color: C.roomConflictText }]}>
                           В расписании накладка: {entries.length} группы в одной аудитории одновременно
                         </Text>
                       </View>
@@ -459,12 +460,12 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
 
-  offlineBanner: { backgroundColor: '#f59e0b', borderRadius: 10, padding: 10, marginBottom: 12 },
-  offlineText: { fontSize: 12, color: '#fff', fontWeight: '600', textAlign: 'center' },
+  offlineBanner: { borderRadius: 10, padding: 10, marginBottom: 12 },
+  offlineText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
 
   sectionLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
   nowBtn: { borderRadius: 14, paddingVertical: 12, alignItems: 'center', marginBottom: 14 },
-  nowBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  nowBtnText: { fontSize: 14, fontWeight: '700' },
   nowHint: { fontSize: 12, marginTop: -8, marginBottom: 14 },
   searchInput: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 14 },
 
@@ -497,9 +498,9 @@ const s = StyleSheet.create({
   freeChipSub: { fontSize: 10, opacity: 0.85, marginTop: 2 },
   conflictDot: { position: 'absolute', top: -3, right: -3, width: 10, height: 10, borderRadius: 999, borderWidth: 2 },
   noRooms: { fontSize: 13, textAlign: 'center', paddingVertical: 8 },
-  error: { color: '#dc2626', textAlign: 'center', marginTop: 24, fontSize: 14 },
+  error: { textAlign: 'center', marginTop: 24, fontSize: 14 },
 
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  sheetBackdrop: { flex: 1, justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32, maxHeight: '80%' },
   sheetHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
   sheetTitle: { fontSize: 17, fontWeight: '800' },
@@ -508,7 +509,7 @@ const s = StyleSheet.create({
   statusPillText: { fontSize: 14, fontWeight: '700' },
   sheetNote: { fontSize: 12, marginTop: 12, lineHeight: 17 },
   conflictBanner: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 },
-  conflictBannerText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  conflictBannerText: { fontSize: 12, fontWeight: '700' },
   occupantRow: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   occupantTop: { fontSize: 13, fontWeight: '600' },
   occupantBottom: { fontSize: 12, marginTop: 2 },

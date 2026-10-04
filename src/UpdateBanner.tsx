@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, Linking, StyleSheet, AppState, AppStateStatus,
-  Modal, ScrollView,
+  View, TouchableOpacity, Linking, StyleSheet, AppState, AppStateStatus, Modal, ScrollView,
 } from 'react-native';
+import { Text } from './OnestText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -106,7 +106,7 @@ export default function UpdateBanner() {
           <Text style={[s.title, { color: C.fg }]} numberOfLines={1}>
             Версия {info.version}
           </Text>
-          <Text style={[s.sub, { color: C.primary }]} numberOfLines={1}>
+          <Text style={[s.sub, { color: C.primaryText }]} numberOfLines={1}>
             {info.missed_count > 1
               ? `Что нового · ${info.missed_count} версии подряд`
               : 'Что нового'}
@@ -141,7 +141,7 @@ export default function UpdateBanner() {
         animationType="fade"
         onRequestClose={() => setShowNotes(false)}
       >
-        <View style={s.modalBackdrop}>
+        <View style={[s.modalBackdrop, { backgroundColor: C.scrim }]}>
           <View style={[s.modalCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <View style={s.modalHead}>
               <View style={{ flex: 1 }}>
@@ -202,11 +202,11 @@ const s = StyleSheet.create({
   title: { fontSize: 13.5, fontWeight: '700' },
   sub: { fontSize: 11.5, marginTop: 1 },
   btn: { borderRadius: 9, paddingHorizontal: 14, paddingVertical: 7 },
-  btnText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+  btnText: { fontSize: 12.5, fontWeight: '700' },
   close: { padding: 2 },
 
   modalBackdrop: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    flex: 1,
     alignItems: 'center', justifyContent: 'center', padding: 20,
   },
   modalCard: { width: '100%', maxWidth: 420, borderRadius: 16, borderWidth: 1, padding: 18 },

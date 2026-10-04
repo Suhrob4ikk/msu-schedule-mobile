@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator,
+  View, ScrollView, StyleSheet, ActivityIndicator,
 } from 'react-native';
+import { Text } from '../src/OnestText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   api, Group, Lesson, DAYS_ORDER, PAIR_TIMES, PAIR_NUMBERS, shortGroupName,
   WeekInfo, isCurrentWeek,
 } from '../src/api';
 import { useTheme, useThemeMode } from '../src/theme';
+import { shadePair } from '../src/schedule/colors';
 import GroupSelector from '../src/GroupSelector';
 
 const DAY_SHORT: Record<string, string> = {
@@ -17,14 +19,8 @@ const DAY_SHORT: Record<string, string> = {
 
 const DAYS = DAYS_ORDER.filter(d => d !== 'воскресенье');
 
-// Синий для «занята у сравниваемой группы» — сиреневый в светлой теме
-// выглядел блёкло, синий держит контраст в обеих темах (те же оттенки,
-// что и bg-blue-100/900 на вебе). Своей мягкой подложки под этот цвет
-// в theme.ts нет, поэтому берём готовую пару light/dark локально.
-const OTHER_BUSY = {
-  light: { bg: '#dbeafe', border: '#bfdbfe' },
-  dark: { bg: 'rgba(59,130,246,0.18)', border: 'rgba(96,165,250,0.32)' },
-};
+// «Занята у сравниваемой группы» — постоянный оттенок «голубой» из токенов,
+// а не акцент: розовый или оранжевый акцент спутался бы с красным «занята у меня».
 
 /** Ключ занятого слота: «вторник|III» */
 const slotKey = (day: string, pair: string) => `${day}|${pair}`;
@@ -35,7 +31,8 @@ const busySlots = (lessons: Lesson[]) =>
 export default function CompareScreen() {
   const C = useTheme();
   const { mode } = useThemeMode();
-  const otherBusyColors = OTHER_BUSY[mode];
+  const sky = shadePair('sky', C.mode);
+  const otherBusyColors = { bg: sky.bg, border: sky.text };
   const [groups, setGroups] = useState<Group[]>([]);
   const [myGroup, setMyGroup] = useState<Group | null>(null);
   const [otherGroup, setOtherGroup] = useState<Group | null>(null);
@@ -121,7 +118,7 @@ export default function CompareScreen() {
       )}
 
       {myGroup && otherGroup && loading && (
-        <ActivityIndicator color={C.primary} style={{ marginTop: 28 }} />
+        <ActivityIndicator color={C.primaryText} style={{ marginTop: 28 }} />
       )}
 
       {myGroup && otherGroup && !loading && activeDays.length === 0 && (
@@ -133,7 +130,7 @@ export default function CompareScreen() {
       {myGroup && otherGroup && !loading && activeDays.length > 0 && (
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
           <Text style={[s.countText, { color: C.fg }]}>
-            Общих свободных пар: <Text style={{ color: C.primary, fontWeight: '800' }}>{commonFree}</Text>
+            Общих свободных пар: <Text style={{ color: C.primaryText, fontWeight: '800' }}>{commonFree}</Text>
           </Text>
 
           {/* Шапка с номерами пар */}

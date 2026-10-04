@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share, Animated, Platform,
+  View, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Share, Animated, Platform,
 } from 'react-native';
+import { Text, TextInput } from '../src/OnestText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
@@ -354,7 +354,7 @@ function SkipStats() {
     <View style={[ft.row, { backgroundColor: C.card, borderColor: C.border, flexDirection: 'column', alignItems: 'stretch' }]}>
       <Text style={[ft.label, { color: C.fg }]}>Пропуски</Text>
       <Text style={[ft.desc, { color: C.muted }]}>
-        Всего пропущено: <Text style={{ color: '#d43a40', fontWeight: '700' }}>{st.total} {pluralPairs(st.total)}</Text>
+        Всего пропущено: <Text style={{ color: C.fg, fontWeight: '700' }}>{st.total} {pluralPairs(st.total)}</Text>
       </Text>
       <View style={{ marginTop: 10, gap: 4 }}>
         {st.bySubject.map(([subject, n]) => (
@@ -371,13 +371,14 @@ function SkipStats() {
 /** Точка «есть новые изменения» — не просто появляется, а слегка
  *  выскакивает (пружина), чтобы новый бейдж не потерялся среди текста. */
 function NewChangesDot() {
+  const C = useTheme();
   const scale = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 300 }).start();
   }, [scale]);
   return (
     <Animated.View
-      style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#f43f5e', marginLeft: 6, transform: [{ scale }] }}
+      style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.primaryText, marginLeft: 6, transform: [{ scale }] }}
     />
   );
 }
@@ -702,7 +703,7 @@ export default function ProfileScreen() {
         <Text
           style={[
             s.syncStatus,
-            { color: syncMsg ? (syncMsg.ok ? '#16a34a' : '#dc2626') : C.muted },
+            { color: syncMsg ? (syncMsg.ok ? C.statusOnline : C.statusOffline) : C.muted },
           ]}
         >
           {syncMsg
@@ -741,7 +742,7 @@ const s = StyleSheet.create({
 
   avatarSection: { alignItems: 'center', marginBottom: 28, marginTop: 8 },
   avatar: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  avatarText: { color: '#fff', fontSize: 32, fontWeight: '700' },
+  avatarText: { fontSize: 32, fontWeight: '700' },
   displayName: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
   displayGroup: { fontSize: 13 },
 
@@ -757,7 +758,7 @@ const s = StyleSheet.create({
 
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  saveBtnText: { fontSize: 15, fontWeight: '700' },
   cancelBtn: { alignItems: 'center', paddingVertical: 12 },
   cancelText: { fontSize: 14 },
 
@@ -773,7 +774,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderRadius: 12, paddingVertical: 14,
   },
-  syncBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  syncBtnText: { fontSize: 15, fontWeight: '700' },
   syncStatus: { fontSize: 12, textAlign: 'center', marginTop: 8 },
   about: { alignItems: 'center', gap: 4 },
   aboutTitle: { fontSize: 13, fontWeight: '600' },

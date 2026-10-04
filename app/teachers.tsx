@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
-  View, Text, TextInput, FlatList, TouchableOpacity,
-  StyleSheet, ScrollView, RefreshControl, Alert,
+  View, FlatList, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert,
 } from 'react-native';
+import { Text, TextInput } from '../src/OnestText';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -14,7 +14,8 @@ import {
   api, invalidateApiCache, Teacher, Lesson, DAYS_ORDER, shortGroupName,
   WeekOption, weekLabel, isCurrentWeek, weekRangeStr,
 } from '../src/api';
-import { useTheme, withAlpha } from '../src/theme';
+import { useTheme, withAlpha, type Colors } from '../src/theme';
+import { lessonKind } from '../src/schedule/state';
 import AppLoader from '../src/AppLoader';
 import { useSyncStatus } from '../src/SyncContext';
 
@@ -27,12 +28,16 @@ const DAY_OFFSET: Record<string, number> = {
   понедельник: 0, вторник: 1, среда: 2, четверг: 3, пятница: 4, суббота: 5,
 };
 
-// Цвета и подписи типов занятий — как на главном экране и в вебе.
-// "ЛК" — реальное сокращение из msu.tj, "ЛЕКЦИЯ" оставлено на случай смены формата.
-const TYPE_COLORS: Record<string, string> = {
-  ЗАЧЕТ: '#d43a40', ЭКЗАМЕН: '#d43a40', ПРАКТИКА: '#5650d6', ПЗ: '#5650d6',
-  ЛК: '#2563eb', ЛЕКЦИЯ: '#2563eb',
-};
+// Цвета типов занятий — те же бейджи, что в Расписании (и тот же выбор
+// оттенков во «Внешнем виде»). "ЛК" — реальное сокращение из msu.tj.
+function typeColors(type: string, C: Colors): { bg: string; fg: string } {
+  switch (lessonKind(type)?.palette) {
+    case 'lecture': return { bg: C.typeLectureBg, fg: C.typeLectureText };
+    case 'practice': return { bg: C.typePracticeBg, fg: C.typePracticeText };
+    case 'exam': return { bg: C.typeExamBg, fg: C.typeExamText };
+    default: return { bg: C.surface2, fg: C.textSecondary };
+  }
+}
 const TYPE_LABELS: Record<string, string> = {
   ЗАЧЕТ: 'Зачёт', ЭКЗАМЕН: 'Экзамен', ПРАКТИКА: 'Практика', ПЗ: 'Практика',
   ЛК: 'Лекция', ЛЕКЦИЯ: 'Лекция',
@@ -281,7 +286,7 @@ export default function TeachersScreen() {
             style={[s.weekBtn, { backgroundColor: active ? C.primary : C.card, borderColor: active ? C.primary : C.border }]}
           >
             <Text style={[s.weekBtnText, { color: active ? C.primaryFg : C.fg }]}>{weekLabel(w.week_start)}</Text>
-            {cur && <View style={[s.weekDot, { backgroundColor: active ? withAlpha(C.primaryFg, 0.7) : C.primary }]} />}
+            {cur && <View style={[s.weekDot, { backgroundColor: active ? withAlpha(C.primaryFg, 0.7) : C.primaryText }]} />}
           </TouchableOpacity>
         );
       })}
@@ -295,11 +300,11 @@ export default function TeachersScreen() {
           style={[s.backBtn, { backgroundColor: C.card, borderBottomColor: C.border }]}
           onPress={() => setView('list')}
         >
-          <Text style={[s.backText, { color: C.primary }]}>← Все преподаватели</Text>
+          <Text style={[s.backText, { color: C.primaryText }]}>← Все преподаватели</Text>
         </TouchableOpacity>
         {isOffline && isOnline && (
-          <View style={s.offlineBanner}>
-            <Text style={s.offlineText}>{offlineBannerText}</Text>
+          <View style={[s.offlineBanner, { backgroundColor: C.statusOfflineBg }]}>
+            <Text style={[s.offlineText, { color: C.statusOffline }]}>{offlineBannerText}</Text>
           </View>
         )}
         <Text style={[s.teacherName, { color: C.fg }]}>{selected.name}</Text>
@@ -333,14 +338,14 @@ export default function TeachersScreen() {
         {loading ? (
           <AppLoader />
         ) : error ? (
-          <Text style={s.errorText}>{error}</Text>
+          <Text style={[s.errorText, { color: C.statusOffline }]}>{error}</Text>
         ) : (
           <FlatList
             data={Object.entries(byDay)}
             keyExtractor={([day]) => day}
             contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
             refreshControl={
-              <RefreshControl refreshing={refreshingSched} onRefresh={onRefreshSchedule} tintColor={C.primary} colors={[C.primary]} progressBackgroundColor={C.card} />
+              <RefreshControl refreshing={refreshingSched} onRefresh={onRefreshSchedule} tintColor={C.primaryText} colors={[C.primaryText]} progressBackgroundColor={C.card} />
             }
             renderItem={({ item: [day, dl] }) => (
               <View>
@@ -350,13 +355,13 @@ export default function TeachersScreen() {
                 {dl.map(l => (
                   <View key={l.id} style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                      <Text style={[s.pairBadge, { color: C.primary, backgroundColor: C.blueBg }]}>
+                      <Text style={[s.pairBadge, { color: C.onAccentSoft, backgroundColor: C.blueBg }]}>
                         {l.pair_number} пара
                       </Text>
                       <Text style={[s.time, { color: C.muted }]}>{l.pair_time_start}–{l.pair_time_end}</Text>
                       {l.lesson_type && (
-                        <View style={[s.typeBadge, { backgroundColor: (TYPE_COLORS[l.lesson_type] || '#3b82f6') + '20' }]}>
-                          <Text style={[s.typeText, { color: TYPE_COLORS[l.lesson_type] || '#3b82f6' }]}>
+                        <View style={[s.typeBadge, { backgroundColor: typeColors(l.lesson_type, C).bg }]}>
+                          <Text style={[s.typeText, { color: typeColors(l.lesson_type, C).fg }]}>
                             {TYPE_LABELS[l.lesson_type] || l.lesson_type}
                           </Text>
                         </View>
@@ -381,8 +386,8 @@ export default function TeachersScreen() {
   return (
     <View style={[s.container, { backgroundColor: C.bg }]}>
       {isOffline && isOnline && (
-        <View style={s.offlineBanner}>
-          <Text style={s.offlineText}>{offlineBannerText}</Text>
+        <View style={[s.offlineBanner, { backgroundColor: C.statusOfflineBg }]}>
+          <Text style={[s.offlineText, { color: C.statusOffline }]}>{offlineBannerText}</Text>
         </View>
       )}
       <View style={[s.searchWrap, { backgroundColor: C.card, borderBottomColor: C.border }]}>
@@ -396,14 +401,14 @@ export default function TeachersScreen() {
       </View>
       {weekSelector}
       {loadingList && <AppLoader />}
-      {error && !loadingList && <Text style={s.errorText}>{error}</Text>}
+      {error && !loadingList && <Text style={[s.errorText, { color: C.statusOffline }]}>{error}</Text>}
       {!loadingList && (
         <FlatList
           data={filtered}
           keyExtractor={t => t.name}
           contentContainerStyle={{ paddingBottom: 40 }}
           refreshControl={
-            <RefreshControl refreshing={refreshingList} onRefresh={onRefreshList} tintColor={C.primary} colors={[C.primary]} progressBackgroundColor={C.card} />
+            <RefreshControl refreshing={refreshingList} onRefresh={onRefreshList} tintColor={C.primaryText} colors={[C.primaryText]} progressBackgroundColor={C.card} />
           }
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -423,8 +428,8 @@ export default function TeachersScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  offlineBanner: { backgroundColor: '#f59e0b', padding: 10 },
-  offlineText: { fontSize: 12, color: '#fff', fontWeight: '600', textAlign: 'center' },
+  offlineBanner: { padding: 10 },
+  offlineText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   searchWrap: { padding: 12, borderBottomWidth: 1 },
   search: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, marginBottom: 8 },
   hint: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
@@ -462,5 +467,5 @@ const s = StyleSheet.create({
   subject: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   meta: { fontSize: 12, marginTop: 2 },
   empty: { textAlign: 'center', marginTop: 48, fontSize: 15 },
-  errorText: { color: '#dc2626', textAlign: 'center', marginTop: 32, fontSize: 14, paddingHorizontal: 24 },
+  errorText: { textAlign: 'center', marginTop: 32, fontSize: 14, paddingHorizontal: 24 },
 });

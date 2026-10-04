@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Share, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Share, StyleSheet } from 'react-native';
+import { Text } from './OnestText';
 import Constants from 'expo-constants';
 import QRCode from 'react-native-qrcode-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +27,8 @@ export default function InviteCard({ C }: { C: Colors }) {
     <View style={[s.card, { backgroundColor: C.card, borderColor: C.border }]}>
       <Text style={[s.title, { color: C.fg }]}>Позвать одногруппников</Text>
       <View style={s.qrBox}>
-        <QRCode value={WEB_URL} size={140} color="#111111" backgroundColor="#ffffff" />
+        {/* QR — всегда тёмный на белом, в любой теме: иначе камеры его не читают */}
+        <QRCode value={WEB_URL} size={140} color="#0B0D12" backgroundColor="#FFFFFF" />
       </View>
       <Text style={[s.hint, { color: C.muted }]}>
         Наведите камеру на QR-код
@@ -45,5 +47,5 @@ const s = StyleSheet.create({
   qrBox: { padding: 12, borderRadius: 10, backgroundColor: '#fff' },
   hint: { fontSize: 12, textAlign: 'center', maxWidth: 240 },
   btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 11, borderRadius: 10 },
-  btnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  btnText: { fontSize: 14, fontWeight: '600' },
 });

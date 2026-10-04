@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text } from './OnestText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from './theme';
@@ -30,7 +31,7 @@ export default function TipsHint() {
 
   return (
     <View style={[s.box, { backgroundColor: C.card, borderColor: C.border }]}>
-      <Ionicons name="bulb-outline" size={18} color={C.primary} style={{ marginTop: 1 }} />
+      <Ionicons name="bulb-outline" size={18} color={C.primaryText} style={{ marginTop: 1 }} />
       <Text style={[s.text, { color: C.muted }]}>
         Есть виджет: долгое нажатие на экран → Виджеты → МГУ Душанбе
       </Text>
