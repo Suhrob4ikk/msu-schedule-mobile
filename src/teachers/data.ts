@@ -4,7 +4,7 @@
  * и сеть. Статусы списка считаются из кэша одним чтением с диска — без
  * запросов на каждого педагога.
  */
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, Lesson, Teacher, WeekOption } from '../api';
 import { ListStatus, teacherStatus } from './state';
@@ -153,7 +153,8 @@ class StatusStore {
   }
 
   subscribe(key: string, id: number, group: string, notify: () => void): () => void {
-    this.rows.set(key, { id, group, y: 0, h: 0, seen: this.minute, notify });
+    const prev = this.rows.get(key);
+    this.rows.set(key, { id, group, y: prev?.y ?? 0, h: prev?.h ?? 0, seen: this.minute, notify });
     return () => { if (this.rows.get(key)?.notify === notify) this.rows.delete(key); };
   }
 }
@@ -162,8 +163,7 @@ export const statusStore = new StatusStore();
 
 /** Статус педагога для строки. key — уникален для строки на экране. */
 export function useTeacherStatus(key: string, id: number, group: string): ListStatus | null {
-  return useSyncExternalStore(
-    notify => statusStore.subscribe(key, id, group, notify),
-    () => statusStore.status(id),
-  );
+  const subscribe = useCallback((notify: () => void) => statusStore.subscribe(key, id, group, notify), [key, id, group]);
+  const snapshot = useCallback(() => statusStore.status(id), [id]);
+  return useSyncExternalStore(subscribe, snapshot);
 }

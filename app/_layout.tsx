@@ -219,7 +219,7 @@ function AppTabs() {
   // Экраны «Табло» рисуют свою шапку со статусом связи и колокольчиком —
   // общую шапку и плавающую точку статуса на них прячем.
   const pathname = usePathname();
-  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || pathname === '/rooms';
+  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || pathname === '/rooms' || pathname === '/teachers';
 
   useRemotePushRefresh();
 
@@ -297,6 +297,7 @@ function AppTabs() {
           options={{
             title: 'Преподаватели',
             tabBarLabel: tabLabel('Педагоги'),
+            headerShown: false,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="people-outline" size={size} color={color} />
             ),

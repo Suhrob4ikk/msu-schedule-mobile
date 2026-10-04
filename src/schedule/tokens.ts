@@ -80,6 +80,15 @@ export const TYPE = {
   smallSemi: { style: type(13, 18, 600), max: 2 },
   link: { style: type(14, 18, 600), max: 2 },
   avatar: { style: type(20, 24, 800), max: 1.4 },
+  // ТЗ «Педагоги», раздел «Размеры и типографика»
+  teacherName: { style: type(16, 21, 700), max: 2 },
+  teacherStatus: { style: type(13, 18, 400), max: 2 },
+  teacherStatusNow: { style: type(13, 18, 600), max: 2 },
+  teacherTitle: { style: type(26, 30, 800, { letterSpacing: -0.52 }), max: 1.4 },
+  letter: { style: type(15, 20, 800), max: 2 },
+  chip: { style: type(13, 16, 600), max: 2 },
+  emptyTitle: { style: type(18, 23, 700), max: 2 },
+  bodySmall: { style: type(14, 19, 400), max: 2 },
 } as const;
 
 export const RADIUS = { sm: 12, md: 14, card: 18, lg: 20, sheet: 28, pill: 999 } as const;
