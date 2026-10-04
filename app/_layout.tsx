@@ -222,7 +222,7 @@ function AppTabs() {
   // Аудитории — когда включён флаг «Новые экраны «Табло»».
   const tablo = useTabloFlag() === true;
   const pathname = usePathname();
-  const ownHeader = pathname === '/' || pathname === '/index' || (tablo && pathname === '/rooms');
+  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || (tablo && pathname === '/rooms');
 
   useRemotePushRefresh();
 
@@ -325,6 +325,7 @@ function AppTabs() {
           }}
         />
         <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="appearance" options={{ href: null, headerShown: false, title: 'Внешний вид' }} />
       </Tabs>
       {/* Плавающая карточка обновления — поверх вкладок, поэтому после <Tabs> */}
       <UpdateBanner />

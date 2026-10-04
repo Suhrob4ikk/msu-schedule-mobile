@@ -203,3 +203,8 @@ export function useThemeMode(): Pick<ThemeCtxType, 'mode' | 'base' | 'choose'> &
   const { mode, base, choose, appearance } = useContext(ThemeCtx);
   return { mode, base, choose, pref: appearance.background };
 }
+
+/** Текущие настройки «Внешнего вида» (для экрана настроек и подписи в Кабинете). */
+export function useAppearanceSettings(): Appearance {
+  return useContext(ThemeCtx).appearance;
+}

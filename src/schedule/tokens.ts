@@ -48,6 +48,7 @@ export const TYPE = {
   countdown: { style: type(26, 26, 800), max: 1.4 },
   roomRow: { style: type(22, 24, 800), max: 1.4 },
   timeRow: { style: type(18, 22, 700), max: 1.4 },
+  titleScreen: { style: type(20, 26, 700), max: 2 },
   titleCard: { style: type(18, 23, 700), max: 2 },
   titleRow: { style: type(15, 20, 600), max: 2 },
   body: { style: type(15, 20, 500), max: 2 },
