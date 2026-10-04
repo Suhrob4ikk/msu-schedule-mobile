@@ -1,77 +1,143 @@
 /**
- * Экран «Внешний вид» — по ТЗ «токены и экран „Внешний вид“». Любой выбор
- * сразу действует во всём приложении (src/appearance.ts), без «Сохранить»;
- * исключение — лист «Свой цвет» с кнопкой «Применить».
+ * Экран «Внешний вид» — по ТЗ «токены и экран „Внешний вид“». Выбор сразу
+ * отмечается на экране (кольцо — в тот же кадр), а приложение
+ * перекрашивается следующим кадром (src/appearance.ts). Исключение — лист
+ * «Свой цвет» с кнопкой «Применить».
+ *
+ * Раскладка без измерений: ни onLayout → setState, ни процентов с дробями.
+ * В 1.9.40 предпросмотр брал высоту из onLayout, а внутри тикал отсчёт и
+ * пульсировала точка — экран под ним мелко дрожал. Теперь все размеры
+ * считаются из ширины окна целыми числами, предпросмотр неподвижен.
  */
-import React, { useCallback, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StatusBar, TextInput, View, type GestureResponderEvent } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  BackHandler, Pressable, ScrollView, StatusBar, TextInput, View, useWindowDimensions,
+  type GestureResponderEvent,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useThemeMode, useAppearanceSettings } from '../theme';
-import { setAppearance, resetAppearance } from '../appearance';
+import { useThemeMode } from '../theme';
+import { setAppearance, resetAppearance, useSelectedAppearance } from '../appearance';
 import { accentHex, onAccentLine, type Background } from '../appearanceModel';
 import {
   useTokens, Tokens, RADIUS, TOUCH_MIN, TYPE,
-  ACCENT_PRESETS, TYPE_SHADES, BASE_THEMES, normalizeHex, pickOnAccent,
+  ACCENT_PRESETS, TYPE_SHADES, BASE_THEMES, normalizeHex, pickOnAccent, accentTokens, deriveAccent,
   type BaseMode, type Density, type LessonTypeKey, type ShadeId,
 } from '../schedule/tokens';
-import { Txt } from '../schedule/ui';
+import { Txt, Divider, FixedFontScale } from '../schedule/ui';
 import FocusCard from '../schedule/FocusCard';
+import LessonRow from '../schedule/LessonRow';
+import RoomRow from '../rooms/RoomRow';
 import BottomSheet from '../schedule/BottomSheet';
 import type { Focus, Block } from '../schedule/state';
-import type { Lesson } from '../api';
+import type { RoomDay } from '../rooms/state';
+import { PAIR_TIMES, type Lesson } from '../api';
+import { SatValSquare, HueSlider, hexToHsv, hsvToHex, type Hsv } from './ColorPicker';
 
 const GUTTER = 16;
+const PANEL_PAD = 16;
 const SECTION_GAP = 26;
 const PREVIEW_SCALE = 0.78;
+/**
+ * Высота живой карточки при шрифте ×1 (шрифт в предпросмотре не
+ * масштабируется): поля 14 + пилюля/отсчёт 26 + 10 + время/аудитория 62 + 10
+ * + предмет 23 + 8 + бейдж 20 + прогресс 18. Плюс 6 запаса снизу.
+ */
+const CARD_H = 14 + 26 + 10 + 62 + 10 + 23 + 8 + 20 + 18 + 6;
 
-// ─── Демо-пара для предпросмотра ────────────────────────────────────────────
+// ─── Демо-данные предпросмотра (неподвижные) ───────────────────────────────
 
-function demoFocus(): Focus {
-  const now = Date.now();
-  const lesson: Lesson = {
-    id: -1, subject: 'Математический анализ', lesson_type: 'ЛК', day_of_week: 'понедельник',
-    lesson_date: null, pair_number: 'II', pair_time_start: '09:45', pair_time_end: '11:15',
-    teacher: { id: -1, name: 'Иванов И. И.' }, room: { id: -1, name: '406' }, group: null,
-  };
-  const block: Block = {
-    key: 'demo', lessons: [lesson], day: 'понедельник', date: '2026-10-05', pairs: ['II'],
-    start: '09:45', end: '11:15', startAt: now - 38 * 60_000, endAt: now + 52 * 60_000,
-  };
+const DEMO_NOW = Date.UTC(2026, 9, 5, 5, 23); // момент «замер» — внутри II пары
+const MIN = 60_000;
+
+function demoLesson(id: number, pair: string, subject: string, type: string, teacher: string, room: string): Lesson {
+  const [start, end] = PAIR_TIMES[pair];
   return {
-    kind: 'live', block, slot: lesson, pill: 'Идёт · II пара', filled: true,
-    countdownLabel: 'до конца', targetAt: now + 52 * 60_000, progressFrom: now - 38 * 60_000,
+    id, subject, lesson_type: type, day_of_week: 'понедельник', lesson_date: null,
+    pair_number: pair, pair_time_start: start, pair_time_end: end,
+    teacher: { id, name: teacher }, room: { id, name: room }, group: null,
   };
 }
 
+function demoBlock(l: Lesson): Block {
+  return {
+    key: `demo-${l.id}`, lessons: [l], day: l.day_of_week, date: '2026-10-05', pairs: [l.pair_number],
+    start: l.pair_time_start, end: l.pair_time_end, startAt: 0, endAt: 0,
+  };
+}
+
+const DEMO_LIVE = demoLesson(-1, 'II', 'Математический анализ', 'ЛК', 'Иванов И. И.', '406');
+const DEMO_FOCUS: Focus = {
+  kind: 'live', block: demoBlock(DEMO_LIVE), slot: DEMO_LIVE, pill: 'Идёт · II пара', filled: true,
+  countdownLabel: 'до конца', targetAt: DEMO_NOW + 52 * MIN, progressFrom: DEMO_NOW - 38 * MIN,
+};
+const DEMO_ROWS: Block[] = [
+  demoBlock(demoLesson(-2, 'III', 'Языки программирования', 'ПЗ', 'Петрова А. С.', '512')),
+  demoBlock(demoLesson(-3, 'IV', 'История', 'ЛК', 'Сидоров К. М.', '301')),
+  demoBlock(demoLesson(-4, 'V', 'Дифференциальные уравнения', 'ЭКЗ', 'Иванов И. И.', '406')),
+];
+const DEMO_ROOM: RoomDay = {
+  room: '406',
+  occupants: [[], [{
+    group: '3 курс · ПМиИ', course: 3, program: 'ПМиИ', subject: 'Математический анализ', type: 'ЛК', teacher: 'Иванов И. И.',
+  }], [], [], []],
+  cells: ['free', 'busy', 'free', 'free', 'free'],
+};
+
 const noop = () => {};
 
-/** Настоящая карточка Расписания с демо-данными, уменьшенная до 0,78. */
-function Preview({ k }: { k: Tokens }) {
-  const [focus] = useState(demoFocus);
-  const [w, setW] = useState(0);
-  const [h, setH] = useState(0);
+// ─── Типы занятий: подписи бейджей ──────────────────────────────────────────
+
+const TYPE_ROWS: { key: LessonTypeKey; label: string; bg: keyof Tokens; fg: keyof Tokens }[] = [
+  { key: 'lecture', label: 'Лекция', bg: 'typeLectureBg', fg: 'typeLectureText' },
+  { key: 'practice', label: 'Практика', bg: 'typePracticeBg', fg: 'typePracticeText' },
+  { key: 'exam', label: 'Экзамен · Зачёт', bg: 'typeExamBg', fg: 'typeExamText' },
+];
+
+function TypeBadge({ k, row }: { k: Tokens; row: typeof TYPE_ROWS[number] }) {
   return (
-    <View
-      accessible
-      accessibilityLabel="Предпросмотр карточки пары"
-      importantForAccessibility="yes"
-      onLayout={e => setW(e.nativeEvent.layout.width)}
-      style={{ height: h ? h * PREVIEW_SCALE : undefined }}
-    >
-      {w > 0 && (
-        <View
-          pointerEvents="none"
-          importantForAccessibility="no-hide-descendants"
-          onLayout={e => setH(e.nativeEvent.layout.height)}
-          style={{ width: w / PREVIEW_SCALE, transform: [{ scale: PREVIEW_SCALE }], transformOrigin: 'top left' }}
-        >
-          <FocusCard focus={focus} k={k} onPress={noop} onExpire={noop} />
-        </View>
-      )}
+    <View style={{ alignSelf: 'flex-start', backgroundColor: k[row.bg] as string, borderRadius: RADIUS.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+      <Txt t="captionStrong" color={k[row.fg] as string}>{row.label}</Txt>
     </View>
+  );
+}
+
+/**
+ * Предпросмотр: настоящая карточка Расписания (0,78), под ней три строки пар
+ * и строка аудитории — в них видна плотность. Всё неподвижно и без
+ * измерений: ширина — из окна, высота карточки — константа.
+ */
+function Preview({ k, width }: { k: Tokens; width: number }) {
+  const innerW = Math.round(width / PREVIEW_SCALE);
+  const boxH = Math.ceil(CARD_H * PREVIEW_SCALE);
+  return (
+    <FixedFontScale.Provider value>
+      <View accessible accessibilityLabel="Предпросмотр: карточка пары, строки пар и аудитории" style={{ rowGap: 10 }}>
+        <View style={{ width, height: boxH, overflow: 'hidden' }} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+          <View style={{ position: 'absolute', left: 0, top: 0, width: innerW, transform: [{ scale: PREVIEW_SCALE }], transformOrigin: 'top left' }}>
+            <FocusCard focus={DEMO_FOCUS} k={k} onPress={noop} onExpire={noop} stillAt={DEMO_NOW} />
+          </View>
+        </View>
+        <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={{ rowGap: k.blockGap }}>
+          <View style={{ backgroundColor: k.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: k.border, overflow: 'hidden' }}>
+            {DEMO_ROWS.map((b, i) => (
+              <React.Fragment key={b.key}>
+                {i > 0 && <Divider k={k} />}
+                <LessonRow block={b} k={k} past={false} onPress={noop} />
+              </React.Fragment>
+            ))}
+          </View>
+          <View style={{ backgroundColor: k.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: k.border, overflow: 'hidden' }}>
+            <RoomRow day={DEMO_ROOM} pairIdx={1} k={k} onPress={noop} />
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 6 }}>
+          {TYPE_ROWS.map(r => <TypeBadge key={r.key} k={k} row={r} />)}
+        </View>
+      </View>
+    </FixedFontScale.Provider>
   );
 }
 
@@ -83,12 +149,12 @@ function Panel({ k, title, children }: { k: Tokens; title: string; children: Rea
       <Txt t="overline" color={k.textSecondary} accessibilityRole="header" style={{ marginLeft: 4, marginBottom: 8 }}>
         {title}
       </Txt>
-      <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: 16 }}>{children}</View>
+      <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: PANEL_PAD }}>{children}</View>
     </View>
   );
 }
 
-/** Круг с кольцом выбора цвета `text` (2 + 3 отступ, ТЗ selected-ring). */
+/** Круг с кольцом выбора цвета `text` (2 + 3 отступ, ТЗ selected-ring). Размеры постоянные. */
 function Swatch({ k, color, size, selected, check, children }: {
   k: Tokens; color: string; size: number; selected: boolean; check?: string; children?: React.ReactNode;
 }) {
@@ -115,47 +181,63 @@ function capital(s: string): string {
 
 // ─── Акцент ──────────────────────────────────────────────────────────────────
 
-function AccentGrid({ k, onCustom }: { k: Tokens; onCustom: () => void }) {
-  const a = useAppearanceSettings();
+const ACCENT_COLS = 5;
+
+function AccentCell({ k, width, selected, label, a11y, hint, onPress, children }: {
+  k: Tokens; width: number; selected: boolean; label: string; a11y: string; hint?: string;
+  onPress: () => void; children: React.ReactNode;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={a11y}
+      accessibilityHint={hint}
+      style={{ width, minHeight: 72, alignItems: 'center', paddingVertical: 4 }}
+    >
+      {children}
+      <Txt t={selected ? 'captionStrong' : 'caption'} color={selected ? k.text : k.textSecondary} numberOfLines={1} style={{ marginTop: 4 }}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
+function AccentGrid({ k, width, onCustom }: { k: Tokens; width: number; onCustom: () => void }) {
+  const a = useSelectedAppearance();
   const custom = a.accent.custom;
   const customOn = a.accent.preset === 'custom';
-  const cell = { width: '20%' as const, minHeight: 72, alignItems: 'center' as const, paddingVertical: 4 };
+  // Целая ширина ячейки — без дробных процентов, число колонок не «мигает»
+  const cellW = Math.floor(width / ACCENT_COLS);
+  const cells = [
+    ...ACCENT_PRESETS.map(p => {
+      const sel = a.accent.preset === p.id;
+      return (
+        <AccentCell
+          key={p.id} k={k} width={cellW} selected={sel} label={capital(p.name)} a11y={`Акцент: ${p.name}`}
+          onPress={() => { Haptics.selectionAsync(); setAppearance(prev => ({ ...prev, accent: { ...prev.accent, preset: p.id } })); }}
+        >
+          <Swatch k={k} color={p.hex} size={40} selected={sel} check={pickOnAccent(p.hex)} />
+        </AccentCell>
+      );
+    }),
+    <AccentCell
+      key="custom" k={k} width={cellW} selected={customOn} label="Свой"
+      a11y={custom ? `Акцент: свой цвет ${custom}` : 'Акцент: свой цвет'} hint="Открыть выбор своего цвета"
+      onPress={onCustom}
+    >
+      <Swatch k={k} color={custom ?? k.surface2} size={40} selected={customOn} check={custom ? pickOnAccent(custom) : undefined}>
+        <Ionicons name={custom ? 'color-palette' : 'add'} size={20} color={custom ? pickOnAccent(custom) : k.textSecondary} />
+      </Swatch>
+    </AccentCell>,
+  ];
+  const rows: React.ReactNode[][] = [];
+  for (let i = 0; i < cells.length; i += ACCENT_COLS) rows.push(cells.slice(i, i + ACCENT_COLS));
   return (
     <>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 8 }}>
-        {ACCENT_PRESETS.map(p => {
-          const sel = a.accent.preset === p.id;
-          return (
-            <Pressable
-              key={p.id}
-              onPress={() => { Haptics.selectionAsync(); setAppearance(prev => ({ ...prev, accent: { ...prev.accent, preset: p.id } })); }}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: sel }}
-              accessibilityLabel={`Акцент: ${p.name}`}
-              style={cell}
-            >
-              <Swatch k={k} color={p.hex} size={40} selected={sel} check={pickOnAccent(p.hex)} />
-              <Txt t={sel ? 'captionStrong' : 'caption'} color={sel ? k.text : k.textSecondary} numberOfLines={1} style={{ marginTop: 4 }}>
-                {capital(p.name)}
-              </Txt>
-            </Pressable>
-          );
-        })}
-        <Pressable
-          onPress={onCustom}
-          accessibilityRole="radio"
-          accessibilityState={{ selected: customOn }}
-          accessibilityLabel={custom ? `Акцент: свой цвет ${custom}` : 'Акцент: свой цвет'}
-          accessibilityHint="Открыть выбор своего цвета"
-          style={cell}
-        >
-          <Swatch k={k} color={custom ?? k.surface2} size={40} selected={customOn} check={custom ? pickOnAccent(custom) : undefined}>
-            <Ionicons name={custom ? 'color-palette' : 'add'} size={20} color={custom ? pickOnAccent(custom) : k.textSecondary} />
-          </Swatch>
-          <Txt t={customOn ? 'captionStrong' : 'caption'} color={customOn ? k.text : k.textSecondary} numberOfLines={1} style={{ marginTop: 4 }}>
-            Свой
-          </Txt>
-        </Pressable>
+      <View style={{ rowGap: 8 }}>
+        {rows.map((r, i) => <View key={i} style={{ flexDirection: 'row' }}>{r}</View>)}
       </View>
       <Txt t="label" color={k.textSecondary} style={{ marginTop: 8 }}>{onAccentLine(accentHex(a))}</Txt>
     </>
@@ -164,46 +246,67 @@ function AccentGrid({ k, onCustom }: { k: Tokens; onCustom: () => void }) {
 
 // ─── «Свой цвет» ─────────────────────────────────────────────────────────────
 
-const CUSTOM_PALETTE = [
-  '#E53935', '#D81B60', '#8E24AA', '#5E35B1', '#3949AB', '#1E88E5',
-  '#039BE5', '#00ACC1', '#00897B', '#43A047', '#7CB342', '#C0CA33',
-  '#FDD835', '#FFB300', '#FB8C00', '#F4511E', '#6D4C41', '#546E7A',
-];
-
-function CustomColorSheet({ k, visible, onClose }: { k: Tokens; visible: boolean; onClose: () => void }) {
-  const a = useAppearanceSettings();
+function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
+  k: Tokens; visible: boolean; width: number; onClose: () => void;
+  /** Предпросмотр на экране — по отпусканию пальца; null — вернуть как было. */
+  onPreview: (hex: string | null) => void;
+}) {
+  const a = useSelectedAppearance();
   const start = a.accent.custom ?? accentHex(a);
-  const [draft, setDraft] = useState(start);
+  const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(start));
   const [text, setText] = useState(start);
+  const [dragging, setDragging] = useState(false);
+  // Как акцент будет выглядеть текстом — считается по отпусканию, не на каждом движении
+  const [sampleText, setSampleText] = useState(() => accentTokens(start, k.mode).accentText);
 
   // Каждое открытие — с текущего цвета
   const [wasVisible, setWasVisible] = useState(visible);
   if (visible !== wasVisible) {
     setWasVisible(visible);
-    if (visible) { setDraft(start); setText(start); }
+    if (visible) {
+      setHsv(hexToHsv(start));
+      setText(start);
+      setSampleText(accentTokens(start, k.mode).accentText);
+    }
   }
 
-  const typed = normalizeHex(text);
-  const valid = typed != null;
-  const pick = (hex: string) => { Haptics.selectionAsync(); setDraft(hex); setText(hex); };
+  const hex = hsvToHex(hsv);
+  const settle = (h: string) => {
+    setSampleText(deriveAccent(h, BASE_THEMES[k.mode]).accentText);
+    onPreview(h);
+  };
+  const onPick = (v: Hsv) => { setHsv(v); setText(hsvToHex(v)); };
+  const onActive = (on: boolean) => {
+    setDragging(on);
+    if (!on) settle(hex);
+  };
+  const onText = (v: string) => {
+    setText(v);
+    const n = normalizeHex(v);
+    if (n) { setHsv(prev => hexToHsv(n, prev.h)); settle(n); }
+  };
+  const valid = normalizeHex(text) != null;
+  const cancel = () => { onPreview(null); onClose(); };
   const apply = () => {
     if (!valid) return;
-    setAppearance(prev => ({ ...prev, accent: { preset: 'custom', custom: draft } }));
+    setAppearance(prev => ({ ...prev, accent: { preset: 'custom', custom: hex } }));
+    onPreview(null);
     onClose();
   };
-  const onDraft = pickOnAccent(draft);
+  const squareH = Math.min(200, Math.round(width * 0.55));
 
   return (
     <BottomSheet
       visible={visible}
-      onClose={onClose}
+      onClose={cancel}
       k={k}
       label="Свой цвет"
+      scrollEnabled={!dragging}
       header={(
         <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: TOUCH_MIN }}>
           <Txt t="titleScreen" color={k.text} accessibilityRole="header" style={{ flex: 1 }}>Свой цвет</Txt>
           <Pressable
-            onPress={onClose}
+            onPress={cancel}
             accessibilityRole="button"
             accessibilityLabel="Закрыть"
             style={{ width: TOUCH_MIN, height: TOUCH_MIN, alignItems: 'center', justifyContent: 'center', marginRight: -12 }}
@@ -213,36 +316,27 @@ function CustomColorSheet({ k, visible, onClose }: { k: Tokens; visible: boolean
         </View>
       )}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 12, marginTop: 8 }}>
-        <View style={{ width: 48, height: 48, borderRadius: RADIUS.pill, backgroundColor: draft, borderWidth: 1, borderColor: k.border }} />
+      {/* Образец выбранного цвета */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 12, marginTop: 4, marginBottom: 12 }}>
+        <View style={{ width: 56, height: 56, borderRadius: RADIUS.md, backgroundColor: hex, borderWidth: 1, borderColor: k.border, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt t="labelStrong" color={pickOnAccent(hex)}>Аа</Txt>
+        </View>
         <View style={{ flex: 1 }}>
-          <Txt t="titleRow" color={k.text}>{draft}</Txt>
-          <Txt t="caption" color={k.textSecondary}>{onAccentLine(draft)}</Txt>
+          <Txt t="titleRow" color={k.text}>{hex}</Txt>
+          <Txt t="caption" color={k.textSecondary}>{onAccentLine(hex)}</Txt>
+          <Txt t="caption" color={sampleText}>Так выглядит акцент в тексте</Txt>
         </View>
       </View>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 16 }}>
-        {CUSTOM_PALETTE.map(hex => {
-          const sel = hex === draft;
-          return (
-            <Pressable
-              key={hex}
-              onPress={() => pick(hex)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: sel }}
-              accessibilityLabel={`Цвет ${hex}`}
-              style={{ width: `${100 / 6}%`, height: 52, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Swatch k={k} color={hex} size={30} selected={sel} check={pickOnAccent(hex)} />
-            </Pressable>
-          );
-        })}
+      <SatValSquare k={k} width={width} height={squareH} value={hsv} onChange={onPick} onActive={onActive} />
+      <View style={{ marginTop: 8 }}>
+        <HueSlider k={k} width={width} value={hsv} onChange={onPick} onActive={onActive} />
       </View>
 
-      <Txt t="overline" color={k.textSecondary} style={{ marginTop: 16, marginBottom: 6 }}>Код цвета</Txt>
+      <Txt t="overline" color={k.textSecondary} style={{ marginTop: 8, marginBottom: 6 }}>Код цвета</Txt>
       <TextInput
         value={text}
-        onChangeText={v => { setText(v); const n = normalizeHex(v); if (n) setDraft(n); }}
+        onChangeText={onText}
         placeholder="#2F62EA"
         placeholderTextColor={k.textSecondary}
         autoCapitalize="characters"
@@ -257,40 +351,35 @@ function CustomColorSheet({ k, visible, onClose }: { k: Tokens; visible: boolean
       />
       {!valid && <Txt t="caption" color={k.statusOffline} style={{ marginTop: 4 }}>Шесть знаков 0–9 и A–F, например #2F62EA</Txt>}
 
-      <Pressable
-        onPress={apply}
-        disabled={!valid}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !valid }}
-        style={{
-          marginTop: 16, minHeight: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',
-          backgroundColor: valid ? draft : k.surface2,
-        }}
-      >
-        <Txt t="labelStrong" color={valid ? onDraft : k.textSecondary} style={{ fontSize: 16 }}>Применить</Txt>
-      </Pressable>
+      <View style={{ flexDirection: 'row', columnGap: 8, marginTop: 16 }}>
+        <Pressable
+          onPress={cancel}
+          accessibilityRole="button"
+          style={{ flex: 1, minHeight: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', backgroundColor: k.surface2 }}
+        >
+          <Txt t="labelStrong" color={k.text} style={{ fontSize: 16 }}>Отмена</Txt>
+        </Pressable>
+        <Pressable
+          onPress={apply}
+          disabled={!valid}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !valid }}
+          style={{
+            flex: 1, minHeight: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: valid ? hex : k.surface2, borderWidth: 1, borderColor: k.border,
+          }}
+        >
+          <Txt t="labelStrong" color={valid ? pickOnAccent(hex) : k.textSecondary} style={{ fontSize: 16 }}>Применить</Txt>
+        </Pressable>
+      </View>
     </BottomSheet>
   );
 }
 
 // ─── Типы занятий ────────────────────────────────────────────────────────────
 
-const TYPE_ROWS: { key: LessonTypeKey; label: string; bg: keyof Tokens; fg: keyof Tokens }[] = [
-  { key: 'lecture', label: 'Лекция', bg: 'typeLectureBg', fg: 'typeLectureText' },
-  { key: 'practice', label: 'Практика', bg: 'typePracticeBg', fg: 'typePracticeText' },
-  { key: 'exam', label: 'Экзамен · Зачёт', bg: 'typeExamBg', fg: 'typeExamText' },
-];
-
-function TypeBadge({ k, row }: { k: Tokens; row: typeof TYPE_ROWS[number] }) {
-  return (
-    <View style={{ alignSelf: 'flex-start', backgroundColor: k[row.bg] as string, borderRadius: RADIUS.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
-      <Txt t="captionStrong" color={k[row.fg] as string}>{row.label}</Txt>
-    </View>
-  );
-}
-
 function TypeRows({ k }: { k: Tokens }) {
-  const a = useAppearanceSettings();
+  const a = useSelectedAppearance();
   const set = (key: LessonTypeKey, id: ShadeId) => {
     Haptics.selectionAsync();
     setAppearance(prev => ({ ...prev, types: { ...prev.types, [key]: id } }));
@@ -298,40 +387,39 @@ function TypeRows({ k }: { k: Tokens }) {
   return (
     <View style={{ rowGap: 4 }}>
       {TYPE_ROWS.map(row => (
-        <View key={row.key} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8 }}>
-          <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 80 }}><TypeBadge k={k} row={row} /></View>
-          <View style={{ flexDirection: 'row' }}>
-            {TYPE_SHADES.map(sh => {
-              const sel = a.types[row.key] === sh.id;
-              return (
-                <Pressable
-                  key={sh.id}
-                  onPress={() => set(row.key, sh.id)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: sel }}
-                  accessibilityLabel={`${row.label}: ${sh.name}`}
-                  style={{ width: TOUCH_MIN, height: TOUCH_MIN, alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Swatch k={k} color={sh.hex} size={28} selected={sel} />
-                </Pressable>
-              );
-            })}
-          </View>
+        // Без переноса: бейдж занимает остаток строки, четыре круга — всегда справа
+        <View key={row.key} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}><TypeBadge k={k} row={row} /></View>
+          {TYPE_SHADES.map(sh => {
+            const sel = a.types[row.key] === sh.id;
+            return (
+              <Pressable
+                key={sh.id}
+                onPress={() => set(row.key, sh.id)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: sel }}
+                accessibilityLabel={`${row.label}: ${sh.name}`}
+                style={{ width: TOUCH_MIN, height: TOUCH_MIN, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Swatch k={k} color={sh.hex} size={28} selected={sel} />
+              </Pressable>
+            );
+          })}
         </View>
       ))}
     </View>
   );
 }
 
-// ─── Фон ─────────────────────────────────────────────────────────────────────
+// ─── Фон и плотность: плитки ─────────────────────────────────────────────────
 
-function MiniScreen({ mode, accent, style }: { mode: BaseMode; accent: string; style?: object }) {
+function MiniScreen({ mode, accent }: { mode: BaseMode; accent: string }) {
   const b = BASE_THEMES[mode];
   return (
-    <View style={[{ flex: 1, backgroundColor: b.bg, padding: 6, rowGap: 4 }, style]}>
+    <View style={{ flex: 1, backgroundColor: b.bg, padding: 6, rowGap: 4 }}>
       <View style={{ height: 14, borderRadius: 4, backgroundColor: accent }} />
       <View style={{ height: 10, borderRadius: 3, backgroundColor: b.surface, borderWidth: 1, borderColor: b.border }} />
-      <View style={{ height: 3, width: '70%', borderRadius: 2, backgroundColor: b.text }} />
+      <View style={{ height: 3, width: 24, borderRadius: 2, backgroundColor: b.text }} />
     </View>
   );
 }
@@ -343,6 +431,8 @@ const BACKGROUND_TILES: { id: Background; label: string }[] = [
   { id: 'black', label: 'Чёрный' },
 ];
 
+const TILE_H = 64;
+
 function Tile({ k, selected, label, a11y, onPress, children }: {
   k: Tokens; selected: boolean; label: string; a11y: string;
   onPress: (e: GestureResponderEvent) => void; children: React.ReactNode;
@@ -353,14 +443,14 @@ function Tile({ k, selected, label, a11y, onPress, children }: {
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       accessibilityLabel={a11y}
-      style={{ flexGrow: 1, flexBasis: 0, minWidth: 64, alignItems: 'center' }}
+      style={{ flex: 1, alignItems: 'center' }}
     >
       <View style={{
         alignSelf: 'stretch', borderRadius: RADIUS.md + 5, borderWidth: 2, padding: 3,
         borderColor: selected ? k.text : 'transparent',
       }}
       >
-        <View style={{ height: 64, borderRadius: RADIUS.md, overflow: 'hidden', borderWidth: 1, borderColor: k.border, flexDirection: 'row' }}>
+        <View style={{ height: TILE_H, borderRadius: RADIUS.md, overflow: 'hidden', borderWidth: 1, borderColor: k.border, flexDirection: 'row' }}>
           {children}
         </View>
       </View>
@@ -372,11 +462,11 @@ function Tile({ k, selected, label, a11y, onPress, children }: {
 }
 
 function BackgroundTiles({ k }: { k: Tokens }) {
-  const a = useAppearanceSettings();
+  const a = useSelectedAppearance();
   const { choose } = useThemeMode();
   const acc = accentHex(a);
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 12 }}>
+    <View style={{ flexDirection: 'row', columnGap: 8 }}>
       {BACKGROUND_TILES.map(t => (
         <Tile
           key={t.id}
@@ -403,13 +493,32 @@ function BackgroundTiles({ k }: { k: Tokens }) {
   );
 }
 
-// ─── Плотность ───────────────────────────────────────────────────────────────
+/** Мини-список из трёх строк: у обычной строки 20 dp, у компактной 12 — разница видна. */
+function MiniRows({ k, rowH }: { k: Tokens; rowH: number }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: k.card, paddingHorizontal: 8 }}>
+      {[0, 1, 2].map(i => (
+        <View
+          key={i}
+          style={{
+            height: rowH, flexDirection: 'row', alignItems: 'center', columnGap: 6,
+            borderTopWidth: i > 0 ? 1 : 0, borderTopColor: k.border,
+          }}
+        >
+          <View style={{ width: 14, height: 4, borderRadius: 2, backgroundColor: k.text }} />
+          <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: k.textSecondary }} />
+          <View style={{ width: 10, height: 4, borderRadius: 2, backgroundColor: k.text }} />
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function DensityTiles({ k }: { k: Tokens }) {
-  const a = useAppearanceSettings();
-  const tiles: { id: Density; label: string; gap: number }[] = [
-    { id: 'regular', label: 'Обычная', gap: 9 },
-    { id: 'compact', label: 'Компактная', gap: 4 },
+  const a = useSelectedAppearance();
+  const tiles: { id: Density; label: string; rowH: number }[] = [
+    { id: 'regular', label: 'Обычная', rowH: 20 },
+    { id: 'compact', label: 'Компактная', rowH: 12 },
   ];
   return (
     <View style={{ flexDirection: 'row', columnGap: 8 }}>
@@ -422,15 +531,7 @@ function DensityTiles({ k }: { k: Tokens }) {
           a11y={`Плотность карточек: ${t.label.toLowerCase()}`}
           onPress={() => { Haptics.selectionAsync(); setAppearance(prev => ({ ...prev, density: t.id })); }}
         >
-          <View style={{ flex: 1, backgroundColor: k.card, paddingHorizontal: 10, justifyContent: 'center', rowGap: t.gap }}>
-            {[0, 1, 2].map(i => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6 }}>
-                <View style={{ width: 14, height: 4, borderRadius: 2, backgroundColor: k.text }} />
-                <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: k.textSecondary }} />
-                <View style={{ width: 10, height: 4, borderRadius: 2, backgroundColor: k.text }} />
-              </View>
-            ))}
-          </View>
+          <MiniRows k={k} rowH={t.rowH} />
         </Tile>
       ))}
     </View>
@@ -443,7 +544,19 @@ export default function AppearanceScreen() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
   const [customOpen, setCustomOpen] = useState(false);
+  const [previewAccent, setPreviewAccent] = useState<string | null>(null);
+
+  // Ширины — целые числа из ширины окна, без измерений
+  const panelW = Math.floor(winW - GUTTER * 2 - PANEL_PAD * 2);
+  const sheetW = Math.floor(winW - 32);
+
+  // Пока выбирают свой цвет — предпросмотр показывает его, приложение — нет
+  const previewK = useMemo(
+    () => (previewAccent ? { ...k, ...accentTokens(previewAccent, k.mode) } : k),
+    [k, previewAccent],
+  );
 
   const back = useCallback(() => { router.navigate('/profile'); }, []);
 
@@ -478,15 +591,12 @@ export default function AppearanceScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingTop: 8, paddingBottom: insets.bottom + 32 }}>
-        <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: 16, rowGap: 12 }}>
-          <Preview k={k} />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 6 }}>
-            {TYPE_ROWS.map(r => <TypeBadge key={r.key} k={k} row={r} />)}
-          </View>
+        <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: PANEL_PAD }}>
+          <Preview k={previewK} width={panelW} />
         </View>
 
         <Panel k={k} title="Акцент">
-          <AccentGrid k={k} onCustom={() => setCustomOpen(true)} />
+          <AccentGrid k={k} width={panelW} onCustom={() => setCustomOpen(true)} />
         </Panel>
         <Panel k={k} title="Типы занятий">
           <TypeRows k={k} />
@@ -507,7 +617,13 @@ export default function AppearanceScreen() {
         </Pressable>
       </ScrollView>
 
-      <CustomColorSheet k={k} visible={customOpen} onClose={() => setCustomOpen(false)} />
+      <CustomColorSheet
+        k={k}
+        visible={customOpen}
+        width={sheetW}
+        onClose={() => setCustomOpen(false)}
+        onPreview={setPreviewAccent}
+      />
     </View>
   );
 }

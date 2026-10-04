@@ -75,8 +75,17 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
     >
       <View style={{ width: scaledWidth(COL_TIME, fontScale) }}>
         <Txt t="timeRow" color={main} numberOfLines={1} adjustsFontSizeToFit style={bigWeight}>{block.start}</Txt>
-        <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
-        <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{pairsLabel(block)}</Txt>
+        {k.density === 'compact' ? (
+          // Компактная: конец и номер пары одной строкой — строка ниже на треть
+          <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>
+            {block.lessons.length > 1 ? block.end : `${block.end} · ${block.pairs[0]}`}
+          </Txt>
+        ) : (
+          <>
+            <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
+            <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{pairsLabel(block)}</Txt>
+          </>
+        )}
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>

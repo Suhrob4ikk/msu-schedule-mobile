@@ -1,16 +1,28 @@
 /** Мелкие общие детали нового экрана: текст по токенам, бейдж типа, точка «идёт». */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Text, TextProps, View } from 'react-native';
 import { TYPE, Tokens, RADIUS } from './tokens';
 import { KindPalette, lessonKind } from './state';
 
 type TypeName = keyof typeof TYPE;
 
+/** Внутри — шрифт не масштабируется системной настройкой: предпросмотр во
+ *  «Внешнем виде» имеет постоянный размер, без измерений раскладки. */
+export const FixedFontScale = createContext(false);
+
 /** Text со стилем из таблицы типографики и потолком масштаба шрифта из ТЗ.
  *  ref (React 19 передаёт его обычным свойством) уходит в Text — для фокуса диктора. */
 export function Txt({ t, color, style, ...rest }: TextProps & { t: TypeName; color: string; ref?: React.Ref<Text> }) {
   const spec = TYPE[t];
-  return <Text maxFontSizeMultiplier={spec.max} {...rest} style={[spec.style, { color }, style]} />;
+  const fixed = useContext(FixedFontScale);
+  return (
+    <Text
+      maxFontSizeMultiplier={spec.max}
+      {...rest}
+      {...(fixed ? { allowFontScaling: false, adjustsFontSizeToFit: false } : null)}
+      style={[spec.style, { color }, style]}
+    />
+  );
 }
 
 function paletteColors(p: KindPalette, k: Tokens): { bg: string; fg: string } {

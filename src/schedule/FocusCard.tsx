@@ -29,19 +29,24 @@ function useClock(active: boolean): number {
 
 const SLOP = { top: 16, bottom: 16, left: 8, right: 8 };
 
-function FocusCard({ focus, k, onPress, onExpire }: {
+function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
   focus: Focus;
   k: Tokens;
   onPress: () => void;
   onExpire: () => void;
+  /** Неподвижная карточка (предпросмотр во «Внешнем виде»): время замерло на
+   *  этом моменте — ни тикера отсчёта, ни пульсации точки. */
+  stillAt?: number;
 }) {
   const { block, slot, filled } = focus;
-  const now = useClock(focus.targetAt != null);
+  const still = stillAt != null;
+  const clock = useClock(focus.targetAt != null && !still);
+  const now = stillAt ?? clock;
   const leftMs = focus.targetAt != null ? focus.targetAt - now : null;
 
   useEffect(() => {
-    if (leftMs != null && leftMs <= 0) onExpire();
-  }, [leftMs, onExpire]);
+    if (!still && leftMs != null && leftMs <= 0) onExpire();
+  }, [still, leftMs, onExpire]);
 
   const fg = filled ? k.onAccent : k.text;
   const fg2 = filled ? k.onAccent : k.textSecondary;
@@ -81,7 +86,7 @@ function FocusCard({ focus, k, onPress, onExpire }: {
             borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4,
           }}
         >
-          {filled && <PillDot color={k.onAccent} pulse={focus.kind === 'live'} />}
+          {filled && <PillDot color={k.onAccent} pulse={focus.kind === 'live' && !still} />}
           <Txt t="captionStrong" color={filled ? k.onAccent : k.onAccentSoft}>
             {focus.pill}
           </Txt>

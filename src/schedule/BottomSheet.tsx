@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tokens, RADIUS } from './tokens';
 import { useReduceMotion } from './ui';
 
-export default function BottomSheet({ visible, onClose, k, label, header, topGap, children }: {
+export default function BottomSheet({ visible, onClose, k, label, header, topGap, scrollEnabled = true, children }: {
   visible: boolean;
   onClose: () => void;
   k: Tokens;
@@ -24,6 +24,8 @@ export default function BottomSheet({ visible, onClose, k, label, header, topGap
   header?: React.ReactNode;
   /** Верхний край листа — не выше этого отступа от верха экрана (dp). */
   topGap?: number;
+  /** false — пока внутри тянут ползунок: прокрутка листа не перехватывает жест. */
+  scrollEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const { height } = useWindowDimensions();
@@ -92,7 +94,7 @@ export default function BottomSheet({ visible, onClose, k, label, header, topGap
             </View>
             {header ? <View style={{ paddingHorizontal: 16 }}>{header}</View> : null}
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <ScrollView scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}>
             {children}
           </ScrollView>
         </Animated.View>

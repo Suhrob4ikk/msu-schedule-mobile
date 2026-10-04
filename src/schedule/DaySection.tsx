@@ -36,7 +36,7 @@ function Segment({ items, k, now, rel, marks, onRowPress }: {
               onPress={onRowPress}
             />
           ) : (
-            <View style={{ paddingVertical: 6, paddingHorizontal: 12, alignItems: 'center' }}>
+            <View style={{ paddingVertical: k.labelPadY, paddingHorizontal: 12, alignItems: 'center' }}>
               <Txt t="caption" color={k.textSecondary}>{it.text}</Txt>
             </View>
           )}
@@ -116,12 +116,12 @@ function DaySection({
   }
 
   return (
-    <View onLayout={e => onLayout(d.dayIndex, e)} style={{ paddingTop: 8 }}>
+    <View onLayout={e => onLayout(d.dayIndex, e)} style={{ paddingTop: k.dayGap }}>
       <View
         accessibilityRole="header"
         style={{
           flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between',
-          columnGap: 8, paddingHorizontal: 4, paddingBottom: 8,
+          columnGap: 8, paddingHorizontal: 4, paddingBottom: k.dayHeaderPad,
         }}
       >
         <Txt
@@ -140,7 +140,7 @@ function DaySection({
         </View>
       )}
 
-      <View style={{ rowGap: 8 }}>
+      <View style={{ rowGap: k.blockGap }}>
         <Segment items={before} k={k} now={now} rel={rel} marks={marks} onRowPress={onRowPress} />
         {focus && focusIdx >= 0 && (
           <View onLayout={e => onFocusLayout(d.dayIndex, e)}>

@@ -134,8 +134,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // отдельном колбэке, а не в этом рендере.
   const pending = useRef<Background>('system');
 
+  // Фон — сразу, без отложенного шага: у растворения свой снимок и свои кадры
   const apply = useCallback((bg: Background) => {
-    setAppearance(prev => ({ ...prev, background: bg }));
+    setAppearance(prev => ({ ...prev, background: bg }), { immediate: true });
   }, []);
 
   const choose = useCallback((next: Background, origin?: { x: number; y: number }) => {

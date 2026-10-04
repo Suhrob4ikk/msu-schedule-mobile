@@ -285,18 +285,39 @@ export function shadePair(id: ShadeId, mode: BaseMode): ShadePair {
 
 export type Density = 'regular' | 'compact';
 
+/**
+ * Плотность карточек. По ТЗ компактная была 52/7 против 60/10, но строку
+ * пары по высоте задаёт содержимое (три строки в колонке времени — 54 dp),
+ * так что разница выходила ~8 % и на глаз не видна. С окт 2026 (просьба
+ * владельца) компактная заметно плотнее: поля 4, в колонке времени две
+ * строки вместо трёх («11:15 · II»), зазоры между днями вдвое меньше.
+ * Ниже 48 dp строка не становится — это минимум зоны нажатия.
+ */
 export interface DensityTokens {
   density: Density;
-  /** Строка пары: минимум и вертикальные поля (ТЗ: 60/10 и 52/7). */
+  /** Строка пары: минимум и вертикальные поля. */
   rowMin: number;
   rowPadY: number;
-  /** Строка аудитории: ТЗ молчит, компактная — 48 (минимум зоны нажатия). */
+  /** Строка аудитории: минимум и вертикальные поля. */
   roomRowMin: number;
+  roomRowPadY: number;
+  /** Отступ над карточкой дня, под заголовком дня, между блоками дня. */
+  dayGap: number;
+  dayHeaderPad: number;
+  blockGap: number;
+  /** Подписи перемен и окон между строками. */
+  labelPadY: number;
 }
 
 export const DENSITY: Record<Density, DensityTokens> = {
-  regular: { density: 'regular', rowMin: 60, rowPadY: 10, roomRowMin: 56 },
-  compact: { density: 'compact', rowMin: 52, rowPadY: 7, roomRowMin: 48 },
+  regular: {
+    density: 'regular', rowMin: 60, rowPadY: 10, roomRowMin: 56, roomRowPadY: 8,
+    dayGap: 8, dayHeaderPad: 8, blockGap: 8, labelPadY: 6,
+  },
+  compact: {
+    density: 'compact', rowMin: 48, rowPadY: 4, roomRowMin: 48, roomRowPadY: 4,
+    dayGap: 4, dayHeaderPad: 4, blockGap: 4, labelPadY: 2,
+  },
 };
 
 // ─── Сборка ────────────────────────────────────────────────────────────────

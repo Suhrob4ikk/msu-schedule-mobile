@@ -265,6 +265,11 @@ function AppTabs() {
       <Tabs
         screenOptions={{
           animation: 'fade',
+          // Скрытые вкладки не перерисовываются, пока их не откроют. Иначе
+          // смена акцента перекрашивала разом все открытые ранее вкладки —
+          // ленту Расписания, строки Аудиторий, Педагогов — и при быстрых
+          // тапах на «Внешнем виде» телефон подвисал.
+          freezeOnBlur: true,
           // Активная вкладка — accent-text: акцент как цвет значка и текста
           tabBarActiveTintColor: C.primaryText,
           tabBarInactiveTintColor: C.muted,

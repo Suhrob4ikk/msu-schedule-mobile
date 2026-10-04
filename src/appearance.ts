@@ -1,10 +1,17 @@
 /**
  * Хранение настроек «Внешнего вида»: один ключ `appearance` в AsyncStorage.
  * Чтение стартует при загрузке модуля, корневой _layout ждёт его до первого
- * кадра — без мигания синего или светлой темы. Значение живёт здесь, с
- * подпиской: меняется сразу во всех вкладках, без перезапуска.
+ * кадра — без мигания синего или светлой темы.
+ *
+ * Два значения, чтобы касание не ждало перекраски всего приложения:
+ *  - «выбранное» (useSelectedAppearance) — меняется сразу, на него подписан
+ *    только экран «Внешний вид»: кольцо выбора появляется в тот же кадр;
+ *  - «применённое» (useAppearance, его читает ThemeProvider) — следующим
+ *    кадром после касания. Быстрые тапы схлопываются: применяется последний.
+ * Запись в хранилище — одна, через 400 мс после последнего изменения.
  */
 import { useEffect, useState } from 'react';
+import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Appearance, DEFAULT_APPEARANCE, migrateLegacy, parseAppearance } from './appearanceModel';
 
@@ -12,9 +19,12 @@ const KEY = 'appearance';
 /** Ключи до 1.9.40 — читаются один раз для переноса и не стираются. */
 const LEGACY_THEME = 'msu_theme';
 const LEGACY_ACCENT = 'msu_accent';
+const WRITE_DELAY_MS = 400;
 
-let value: Appearance | null = null;
-const listeners = new Set<(a: Appearance) => void>();
+let applied: Appearance | null = null;
+let selected: Appearance | null = null;
+const appliedListeners = new Set<(a: Appearance) => void>();
+const selectedListeners = new Set<(a: Appearance) => void>();
 
 async function load(): Promise<Appearance> {
   try {
@@ -30,34 +40,90 @@ async function load(): Promise<Appearance> {
 }
 
 const loading = load().then(a => {
-  value = a;
-  listeners.forEach(l => l(a));
+  applied = a;
+  selected = a;
+  appliedListeners.forEach(l => l(a));
+  selectedListeners.forEach(l => l(a));
   return a;
 });
 
-export function getAppearance(): Appearance {
-  return value ?? DEFAULT_APPEARANCE;
+// ─── Изменение ────────────────────────────────────────────────────────────
+
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleWrite(): void {
+  if (writeTimer) clearTimeout(writeTimer);
+  writeTimer = setTimeout(() => {
+    writeTimer = null;
+    if (applied) AsyncStorage.setItem(KEY, JSON.stringify(applied)).catch(() => null);
+  }, WRITE_DELAY_MS);
 }
 
-export function setAppearance(next: Appearance | ((prev: Appearance) => Appearance)): void {
+function applyNow(): void {
+  if (!selected || selected === applied) return;
+  applied = selected;
+  const a = applied;
+  appliedListeners.forEach(l => l(a));
+  scheduleWrite();
+}
+
+let applyScheduled = false;
+function scheduleApply(): void {
+  if (applyScheduled) return;
+  applyScheduled = true;
+  // Сначала кадр с кольцом выбора, потом — перекраска приложения
+  requestAnimationFrame(() => {
+    InteractionManager.runAfterInteractions(() => {
+      applyScheduled = false;
+      applyNow();
+    });
+  });
+}
+
+export function getAppearance(): Appearance {
+  return selected ?? applied ?? DEFAULT_APPEARANCE;
+}
+
+/**
+ * Меняет оформление. По умолчанию — в два шага (см. шапку файла).
+ * immediate — применить в этом же кадре: нужно смене фона с растворением,
+ * у которой свой снимок экрана и свои два кадра ожидания (ThemeReveal).
+ */
+export function setAppearance(
+  next: Appearance | ((prev: Appearance) => Appearance),
+  opts?: { immediate?: boolean },
+): void {
   const a = typeof next === 'function' ? next(getAppearance()) : next;
-  value = a;
-  listeners.forEach(l => l(a));
-  AsyncStorage.setItem(KEY, JSON.stringify(a)).catch(() => null);
+  selected = a;
+  selectedListeners.forEach(l => l(a));
+  if (opts?.immediate) applyNow();
+  else scheduleApply();
 }
 
 export function resetAppearance(): void {
   setAppearance(DEFAULT_APPEARANCE);
 }
 
-/** null — ещё не прочитано (доли секунды при запуске). */
-export function useAppearance(): Appearance | null {
-  const [a, setA] = useState<Appearance | null>(value);
+function useStore(listeners: Set<(a: Appearance) => void>, current: () => Appearance | null): Appearance | null {
+  const [a, setA] = useState<Appearance | null>(current);
   useEffect(() => {
     listeners.add(setA);
-    if (value) setA(value);
-    else loading.then(setA);
+    const now = current();
+    if (now) setA(now);
+    else loading.then(() => setA(current()));
     return () => { listeners.delete(setA); };
-  }, []);
+  }, [listeners, current]);
   return a;
+}
+
+const getApplied = () => applied;
+const getSelected = () => selected;
+
+/** Применённое оформление — его рисует приложение. null — ещё не прочитано. */
+export function useAppearance(): Appearance | null {
+  return useStore(appliedListeners, getApplied);
+}
+
+/** Выбранное на экране «Внешний вид» — опережает применённое на кадр. */
+export function useSelectedAppearance(): Appearance {
+  return useStore(selectedListeners, getSelected) ?? DEFAULT_APPEARANCE;
 }
