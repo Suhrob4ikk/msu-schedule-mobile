@@ -38,7 +38,7 @@ import {
   stampLabel, stateKey, weekIsOver, weekRel, weekStatsLine,
 } from './state';
 import { Txt } from './ui';
-import ScheduleHeader, { LinkState } from './ScheduleHeader';
+import ScheduleHeader, { linkState } from './ScheduleHeader';
 import DaySection, { Marks } from './DaySection';
 import DayBar from './DayBar';
 import { COL_GAP, COL_ROOM, COL_TIME, ROW_PAD_X } from './LessonRow';
@@ -565,13 +565,9 @@ export default function ScheduleScreenNew() {
   }, [weeks, switchWeek]);
 
   // ─── Статус связи ─────────────────────────────────────────────────────
-  const stamp = [updatedAt, lastSyncTime].filter((d): d is Date => !!d)
-    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
-  const link: LinkState = isSyncing || refreshing
-    ? { kind: 'sync', text: 'Синхронизация' }
-    : !isOnline || loadFailed
-      ? { kind: 'offline', text: stamp ? `Нет сети · ${stampLabel(stamp, now)}` : 'Нет сети' }
-      : { kind: 'online', text: stamp ? `обновлено ${stampLabel(stamp, now)}` : 'обновляется' };
+  const link = linkState({
+    syncing: isSyncing || refreshing, offline: !isOnline || loadFailed, stamps: [updatedAt, lastSyncTime], now,
+  });
 
   // ─── Отрисовка ────────────────────────────────────────────────────────
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: k.bg }} />;

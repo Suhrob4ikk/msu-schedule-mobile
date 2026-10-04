@@ -9,8 +9,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUnreadNotifCount } from '../useUnreadNotifCount';
 import { Tokens, HEADER_H, GUTTER, RADIUS, TOUCH_MIN } from './tokens';
 import { Txt } from './ui';
+import { stampLabel } from './state';
 
 export type LinkState = { kind: 'online' | 'sync' | 'offline'; text: string };
+
+/**
+ * Статус связи словами — общий для «Табло»-вкладок. stamp — время, на
+ * которое актуальны данные (последняя удачная загрузка или синхронизация).
+ */
+export function linkState(opts: {
+  syncing: boolean; offline: boolean; stamps: (Date | null | undefined)[]; now: Date;
+}): LinkState {
+  const stamp = opts.stamps.filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  if (opts.syncing) return { kind: 'sync', text: 'Синхронизация' };
+  if (opts.offline) return { kind: 'offline', text: stamp ? `Нет сети · ${stampLabel(stamp, opts.now)}` : 'Нет сети' };
+  return { kind: 'online', text: stamp ? `обновлено ${stampLabel(stamp, opts.now)}` : 'обновляется' };
+}
 
 function StatusPill({ s, k }: { s: LinkState; k: Tokens }) {
   const offline = s.kind === 'offline';
@@ -60,10 +74,16 @@ function Bell({ k }: { k: Tokens }) {
   );
 }
 
-function ScheduleHeader({ k, topInset, subtitle, title, link, onOpen }: {
+function ScheduleHeader({ k, topInset, subtitle, subtitleLead, title, link, onOpen, openLabel = 'Выбрать неделю и группу', smallSize = 12 }: {
   k: Tokens;
   topInset: number;
   subtitle: string;
+  /** Выделенное слово перед мелкой строкой («Сейчас») — цветом accent-text. */
+  subtitleLead?: string | null;
+  /** Что делает нажатие на кнопку шапки — для экранного диктора. */
+  openLabel?: string;
+  /** Мелкая строка: 12 pt в Расписании, 13 pt в Аудиториях (по ТЗ). */
+  smallSize?: 12 | 13;
   title: string;
   link: LinkState;
   onOpen: () => void;
@@ -79,10 +99,13 @@ function ScheduleHeader({ k, topInset, subtitle, title, link, onOpen }: {
         <Pressable
           onPress={onOpen}
           accessibilityRole="button"
-          accessibilityLabel={`${subtitle}. ${title}. Выбрать неделю и группу`}
+          accessibilityLabel={`${subtitleLead ?? ''}${subtitle}. ${title}. ${openLabel}`}
           style={{ flexGrow: 1, flexShrink: 1, minHeight: TOUCH_MIN, justifyContent: 'center', paddingVertical: 4 }}
         >
-          <Txt t="caption" color={k.textSecondary}>{subtitle}</Txt>
+          <Txt t={smallSize === 13 ? 'small' : 'caption'} color={k.textSecondary}>
+            {subtitleLead ? <Txt t={smallSize === 13 ? 'smallStrong' : 'captionStrong'} color={k.accentText}>{subtitleLead}</Txt> : null}
+            {subtitle}
+          </Txt>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4 }}>
             <Txt t="titleCard" color={k.text}>{title}</Txt>
             <Ionicons name="chevron-down" size={18} color={k.textSecondary} />

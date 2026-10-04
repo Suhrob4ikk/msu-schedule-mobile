@@ -266,6 +266,17 @@ export const TYPE = {
   caption: { style: type(12, 16, 500), max: 2 },
   captionStrong: { style: type(12, 16, 700), max: 2 },
   overline: { style: type(11, 14, 700, { letterSpacing: 1.1, textTransform: 'uppercase' }), max: 2 },
+  // ТЗ «Аудитории», раздел «Размеры, шрифт и радиусы»
+  roomNumber: { style: type(24, 28, 800), max: 1.4 },
+  roomNamed: { style: type(16, 20, 700), max: 2 },
+  status: { style: type(15, 20, 700), max: 2 },
+  statusLg: { style: type(16, 20, 700), max: 2 },
+  groupTitle: { style: type(16, 20, 700), max: 2 },
+  subject: { style: type(15, 20, 400), max: 2 },
+  small: { style: type(13, 18, 500), max: 2 },
+  smallStrong: { style: type(13, 18, 700), max: 2 },
+  cellNum: { style: type(14, 18, 800), max: 2 },
+  cellWord: { style: type(11, 14, 600), max: 2 },
 } as const;
 
 export const RADIUS = { sm: 12, md: 14, card: 18, lg: 20, sheet: 28, pill: 999 } as const;
