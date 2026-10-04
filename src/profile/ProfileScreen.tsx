@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Linking, Pressable, ScrollView, Share, StatusBar, View,
+  ActivityIndicator, Linking, Pressable, ScrollView, Share, StatusBar, View, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -185,6 +185,9 @@ export default function ProfileScreen() {
   const { mode } = useThemeMode();
   const appearance = useAppearanceSettings();
   const insets = useSafeAreaInsets();
+  // Правая колонка блока QR растёт со шрифтом: при крупном шрифте колонки встают друг под друга
+  const { fontScale } = useWindowDimensions();
+  const qrTextMin = Math.round(140 * Math.min(Math.max(fontScale, 1), 2));
   const { isSyncing, isOnline, lastSyncTime, triggerSync } = useSyncStatus();
   const unread = useUnreadNotifCount();
   const tabloOn = useTabloFlag() === true;
@@ -397,7 +400,7 @@ export default function ProfileScreen() {
             >
               <QRCode value={WEB_URL} size={120} color="#0B0D12" backgroundColor="#FFFFFF" />
             </View>
-            <View style={{ flexGrow: 1, flexBasis: 140, minWidth: 140, rowGap: 6 }}>
+            <View style={{ flexGrow: 1, flexBasis: qrTextMin, minWidth: qrTextMin, rowGap: 6 }}>
               <Txt t="buttonLg" color={k.text}>Сайт расписания</Txt>
               <Txt t="small" color={k.textSecondary}>{WEB_URL.replace(/^https?:\/\//, '')}</Txt>
               <View style={{ marginTop: 4 }}>
