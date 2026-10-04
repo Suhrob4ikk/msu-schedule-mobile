@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, DAYS_ORDER, WeekOption } from '../api';
 import { useThemeMode } from '../theme';
+import { useBackTo } from '../backTo';
 import { useSyncStatus } from '../SyncContext';
 import { useTokens, GUTTER, RADIUS, TOUCH_MIN, Tokens } from '../schedule/tokens';
 import { Txt, Divider } from '../schedule/ui';
@@ -234,7 +235,9 @@ export default function RoomsScreenNew() {
 
   // Переход из Расписания по нажатию на аудиторию: ручной режим на день и
   // пару этой пары и сразу лист этой аудитории (см. openRoom в LessonRow).
-  const params = useLocalSearchParams<{ day?: string; pair?: string; room?: string; week_start?: string }>();
+  // back=teachers — пришли из расписания педагога: «Назад» вернёт туда.
+  const params = useLocalSearchParams<{ day?: string; pair?: string; room?: string; week_start?: string; back?: string }>();
+  const armBack = useBackTo();
   // Состояние, а не ref: если день тот же, что уже на экране, данные не
   // поменяются — и лист должен открыться по самой просьбе.
   const [pendingRoom, setPendingRoom] = useState<string | null>(null);
@@ -248,9 +251,10 @@ export default function RoomsScreenNew() {
       pickSlot({ date: addDays(weekStart, dayIndex), weekStart, dayIndex, pair: params.pair });
       setPendingRoom(params.room ? params.room.trim().toLowerCase() : null);
     }
+    if (params.back === 'teachers') armBack('/teachers');
     // Гасим сразу: повторное нажатие на ту же аудиторию должно сработать снова
-    router.setParams({ day: '', pair: '', room: '', week_start: '' });
-  }, [params.day, params.pair, params.room, params.week_start, pickSlot]);
+    router.setParams({ day: '', pair: '', room: '', week_start: '', back: '' });
+  }, [params.day, params.pair, params.room, params.week_start, params.back, pickSlot, armBack]);
   // Лист открываем, когда данные нужного дня уже на экране
   useEffect(() => {
     const want = pendingRoom;

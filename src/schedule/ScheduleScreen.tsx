@@ -12,7 +12,7 @@ import {
   Alert, AppState, LayoutAnimation, LayoutChangeEvent, Platform, Pressable, RefreshControl,
   ScrollView, StatusBar, UIManager, View,
 } from 'react-native';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -27,6 +27,7 @@ import { writeWidgetData } from '../widgetData';
 import { refreshLiveLesson } from '../liveLesson';
 import { skipKey, noteWeeklyKey, noteDatedKey } from '../studyData';
 import { onScheduleUpdated } from '../scheduleEvents';
+import { useBackTo } from '../backTo';
 import CourseCheckBanner from '../CourseCheckBanner';
 import ScheduleShareCard from '../ScheduleShareCard';
 import { useTokens, GUTTER, RADIUS, TOUCH_MIN, DAY_CELL } from './tokens';
@@ -206,10 +207,12 @@ export default function ScheduleScreenNew() {
     wks: WeekInfo[],
     explicitId: number | undefined,
     get: (w: WeekInfo) => Promise<Lesson[] | null>,
+    explicitStart?: string,
   ): Promise<{ week: WeekInfo; lessons: Lesson[] } | null> => {
     if (!wks.length) return null;
     let target: WeekInfo | undefined;
     if (explicitId) target = wks.find(w => w.id === explicitId);
+    if (!target && explicitStart) target = wks.find(w => w.week_start === explicitStart);
     if (!target && picked() && selectedWeekRef.current) {
       target = wks.find(w => w.week_start === selectedWeekRef.current!.week_start);
     }
@@ -231,7 +234,7 @@ export default function ScheduleScreenNew() {
     return { week: cur, lessons: ls };
   }, []);
 
-  const loadSchedule = useCallback(async (group: Group, weekId?: number, silent = false): Promise<boolean> => {
+  const loadSchedule = useCallback(async (group: Group, weekId?: number, silent = false, weekStart?: string): Promise<boolean> => {
     const req = ++reqRef.current;
     const stale = () => req !== reqRef.current;
     setError(null);
@@ -246,7 +249,7 @@ export default function ScheduleScreenNew() {
           const r = await chooseWeek(wks, weekId, async w => {
             const s = await AsyncStorage.getItem(`cache_schedule_${group.id}_${w.id}`);
             return s ? JSON.parse(s) : null;
-          });
+          }, weekStart);
           if (r && !stale()) {
             setWeeks(wks);
             setSelectedWeek(r.week);
@@ -268,7 +271,7 @@ export default function ScheduleScreenNew() {
         const s = await api.getGroupSchedule(group.id, w.id);
         AsyncStorage.setItem(`cache_schedule_${group.id}_${w.id}`, JSON.stringify(s)).catch(() => null);
         return s;
-      });
+      }, weekStart);
       if (stale()) return false;
       if (r) {
         setSelectedWeek(r.week);
@@ -297,15 +300,21 @@ export default function ScheduleScreenNew() {
     if (g) loadSchedule(g, undefined, true);
   };
 
-  const loadGroup = useCallback(async (group: Group) => {
+  const loadGroup = useCallback(async (group: Group, weekStart?: string) => {
     setSelectedGroup(group);
     selectedGroupRef.current = group;
     setWeeks([]);
     setSelectedWeek(null);
     setLessons([]);
     userPickedWeekRef.current = false;
+    // Неделя задана переходом (чип группы у педагога) и она не текущая —
+    // держим её, как выбранную руками, до конца дня
+    if (weekStart && weekRel(weekStart, new Date()) !== 'current') {
+      userPickedWeekRef.current = true;
+      pickedOnRef.current = isoOf(new Date());
+    }
     await AsyncStorage.setItem('schedule_view_group_id', String(group.id));
-    await loadSchedule(group);
+    await loadSchedule(group, undefined, false, weekStart);
   }, [loadSchedule]);
 
   const switchWeek = useCallback((week: WeekInfo) => {
@@ -376,6 +385,35 @@ export default function ScheduleScreenNew() {
     return () => { cancelled = true; };
   }, []);
 
+  // ─── Переход с группой и неделей (чип группы в расписании педагога) ───
+  // group, week_start; back=teachers — «Назад» вернёт в расписание педагога.
+  const params = useLocalSearchParams<{ group?: string; week_start?: string; back?: string }>();
+  const navTokenRef = useRef(0);
+  const armBack = useBackTo();
+  useEffect(() => {
+    const id = Number(params.group);
+    if (!id || !groupsLoaded) return;
+    const g = groups.find(x => x.id === id);
+    navTokenRef.current += 1;
+    if (params.back === 'teachers') armBack('/teachers');
+    router.setParams({ group: '', week_start: '', back: '' });
+    if (!g) return;
+    const ws = params.week_start || undefined;
+    if (selectedGroupRef.current?.id === g.id) {
+      const w = ws ? weeks.find(x => x.week_start === ws) : undefined;
+      if (w && w.id !== selectedWeekRef.current?.id) {
+        userPickedWeekRef.current = weekRel(w.week_start, new Date()) !== 'current';
+        pickedOnRef.current = isoOf(new Date());
+        setSelectedWeek(w);
+        selectedWeekRef.current = w;
+        loadSchedule(g, w.id);
+      }
+      return;
+    }
+    loadGroup(g, ws);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.group, groupsLoaded]);
+
   // На фокусе: своя группа, функции пропусков/заметок, цвет статус-бара
   useFocusEffect(
     useCallback(() => {
@@ -385,6 +423,7 @@ export default function ScheduleScreenNew() {
         setFeatureNotes(p[1][1] === '1');
       });
       if (groupsLoaded && groups.length) {
+        const token = navTokenRef.current;
         AsyncStorage.multiGet(['selected_group_id', 'schedule_view_group_id']).then(pairs => {
           const myId = pairs[0][1];
           const viewId = pairs[1][1];
@@ -399,6 +438,8 @@ export default function ScheduleScreenNew() {
             return;
           }
           const target = Number(viewId ?? myId);
+          // Пока читали, пришёл переход с группой (чип у педагога) — он главнее
+          if (token !== navTokenRef.current) return;
           if (!target || selectedGroupRef.current?.id === target) return;
           const g = groups.find(x => x.id === target);
           if (g) loadGroup(g);

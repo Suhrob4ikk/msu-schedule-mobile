@@ -21,13 +21,14 @@ export const ROW_PAD_X = 12;
 export function openTeacher(l: Lesson) {
   if (!l.teacher) return;
   Haptics.selectionAsync();
-  router.push({ pathname: '/teachers', params: { teacher: String(l.teacher.id) } });
+  // name — экран педагога сразу с ФИО, даже пока список не загрузился;
+  // back — «Назад» с экрана педагога вернёт сюда
+  router.push({ pathname: '/teachers', params: { teacher: String(l.teacher.id), name: l.teacher.name, back: 'schedule' } });
 }
 
 /**
- * Аудитория → вкладка «Ауд.». day и pair понимает и прежний экран аудиторий;
- * room и week_start — новый: он сразу открывает лист этой аудитории на нужных
- * дне и паре этой недели.
+ * Аудитория → вкладка «Ауд.»: сразу лист этой аудитории на нужных дне и
+ * паре этой недели.
  */
 export function openRoom(l: Lesson) {
   if (!l.room) return;
