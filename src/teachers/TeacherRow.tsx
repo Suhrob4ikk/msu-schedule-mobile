@@ -43,7 +43,7 @@ function TeacherRow({ t, k, group, range, onPress }: {
       onPress={() => onPress(t)}
       onLayout={e => statusStore.place(rowKey, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
       accessibilityRole="button"
-      accessibilityLabel={st ? `${t.name}. ${st.spoken}` : t.name}
+      accessibilityLabel={st ? `${t.name}${t.name.endsWith('.') ? '' : '.'} ${st.spoken}` : t.name}
       style={({ pressed }) => ({
         minHeight: 56, flexDirection: 'row', alignItems: 'center', columnGap: 8,
         paddingTop: 10, paddingRight: 8, paddingBottom: 10, paddingLeft: 14,

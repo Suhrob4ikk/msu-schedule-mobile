@@ -44,7 +44,7 @@ export function SearchField({ k, value, onChange, disabled, inputRef }: {
   return (
     <View
       style={{
-        flexGrow: 1, flexShrink: 1, flexBasis: 170,
+        flexGrow: 1, flexShrink: 1, flexBasis: 150,
         minHeight: TOUCH_MIN, flexDirection: 'row', alignItems: 'center',
         backgroundColor: disabled ? k.surface2 : k.surface, borderRadius: RADIUS.md,
         borderWidth: active ? 2 : 1, borderColor: active ? k.accentText : k.border,
