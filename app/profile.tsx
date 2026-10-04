@@ -8,7 +8,9 @@ import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import { api, Group, shortGroupName, rememberGroup } from '../src/api';
-import { useTheme, useThemeMode, useAccent } from '../src/theme';
+import { useTheme } from '../src/theme';
+import { useAppearance } from '../src/appearance';
+import { appearanceSummary, DEFAULT_APPEARANCE } from '../src/appearanceModel';
 import GroupSelector from '../src/GroupSelector';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -428,8 +430,7 @@ function useHasUnreadNotifs(): boolean {
 
 export default function ProfileScreen() {
   const C = useTheme();
-  const { mode, pref, choose } = useThemeMode();
-  const { accent, setAccent } = useAccent();
+  const appearance = useAppearance() ?? DEFAULT_APPEARANCE;
   const { isSyncing, syncProgress, lastSyncTime, triggerSync } = useSyncStatus();
   const hasNewChanges = useHasNewChanges();
   const hasUnreadNotifs = useHasUnreadNotifs();
@@ -597,81 +598,18 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Тема — один переключатель на всё: «как в системе» темнеет вместе
-          с телефоном, «Светлая»/«Тёмная» ставят её явно. Смена — плавным
-          растворением старого экрана, текст виден всё время (src/ThemeReveal.tsx). */}
-      <View style={[s.themePrefRow, { backgroundColor: C.card, borderColor: C.border }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Ionicons name={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} size={16} color={C.muted} />
-          <Text style={[s.themePrefLabel, { color: C.muted }]}>Тема</Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          {([
-            { value: 'system', label: 'Как в системе' },
-            { value: 'light', label: 'Светлая' },
-            { value: 'dark', label: 'Тёмная' },
-          ] as const).map(o => {
-            const active = pref === o.value;
-            return (
-              <TouchableOpacity
-                key={o.value}
-                onPress={e => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const { pageX, pageY } = e.nativeEvent;
-                  choose(o.value, { x: pageX, y: pageY });
-                }}
-                activeOpacity={0.7}
-                style={[s.themePrefChip, {
-                  backgroundColor: active ? C.primary : C.tag,
-                  borderColor: active ? C.primary : C.border,
-                }]}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? C.primaryFg : C.fg }}>
-                  {o.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Цвет акцента — независимо от светлой/тёмной темы. «Свободно»/«занято»
-          на аудиториях этим цветом не красится, см. src/theme.ts. */}
-      <View style={[s.themePrefRow, { backgroundColor: C.card, borderColor: C.border }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Ionicons name="color-palette-outline" size={16} color={C.muted} />
-          <Text style={[s.themePrefLabel, { color: C.muted }]}>Цвет акцента</Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          {([
-            { value: 'violet' as const, label: 'Фиолетовый', swatch: '#9b8afb' },
-            { value: 'green' as const, label: 'Изумруд', swatch: '#0e9b72' },
-            { value: 'blue' as const, label: 'Синий', swatch: '#2563eb' },
-          ]).map(o => {
-            const active = accent === o.value;
-            return (
-              <TouchableOpacity
-                key={o.value}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setAccent(o.value);
-                }}
-                activeOpacity={0.7}
-                style={[s.themePrefChip, {
-                  flexDirection: 'row', alignItems: 'center', gap: 6,
-                  backgroundColor: active ? C.primary : C.tag,
-                  borderColor: active ? C.primary : C.border,
-                }]}
-              >
-                <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: o.swatch }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? C.primaryFg : C.fg }}>
-                  {o.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+      {/* Оформление — на отдельном экране «Внешний вид» (тема, акцент, цвета типов, плотность) */}
+      <TouchableOpacity
+        onPress={() => router.push('/appearance')}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        style={[s.changeBtn, { backgroundColor: C.card, borderColor: C.border, marginBottom: 24, justifyContent: 'flex-start', paddingHorizontal: 14 }]}
+      >
+        <Ionicons name="color-palette-outline" size={16} color={C.muted} style={{ marginRight: 8 }} />
+        <Text style={[s.changeBtnText, { color: C.fg, flex: 1 }]}>Внешний вид</Text>
+        <Text style={{ color: C.muted, fontSize: 13, marginRight: 4 }} numberOfLines={1}>{appearanceSummary(appearance)}</Text>
+        <Ionicons name="chevron-forward" size={16} color={C.muted} />
+      </TouchableOpacity>
 
       {/* Дополнительные возможности */}
       <View style={s.section}>

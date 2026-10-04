@@ -12,7 +12,6 @@ import {
   RoomDay, displayRoom, isNumbered, overlapBadge, overlapOf, roomStatus, rowA11y, statusText, whoLine,
 } from './state';
 
-export const ROW_MIN_H = 56;
 export const NUM_COL = 72;
 
 /** Бейдж «Накладка · 2 группы» (янтарный) или «Поток · 3 группы» (нейтральный). */
@@ -52,8 +51,10 @@ function RoomRow({ day, pairIdx, k, onPress }: {
       accessibilityLabel={rowA11y(day, pairIdx)}
       accessibilityHint="Открыть подробности"
       style={({ pressed }) => ({
-        flexDirection: 'row', alignItems: 'center', columnGap: 12, minHeight: ROW_MIN_H,
-        paddingTop: 8, paddingRight: 8, paddingBottom: 8, paddingLeft: 14,
+        flexDirection: 'row', alignItems: 'center', columnGap: 12, minHeight: k.roomRowMin,
+        // Компактная плотность из «Внешнего вида» — поля поменьше
+        paddingTop: k.density === 'compact' ? 5 : 8, paddingRight: 8,
+        paddingBottom: k.density === 'compact' ? 5 : 8, paddingLeft: 14,
         backgroundColor: pressed ? k.surface2 : 'transparent',
       })}
     >

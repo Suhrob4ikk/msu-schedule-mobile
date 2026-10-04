@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, AppState, AppStateStatus, TouchableOpacity, Animated, Linking } from 'react-native';
+import { View, AppState, AppStateStatus, TouchableOpacity, Animated, Linking, type ColorValue } from 'react-native';
+import { Text } from '../src/OnestText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs, router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,11 @@ import { emitScheduleUpdated } from '../src/scheduleEvents';
 import { invalidateApiCache } from '../src/api';
 import UpdateBanner from '../src/UpdateBanner';
 import { useTabloFlag } from '../src/tabloFlag';
+import { useAppearance } from '../src/appearance';
+import { FONT } from '../src/schedule/tokens';
+import {
+  useFonts, Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+} from '@expo-google-fonts/onest';
 
 /**
  * Push с сервера («вышла новая неделя», «расписание изменилось» — см.
@@ -81,15 +87,15 @@ function NotificationBell() {
     >
       <Ionicons name="notifications-outline" size={22} color={C.primaryFg} />
       {count > 0 && (
+        // Колокольчик лежит на заливке акцентом — счётчик в обратных цветах
         <View
           pointerEvents="none"
           style={{
             position: 'absolute', top: -3, right: -5, minWidth: 16, height: 16, borderRadius: 8,
-            backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
-            borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)',
+            backgroundColor: C.onAccent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
           }}
         >
-          <Text style={{ color: '#fff', fontSize: 9.5, fontWeight: '800' }}>{count > 9 ? '9+' : count}</Text>
+          <Text style={{ color: C.accent, fontSize: 9.5, fontWeight: '800' }}>{count > 9 ? '9+' : count}</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -149,7 +155,7 @@ function SyncStatusIndicator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncProgress]);
 
-  const color = isSyncing ? '#f59e0b' : !isOnline ? '#ef4444' : '#22c55e';
+  const color = isSyncing ? C.statusSync : !isOnline ? C.statusOffline : C.statusOnline;
   const statusLabel = isSyncing
     ? (syncProgress || 'Синхронизация...')
     : !isOnline
@@ -176,7 +182,7 @@ function SyncStatusIndicator() {
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel={`Статус синхронизации: ${statusLabel}`}
-          style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' }}
+          style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, borderWidth: 1.5, borderColor: C.accentLine }}
         />
         {bubbleText != null && (
           <Animated.View
@@ -191,6 +197,19 @@ function SyncStatusIndicator() {
         )}
       </View>
     </>
+  );
+}
+
+/** Подпись нижней вкладки: Onest 12/16, 500 / 700 у активной, масштаб до ×1,3 (ТЗ, tab-label). */
+function tabLabel(text: string) {
+  return ({ focused, color }: { focused: boolean; color: ColorValue }) => (
+    <Text
+      maxFontSizeMultiplier={1.3}
+      numberOfLines={1}
+      style={{ fontFamily: focused ? FONT[700] : FONT[500], fontSize: 12, lineHeight: 16, color }}
+    >
+      {text}
+    </Text>
   );
 }
 
@@ -246,7 +265,8 @@ function AppTabs() {
       <Tabs
         screenOptions={{
           animation: 'fade',
-          tabBarActiveTintColor: C.primary,
+          // Активная вкладка — accent-text: акцент как цвет значка и текста
+          tabBarActiveTintColor: C.primaryText,
           tabBarInactiveTintColor: C.muted,
           tabBarStyle: {
             backgroundColor: C.tabBar,
@@ -256,15 +276,14 @@ function AppTabs() {
           },
           headerStyle: { backgroundColor: C.primary },
           headerTintColor: C.primaryFg,
-          headerTitleStyle: { fontWeight: '700' },
-          tabBarLabelStyle: { fontSize: 10 },
+          headerTitleStyle: { fontFamily: FONT[700] },
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
             title: 'Расписание',
-            tabBarLabel: 'Расписание',
+            tabBarLabel: tabLabel('Расписание'),
             headerShown: false,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="calendar-outline" size={size} color={color} />
@@ -275,7 +294,7 @@ function AppTabs() {
           name="teachers"
           options={{
             title: 'Преподаватели',
-            tabBarLabel: 'Педагоги',
+            tabBarLabel: tabLabel('Педагоги'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="people-outline" size={size} color={color} />
             ),
@@ -285,7 +304,7 @@ function AppTabs() {
           name="rooms"
           options={{
             title: 'Аудитории',
-            tabBarLabel: 'Ауд.',
+            tabBarLabel: tabLabel('Ауд.'),
             headerShown: !tablo,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="school-outline" size={size} color={color} />
@@ -299,7 +318,7 @@ function AppTabs() {
           name="profile"
           options={{
             title: 'Мой кабинет',
-            tabBarLabel: 'Кабинет',
+            tabBarLabel: tabLabel('Кабинет'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person-outline" size={size} color={color} />
             ),
@@ -317,6 +336,14 @@ export default function Layout() {
   useEffect(() => {
     setupNotifications();
   }, []);
+
+  // Оформление и шрифт — до первого кадра: иначе мелькнули бы синий акцент
+  // и светлая тема, а текст перескочил бы со системного шрифта на Onest.
+  const appearance = useAppearance();
+  const [fontsLoaded, fontError] = useFonts({
+    Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+  });
+  if (!appearance || (!fontsLoaded && !fontError)) return null;
 
   return (
     <ThemeProvider>

@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { Lesson } from '../api';
 import { DAYS_ORDER } from '../api';
-import { Tokens, FONT, ROW_MIN, ROW_PAD_Y, scaledWidth } from './tokens';
+import { Tokens, FONT, scaledWidth } from './tokens';
 import { Block, addDays, blockA11y, pairsLabel, slotsLabel } from './state';
 import { Txt, KindBadge } from './ui';
 
@@ -68,8 +68,8 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={blockA11y(block, past ? 'прошла' : undefined)}
       style={({ pressed }) => ({
-        flexDirection: 'row', columnGap: COL_GAP, minHeight: ROW_MIN,
-        paddingVertical: ROW_PAD_Y, paddingHorizontal: ROW_PAD_X,
+        flexDirection: 'row', columnGap: COL_GAP, minHeight: k.rowMin,
+        paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X,
         backgroundColor: pressed ? k.surface2 : 'transparent',
       })}
     >
@@ -107,9 +107,9 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
         accessibilityLabel={l.room ? `Аудитория ${l.room.name}, открыть во вкладке «Ауд.»` : 'Аудитория не указана'}
         style={{
           width: scaledWidth(COL_ROOM, fontScale) + ROW_PAD_X + COL_GAP / 2,
-          marginVertical: -ROW_PAD_Y, paddingVertical: ROW_PAD_Y,
+          marginVertical: -k.rowPadY, paddingVertical: k.rowPadY,
           marginRight: -ROW_PAD_X, paddingRight: ROW_PAD_X,
-          marginLeft: -COL_GAP / 2, minHeight: ROW_MIN,
+          marginLeft: -COL_GAP / 2, minHeight: k.rowMin,
           alignItems: 'flex-end',
         }}
       >

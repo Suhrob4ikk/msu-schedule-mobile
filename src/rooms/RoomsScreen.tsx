@@ -13,9 +13,6 @@ import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  useFonts, Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
-} from '@expo-google-fonts/onest';
 import { api, invalidateApiCache, DAYS_ORDER, WeekOption } from '../api';
 import { useThemeMode } from '../theme';
 import { useSyncStatus } from '../SyncContext';
@@ -29,7 +26,7 @@ import {
 import RoomCard from './RoomCard';
 import RoomSheet from './RoomSheet';
 import WhenSheet from './WhenSheet';
-import RoomRow, { ROW_MIN_H } from './RoomRow';
+import RoomRow from './RoomRow';
 import SearchField from './SearchField';
 
 const UPDATED_AT_KEY = 'rooms_updated_at';
@@ -95,9 +92,6 @@ export default function RoomsScreenNew() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const [fontsLoaded, fontError] = useFonts({
-    Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
-  });
   const { isOnline, isSyncing, lastSyncTime, onlineAt } = useSyncStatus();
 
   // ─── Часы и режим «Сейчас» ────────────────────────────────────────────
@@ -271,12 +265,11 @@ export default function RoomsScreenNew() {
   useFocusEffect(
     useCallback(() => {
       StatusBar.setBarStyle(mode === 'dark' ? 'light-content' : 'dark-content');
-      return () => { StatusBar.setBarStyle('light-content'); };
-    }, [mode]),
+      return () => { StatusBar.setBarStyle(k.onAccent === '#FFFFFF' ? 'light-content' : 'dark-content'); };
+    }, [mode, k.onAccent]),
   );
 
   // ─── Отрисовка ────────────────────────────────────────────────────────
-  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: k.bg }} />;
 
   const sub = headerSubtitle(slot, manual ? null : now, clock);
   // «Эта» неделя — календарная; в воскресенье она уже прошла, но так и подписана
@@ -340,7 +333,7 @@ export default function RoomsScreenNew() {
         {[0, 1, 2, 3, 4, 5].map(i => (
           <React.Fragment key={i}>
             {i > 0 && <Divider k={k} />}
-            <View style={{ minHeight: ROW_MIN_H, flexDirection: 'row', alignItems: 'center', columnGap: 12, paddingHorizontal: 14 }}>
+            <View style={{ minHeight: k.roomRowMin, flexDirection: 'row', alignItems: 'center', columnGap: 12, paddingHorizontal: 14 }}>
               <View style={{ width: 56, height: 22, borderRadius: 6, backgroundColor: k.surface2 }} />
               <View style={{ flex: 1, height: 14, borderRadius: 6, backgroundColor: k.surface2, maxWidth: 180 }} />
             </View>

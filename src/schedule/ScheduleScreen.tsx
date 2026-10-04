@@ -19,9 +19,6 @@ import * as Haptics from 'expo-haptics';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  useFonts, Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
-} from '@expo-google-fonts/onest';
 import { api, invalidateApiCache, Group, Lesson, WeekInfo, shortGroupName, weekRangeStr } from '../api';
 import { useThemeMode } from '../theme';
 import { useSyncStatus } from '../SyncContext';
@@ -67,9 +64,6 @@ export default function ScheduleScreenNew() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const [fontsLoaded, fontError] = useFonts({
-    Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
-  });
   const { isOnline, isSyncing, lastSyncTime, onlineAt } = useSyncStatus();
 
   const [groups, setGroups] = useState<Group[]>([]);
@@ -410,9 +404,9 @@ export default function ScheduleScreenNew() {
           if (g) loadGroup(g);
         });
       }
-      // Остальные вкладки — со старой цветной шапкой и светлыми значками
-      return () => { StatusBar.setBarStyle('light-content'); };
-    }, [mode, groupsLoaded, groups, loadGroup]),
+      // Остальные вкладки — с цветной шапкой: значки под цвет текста на акценте
+      return () => { StatusBar.setBarStyle(k.onAccent === '#FFFFFF' ? 'light-content' : 'dark-content'); };
+    }, [mode, k.onAccent, groupsLoaded, groups, loadGroup]),
   );
 
   const isMyGroup = selectedGroup != null && myGroupId != null && selectedGroup.id === myGroupId;
@@ -568,7 +562,6 @@ export default function ScheduleScreenNew() {
   });
 
   // ─── Отрисовка ────────────────────────────────────────────────────────
-  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: k.bg }} />;
 
   const subtitle = selectedGroup
     ? `${shortGroupName(selectedGroup.name)} · ${selectedGroup.year} курс${rel === 'current' && selectedWeek ? ' · эта неделя' : ''}`
