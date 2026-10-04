@@ -1,8 +1,8 @@
 /**
  * Вкладка «Кабинет» в стиле «Табло» — по ТЗ «вкладка „Кабинет“». Порядок:
  * профиль, Учёба, Разделы, Напоминания, Оформление, Синхронизация, Позвать
- * одногруппников, подвал. Прежний экран — src/profile/LegacyProfileScreen.tsx
- * (не подключён; удалить, когда владелец скажет «оставляем»).
+ * одногруппников, подвал. Прежний экран удалён; его последняя версия — в git
+ * по метке before-cleanup.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -13,7 +13,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import * as Haptics from 'expo-haptics';
 import QRCode from 'react-native-qrcode-svg';
 import { api, Group, shortGroupName, rememberGroup } from '../api';
 import { useThemeMode, useAppearanceSettings } from '../theme';
@@ -23,7 +22,6 @@ import { formatSyncTime } from '../syncService';
 import { markGroupChosen } from '../features';
 import { collectSkips, collectNotes, type SkipStats } from '../studyData';
 import { useUnreadNotifCount } from '../useUnreadNotifCount';
-import { useTabloFlag, setTabloEnabled } from '../tabloFlag';
 import { useTokens, Tokens, RADIUS, GUTTER, HEADER_H, TOUCH_MIN } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
 import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
@@ -190,7 +188,6 @@ export default function ProfileScreen() {
   const qrTextMin = Math.round(140 * Math.min(Math.max(fontScale, 1), 2));
   const { isSyncing, isOnline, lastSyncTime, triggerSync } = useSyncStatus();
   const unread = useUnreadNotifCount();
-  const tabloOn = useTabloFlag() === true;
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [name, setName] = useState('');
@@ -198,7 +195,6 @@ export default function ProfileScreen() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [syncError, setSyncError] = useState(false);
-  const [devOpen, setDevOpen] = useState(false);
   const [skips, setSkips] = useState<SkipStats | null>(null);
 
   const attendance = useFeatureFlag('feature_attendance');
@@ -419,26 +415,14 @@ export default function ProfileScreen() {
 
         {/* Подвал */}
         <View style={{ alignItems: 'center', marginTop: 20, rowGap: 2 }}>
-          {/* Режим разработчика — скрытая веб-панель /dev; долгое нажатие — переключатели для проверки */}
+          {/* Режим разработчика — скрытая веб-панель /dev */}
           <Pressable
             onPress={() => Linking.openURL(`${WEB_URL}/dev`)}
-            onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setDevOpen(v => !v); }}
             accessibilityRole="link"
             style={{ minHeight: TOUCH_MIN, justifyContent: 'center', paddingHorizontal: 12 }}
           >
             <Txt t="link" color={k.textSecondary}>Режим разработчика</Txt>
           </Pressable>
-          {(devOpen || tabloOn) && (
-            <Card k={k} style={{ alignSelf: 'stretch', marginBottom: 12 }}>
-              <SwitchRow
-                k={k}
-                title="Новые экраны «Табло»"
-                subtitle="Вкладка «Аудитории»"
-                on={tabloOn}
-                onPress={() => { Haptics.selectionAsync(); setTabloEnabled(!tabloOn); }}
-              />
-            </Card>
-          )}
           <Txt t="smallSemi" color={k.text}>МГУ Душанбе · Расписание</Txt>
           <Txt t="small" color={k.textSecondary}>Данные с msu.tj</Txt>
           {VERSION ? <Txt t="small" color={k.textSecondary} numberOfLines={1}>v{VERSION}</Txt> : null}

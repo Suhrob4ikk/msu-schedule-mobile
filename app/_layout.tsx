@@ -17,7 +17,6 @@ import { useUnreadNotifCount } from '../src/useUnreadNotifCount';
 import { emitScheduleUpdated } from '../src/scheduleEvents';
 import { invalidateApiCache } from '../src/api';
 import UpdateBanner from '../src/UpdateBanner';
-import { useTabloFlag } from '../src/tabloFlag';
 import { useAppearance } from '../src/appearance';
 import { FONT } from '../src/schedule/tokens';
 import {
@@ -218,11 +217,9 @@ function AppTabs() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const C = useTheme();
   // Экраны «Табло» рисуют свою шапку со статусом связи и колокольчиком —
-  // общую шапку и плавающую точку статуса на них прячем. Расписание — всегда,
-  // Аудитории — когда включён флаг «Новые экраны «Табло»».
-  const tablo = useTabloFlag() === true;
+  // общую шапку и плавающую точку статуса на них прячем.
   const pathname = usePathname();
-  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || (tablo && pathname === '/rooms');
+  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || pathname === '/rooms';
 
   useRemotePushRefresh();
 
@@ -310,7 +307,7 @@ function AppTabs() {
           options={{
             title: 'Аудитории',
             tabBarLabel: tabLabel('Ауд.'),
-            headerShown: !tablo,
+            headerShown: false,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="school-outline" size={size} color={color} />
             ),
