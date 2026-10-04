@@ -16,7 +16,6 @@ import { useUnreadNotifCount } from '../src/useUnreadNotifCount';
 import { emitScheduleUpdated } from '../src/scheduleEvents';
 import { invalidateApiCache } from '../src/api';
 import UpdateBanner from '../src/UpdateBanner';
-import { useNewScheduleFlag } from '../src/schedule/flag';
 
 /**
  * Push с сервера («вышла новая неделя», «расписание изменилось» — см.
@@ -198,11 +197,10 @@ function AppTabs() {
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const C = useTheme();
-  // Новый экран расписания рисует свою шапку со статусом связи и
-  // колокольчиком — общую шапку и плавающую точку статуса на нём прячем.
-  const newSchedule = useNewScheduleFlag() === true;
+  // Экран расписания рисует свою шапку со статусом связи и колокольчиком —
+  // общую шапку и плавающую точку статуса на нём прячем.
   const pathname = usePathname();
-  const ownHeader = newSchedule && (pathname === '/' || pathname === '/index');
+  const ownHeader = pathname === '/' || pathname === '/index';
 
   useRemotePushRefresh();
 
@@ -264,7 +262,7 @@ function AppTabs() {
           options={{
             title: 'Расписание',
             tabBarLabel: 'Расписание',
-            headerShown: !newSchedule,
+            headerShown: false,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="calendar-outline" size={size} color={color} />
             ),
