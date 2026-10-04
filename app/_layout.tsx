@@ -222,7 +222,7 @@ function AppTabs() {
   // Аудитории — когда включён флаг «Новые экраны «Табло»».
   const tablo = useTabloFlag() === true;
   const pathname = usePathname();
-  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || (tablo && pathname === '/rooms');
+  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || (tablo && pathname === '/rooms');
 
   useRemotePushRefresh();
 
@@ -324,6 +324,8 @@ function AppTabs() {
           options={{
             title: 'Мой кабинет',
             tabBarLabel: tabLabel('Кабинет'),
+            // Своя шапка со статусом связи и колокольчиком («Табло»)
+            headerShown: false,
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person-outline" size={size} color={color} />
             ),

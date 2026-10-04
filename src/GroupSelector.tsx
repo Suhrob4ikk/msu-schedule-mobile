@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Group, shortGroupName } from './api';
 import { Colors } from './theme';
 
-const DIR_ORDER = ['ПМиИ', 'ХФММ', 'Геология', 'МО', 'Лингвистика', 'ГМУ'];
+export const DIR_ORDER = ['ПМиИ', 'ХФММ', 'Геология', 'МО', 'Лингвистика', 'ГМУ'];
 
 interface Props {
   groups: Group[];

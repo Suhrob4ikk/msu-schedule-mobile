@@ -68,6 +68,18 @@ export const TYPE = {
   smallStrong: { style: type(13, 18, 700), max: 2 },
   cellNum: { style: type(14, 18, 800), max: 2 },
   cellWord: { style: type(11, 14, 600), max: 2 },
+  // ТЗ «Кабинет», раздел «Компоненты и размеры»
+  sectionTitle: { style: type(12, 16, 700, { letterSpacing: 0.72, textTransform: 'uppercase' }), max: 2 },
+  rowTitle: { style: type(16, 21, 500), max: 2 },
+  rowValue: { style: type(14, 18, 500), max: 2 },
+  sheetTitle: { style: type(22, 28, 700), max: 2 },
+  bigCount: { style: type(40, 44, 800), max: 1.4 },
+  countNum: { style: type(15, 20, 700), max: 1.4 },
+  button: { style: type(15, 20, 700), max: 2 },
+  buttonLg: { style: type(16, 20, 700), max: 2 },
+  smallSemi: { style: type(13, 18, 600), max: 2 },
+  link: { style: type(14, 18, 600), max: 2 },
+  avatar: { style: type(20, 24, 800), max: 1.4 },
 } as const;
 
 export const RADIUS = { sm: 12, md: 14, card: 18, lg: 20, sheet: 28, pill: 999 } as const;

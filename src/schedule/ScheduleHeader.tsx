@@ -26,7 +26,7 @@ export function linkState(opts: {
   return { kind: 'online', text: stamp ? `обновлено ${stampLabel(stamp, opts.now)}` : 'обновляется' };
 }
 
-function StatusPill({ s, k }: { s: LinkState; k: Tokens }) {
+export function StatusPill({ s, k }: { s: LinkState; k: Tokens }) {
   const offline = s.kind === 'offline';
   const dot = s.kind === 'online' ? k.statusOnline : s.kind === 'sync' ? k.statusSync : k.statusOffline;
   return (
@@ -47,7 +47,7 @@ function StatusPill({ s, k }: { s: LinkState; k: Tokens }) {
   );
 }
 
-function Bell({ k }: { k: Tokens }) {
+export function Bell({ k }: { k: Tokens }) {
   const count = useUnreadNotifCount();
   return (
     <Pressable
