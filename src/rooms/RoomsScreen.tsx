@@ -24,8 +24,9 @@ import { Txt, Divider } from '../schedule/ui';
 import { isoOf } from '../schedule/state';
 import ScheduleHeader, { linkState } from '../schedule/ScheduleHeader';
 import {
-  PAIRS, RoomDay, RoomSlot, Slot, buildDay, headerSubtitle, nowKey, nowSlot, pairTitle, roomStatus,
+  PAIRS, RoomDay, RoomSlot, Slot, buildDay, headerSubtitle, nowKey, nowSlot, pairTitle, roomStatus, searchRooms,
 } from './state';
+import RoomCard from './RoomCard';
 import RoomRow, { ROW_MIN_H } from './RoomRow';
 import SearchField from './SearchField';
 
@@ -251,8 +252,38 @@ export default function RoomsScreenNew() {
     now: clock,
   });
 
+  const found = days ? searchRooms(days.map(d => d.room), query) : null;
+
   let body: React.ReactNode;
-  if (days) {
+  if (days && found) {
+    // Поиск: точное совпадение — карточка с днём аудитории; остальное — строки
+    // для выбранной пары, без деления на свободные и занятые.
+    const exact = found.exact ? days.find(d => d.room === found.exact)! : null;
+    const others = days.filter(d => found.others.includes(d.room));
+    const q = query.trim();
+    body = (
+      <View style={{ paddingTop: 12 }}>
+        {exact ? (
+          <>
+            <RoomCard
+              day={exact}
+              pairIdx={pairIdx}
+              date={slot.date}
+              k={k}
+              onPickPair={i => pickSlot({ ...slot, pair: PAIRS[i] })}
+              onWho={() => openRoom(exact.room)}
+            />
+            <SectionHead k={k} left={`Ещё с «${q}»`} right={others.length ? undefined : 'нет'} />
+            <RoomList days={others} pairIdx={pairIdx} k={k} onPress={openRoom} />
+          </>
+        ) : others.length ? (
+          <RoomList days={others} pairIdx={pairIdx} k={k} onPress={openRoom} />
+        ) : (
+          <Txt t="body" color={k.textSecondary} style={{ paddingHorizontal: 4, paddingTop: 8 }}>Аудитории «{q}» нет</Txt>
+        )}
+      </View>
+    );
+  } else if (days) {
     body = (
       <>
         <SectionHead k={k} left={`Свободны · ${free.length}`} right={`из ${days.length}`} />
