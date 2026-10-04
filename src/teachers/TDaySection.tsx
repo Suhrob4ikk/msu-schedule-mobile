@@ -4,12 +4,13 @@
  * раскрытая пара в этом дне — карточка дня делится, между частями встаёт
  * большая карточка (как в «Табло»).
  */
-import React, { memo } from 'react';
-import { LayoutChangeEvent, View } from 'react-native';
+import React, { memo, useState } from 'react';
+import { Animated, LayoutChangeEvent, View } from 'react-native';
 import { Tokens, RADIUS } from '../schedule/tokens';
 import { Txt, Divider } from '../schedule/ui';
 import { WeekRel, dayMeta, gapLabel, isPast, isoOf } from '../schedule/state';
 import { TBlock, TDay, TFocus, dayEndLabel, dayTitle } from './state';
+import DayHeading, { dayPaddingTop } from '../schedule/DayHeading';
 import TLessonRow from './TLessonRow';
 import TFocusCard from './TFocusCard';
 
@@ -50,17 +51,19 @@ function Segment({ items, k, now, rel }: { items: Item[]; k: Tokens; now: Date; 
   );
 }
 
-function TDaySection({ d, k, now, rel, focus, onExpire, onLayout, onFocusLayout }: {
+function TDaySection({ d, k, now, rel, focus, scrollY, onExpire, onLayout, onFocusLayout }: {
   d: TDay;
   k: Tokens;
   now: Date;
   rel: WeekRel;
   focus: TFocus | null;
+  scrollY?: Animated.Value;
   onExpire: () => void;
   onLayout: (dayIndex: number, e: LayoutChangeEvent) => void;
   onFocusLayout: (dayIndex: number, e: LayoutChangeEvent) => void;
 }) {
   const today = d.date === isoOf(now);
+  const [top, setTop] = useState<number | null>(null);
   const focusIdx = focus ? d.blocks.findIndex(b => b.key === focus.block.key) : -1;
 
   let before: Item[];
@@ -74,19 +77,19 @@ function TDaySection({ d, k, now, rel, focus, onExpire, onLayout, onFocusLayout 
   const accent = today && rel === 'current';
 
   return (
-    <View onLayout={e => onLayout(d.dayIndex, e)} style={{ paddingTop: k.dayGap }}>
-      <View
-        accessibilityRole="header"
-        style={{
-          flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between',
-          columnGap: 8, paddingHorizontal: 4, paddingBottom: k.dayHeaderPad,
-        }}
-      >
-        <Txt t="captionStrong" color={accent ? k.accentText : k.text} style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>
-          {dayTitle(d.date)}
-        </Txt>
-        <Txt t="caption" color={accent ? k.accentText : k.textSecondary}>{dayMeta(d, now, focusIdx >= 0)}</Txt>
-      </View>
+    <View
+      onLayout={e => { setTop(e.nativeEvent.layout.y); onLayout(d.dayIndex, e); }}
+      style={{ paddingTop: dayPaddingTop(k) }}
+    >
+      <DayHeading
+        k={k}
+        dayIndex={d.dayIndex}
+        sub={`${dayTitle(d.date).split(', ')[1]} · ${dayMeta(d, now, focusIdx >= 0)}`}
+        a11y={`${dayTitle(d.date)}, ${dayMeta(d, now, focusIdx >= 0)}`}
+        accent={accent}
+        scrollY={scrollY}
+        top={top}
+      />
 
       <View style={{ rowGap: k.blockGap }}>
         <Segment items={before} k={k} now={now} rel={rel} />

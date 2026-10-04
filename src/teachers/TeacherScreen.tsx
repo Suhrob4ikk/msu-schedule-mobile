@@ -8,14 +8,14 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AppState, LayoutAnimation, LayoutChangeEvent, Pressable, RefreshControl, ScrollView, View, useWindowDimensions,
+  Animated, AppState, LayoutAnimation, LayoutChangeEvent, Pressable, RefreshControl, ScrollView, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { invalidateApiCache, Lesson, Teacher, WeekOption } from '../api';
 import { useSyncStatus } from '../SyncContext';
-import { Tokens, GUTTER, RADIUS, TOUCH_MIN, HEADER_H, FONT, scaledWidth } from '../schedule/tokens';
+import { Tokens, GUTTER, RADIUS, TOUCH_MIN, HEADER_H, FONT } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
 import { addDays, isoOf, weekRel } from '../schedule/state';
 import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
@@ -26,7 +26,6 @@ import {
 } from './state';
 import { cachedTeacherWeek, fetchTeacherWeek, statusStore } from './data';
 import TDaySection from './TDaySection';
-import { COL_ROOM, COL_TIME } from './TLessonRow';
 import { EmptyState } from './ui';
 
 const TICK_MS = 30_000;
@@ -67,17 +66,6 @@ function WeekSegment({ k, which, thisWs, nextWs, onPick }: {
           </Pressable>
         );
       })}
-    </View>
-  );
-}
-
-function ColumnLabels({ k }: { k: Tokens }) {
-  const { fontScale } = useWindowDimensions();
-  return (
-    <View importantForAccessibility="no-hide-descendants" style={{ flexDirection: 'row', columnGap: 12, paddingHorizontal: 12, paddingTop: 10 }}>
-      <Txt t="overline" color={k.textSecondary} style={{ width: scaledWidth(COL_TIME, fontScale) }}>Время</Txt>
-      <Txt t="overline" color={k.textSecondary} style={{ flex: 1 }}>Предмет</Txt>
-      <Txt t="overline" color={k.textSecondary} style={{ width: scaledWidth(COL_ROOM, fontScale), textAlign: 'right' }}>Ауд.</Txt>
     </View>
   );
 }
@@ -199,6 +187,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
 
   // ─── Прокрутка ────────────────────────────────────────────────────────
   const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
   const dayY = useRef<(number | undefined)[]>([]);
   const focusBox = useRef<{ day: number; y: number; h: number } | null>(null);
   const viewportH = useRef(0);
@@ -365,12 +354,12 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
         </View>
       </View>
 
-      <ScrollView
-        ref={scrollRef}
+      <Animated.ScrollView
+        ref={scrollRef as React.Ref<any>}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 }}
         onLayout={e => { viewportH.current = e.nativeEvent.layout.height; requestAnimationFrame(tryInitialScroll); }}
-        onScroll={onScroll}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true, listener: onScroll })}
         onScrollBeginDrag={() => { lockRef.current = false; }}
         scrollEventThrottle={32}
         refreshControl={
@@ -399,7 +388,6 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
 
         <WeekSegment k={k} which={shown} thisWs={thisWs} nextWs={nextWs} onPick={pickWeek} />
 
-        {withPairs.length > 0 && <ColumnLabels k={k} />}
         {body}
         {withPairs.map(d => (
           <TDaySection
@@ -409,12 +397,13 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
             now={now}
             rel={rel}
             focus={focus}
+            scrollY={scrollY}
             onExpire={recheck}
             onLayout={onDayLayout}
             onFocusLayout={onFocusLayout}
           />
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {lessons !== undefined && lessons !== null && (
         <DayBar days={days} k={k} todayIso={today} visible={visibleDay} onPick={pickDay} />

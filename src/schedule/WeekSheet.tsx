@@ -43,11 +43,13 @@ function Row({ k, icon, title, subtitle, selected, onPress, role = 'button' }: {
 }
 
 export default function WeekSheet({
-  visible, onClose, k, weeks, selectedWeek, groups, group, myGroup, onPickWeek, onPickGroup, onShare, canShare,
+  visible, onClose, k, viewMode, onViewMode, weeks, selectedWeek, groups, group, myGroup, onPickWeek, onPickGroup, onShare, canShare,
 }: {
   visible: boolean;
   onClose: () => void;
   k: Tokens;
+  viewMode: 'list' | 'pages';
+  onViewMode: (m: 'list' | 'pages') => void;
   weeks: WeekInfo[];
   selectedWeek: WeekInfo | null;
   groups: Group[];
@@ -83,6 +85,10 @@ export default function WeekSheet({
           ))}
         </>
       )}
+
+      <Txt t="overline" color={k.textSecondary} style={{ marginTop: 16, marginBottom: 4, marginLeft: 12 }}>Вид</Txt>
+      <Row k={k} role="radio" title="Лентой" subtitle="Вся неделя, листать вверх и вниз" selected={viewMode === 'list'} onPress={() => onViewMode('list')} />
+      <Row k={k} role="radio" title="По дням" subtitle="Один день, листать влево и вправо" selected={viewMode === 'pages'} onPress={() => onViewMode('pages')} />
 
       <Txt t="overline" color={k.textSecondary} style={{ marginTop: 16, marginBottom: 8, marginLeft: 12 }}>Группа</Txt>
       <View style={{ paddingHorizontal: 12 }}>

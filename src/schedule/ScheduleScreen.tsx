@@ -40,6 +40,7 @@ import ScheduleHeader, { linkState } from './ScheduleHeader';
 import DaySection, { Marks } from './DaySection';
 import DayBar from './DayBar';
 import WeekSheet from './WeekSheet';
+import DayPager from './DayPager';
 import LessonSheet from './LessonSheet';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -585,7 +586,49 @@ export default function ScheduleScreenNew() {
     setVisible(idx);
   }, []);
 
+  // ─── Вид: лентой или по дням (выбор человека, хранится на телефоне) ─────
+  const [viewMode, setViewModeState] = useState<'list' | 'pages'>('list');
+  useEffect(() => {
+    AsyncStorage.getItem('schedule_view_mode').then(v => { if (v === 'pages') setViewModeState('pages'); }).catch(() => null);
+  }, []);
+  const [pageIdx, setPageIdx] = useState(0);
+  const pagedFor = useRef('');
+  const pagesOn = viewMode === 'pages' && lessons.length > 0 && days.length > 0;
+  const setViewMode = useCallback((m: 'list' | 'pages') => {
+    setViewModeState(m);
+    scrolledFor.current = '';
+    pagedFor.current = '';
+    AsyncStorage.setItem('schedule_view_mode', m).catch(() => null);
+  }, []);
+  // Какой день открыть в режиме «По дням»: из уведомления, иначе сегодня / день раскрытой пары
+  useEffect(() => {
+    if (!pagesOn || !selectedGroup || !selectedWeek) return;
+    const key = `${selectedGroup.id}|${selectedWeek.id}`;
+    if (pagedFor.current === key) return;
+    pagedFor.current = key;
+    let target = -1;
+    const pend = pendingRef.current;
+    if (pend && Date.now() <= pend.until) {
+      const idx = days.findIndex(d => d.date === pend.date);
+      if (idx >= 0) {
+        target = idx;
+        pendingRef.current = null;
+        const b = pend.pair ? days[idx].blocks.find(x => x.pairs.includes(pend.pair)) : undefined;
+        if (b) setTimeout(() => setLessonSheet(b), 250);
+      }
+    }
+    if (target < 0) {
+      const f = computeFocus(new Date(), days, rel);
+      const todayIdx = rel === 'current' ? days.findIndex(d => d.date === isoOf(new Date())) : -1;
+      target = todayIdx >= 0 ? todayIdx : f ? days.findIndex(d => d.date === f.block.date) : 0;
+    }
+    const t = Math.max(0, target);
+    setPageIdx(t);
+    setVisible(t);
+  }, [pagesOn, selectedGroup, selectedWeek, days, rel]);
+
   const pickDay = useCallback((i: number) => {
+    if (pagesOn) { Haptics.selectionAsync(); setPageIdx(i); setVisible(i); return; }
     const y = dayY.current[i];
     if (y == null) return;
     Haptics.selectionAsync();
@@ -594,7 +637,7 @@ export default function ScheduleScreenNew() {
     lockRef.current = true;
     setVisible(i);
     scrollRef.current?.scrollTo({ y, animated: true });
-  }, []);
+  }, [pagesOn]);
 
   // ─── Действия ─────────────────────────────────────────────────────────
   const [headerSheet, setHeaderSheet] = useState(false);
@@ -668,6 +711,23 @@ export default function ScheduleScreenNew() {
         </View>
       )}
 
+      {pagesOn ? (
+        <>
+          <View style={{ paddingHorizontal: GUTTER }}><CourseCheckBanner /></View>
+          <DayPager
+            key={`${selectedGroup?.id}|${selectedWeek?.id}`}
+            days={days} k={k} now={now} rel={rel} focus={focus} doneToday={doneToday} marks={marks}
+            index={pageIdx}
+            onIndex={i => { setPageIdx(i); setVisible(i); }}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            bottomPad={24 + (rel !== 'current' ? TOUCH_MIN + 12 : 0)}
+            onRowPress={openLesson}
+            onFocusPress={onFocusPress}
+            onExpire={recheck}
+          />
+        </>
+      ) : (
       <Animated.ScrollView
         ref={scrollRef as React.Ref<any>}
         style={{ flex: 1 }}
@@ -733,6 +793,7 @@ export default function ScheduleScreenNew() {
           />
         ))}
       </Animated.ScrollView>
+      )}
 
       {/* «К этой неделе» — плавающая пилюля над рядом дней */}
       {selectedWeek && rel !== 'current' && hasThisWeek && (
@@ -769,6 +830,8 @@ export default function ScheduleScreenNew() {
         visible={headerSheet}
         onClose={() => setHeaderSheet(false)}
         k={k}
+        viewMode={viewMode}
+        onViewMode={m => { setViewMode(m); setHeaderSheet(false); }}
         weeks={weeks}
         selectedWeek={selectedWeek}
         groups={groups}
@@ -789,7 +852,7 @@ export default function ScheduleScreenNew() {
       />
 
       {days.length > 0 && (
-        <DayBar days={days} k={k} todayIso={isoOf(now)} visible={visibleDay} onPick={pickDay} />
+        <DayBar days={days} k={k} todayIso={isoOf(now)} visible={pagesOn ? pageIdx : visibleDay} onPick={pickDay} />
       )}
     </View>
   );
