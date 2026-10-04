@@ -241,7 +241,9 @@ export default function RoomsScreenNew() {
   // Переход из Расписания по нажатию на аудиторию: ручной режим на день и
   // пару этой пары и сразу лист этой аудитории (см. openRoom в LessonRow).
   const params = useLocalSearchParams<{ day?: string; pair?: string; room?: string; week_start?: string }>();
-  const pendingRoom = useRef<string | null>(null);
+  // Состояние, а не ref: если день тот же, что уже на экране, данные не
+  // поменяются — и лист должен открыться по самой просьбе.
+  const [pendingRoom, setPendingRoom] = useState<string | null>(null);
   useEffect(() => {
     if (!params.day || !params.pair) return;
     const dayIndex = DAYS_ORDER.indexOf(params.day);
@@ -250,21 +252,21 @@ export default function RoomsScreenNew() {
       const weekStart = params.week_start || addDays(isoOf(n), -((n.getDay() + 6) % 7));
       setQuery('');
       pickSlot({ date: addDays(weekStart, dayIndex), weekStart, dayIndex, pair: params.pair });
-      pendingRoom.current = params.room ? params.room.trim().toLowerCase() : null;
+      setPendingRoom(params.room ? params.room.trim().toLowerCase() : null);
     }
     // Гасим сразу: повторное нажатие на ту же аудиторию должно сработать снова
     router.setParams({ day: '', pair: '', room: '', week_start: '' });
   }, [params.day, params.pair, params.room, params.week_start, pickSlot]);
   // Лист открываем, когда данные нужного дня уже на экране
   useEffect(() => {
-    const want = pendingRoom.current;
+    const want = pendingRoom;
     if (!want || !days) return;
     // «601 702» — пара сразу в двух аудиториях: открываем первую
     const hit = days.find(d => d.room.toLowerCase() === want)
       ?? days.find(d => want.split(/\s+/).includes(d.room.toLowerCase()));
-    pendingRoom.current = null;
+    setPendingRoom(null);
     if (hit) setSheetRoom(hit.room);
-  }, [days]);
+  }, [days, pendingRoom]);
 
   useFocusEffect(
     useCallback(() => {
