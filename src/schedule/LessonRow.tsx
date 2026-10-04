@@ -8,8 +8,9 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { Lesson } from '../api';
+import { DAYS_ORDER } from '../api';
 import { Tokens, FONT, ROW_MIN, ROW_PAD_Y, scaledWidth } from './tokens';
-import { Block, blockA11y, pairsLabel, slotsLabel } from './state';
+import { Block, addDays, blockA11y, pairsLabel, slotsLabel } from './state';
 import { Txt, KindBadge } from './ui';
 
 export const COL_TIME = 58;
@@ -23,10 +24,20 @@ export function openTeacher(l: Lesson) {
   router.push({ pathname: '/teachers', params: { teacher: String(l.teacher.id) } });
 }
 
+/**
+ * Аудитория → вкладка «Ауд.». day и pair понимает и прежний экран аудиторий;
+ * room и week_start — новый: он сразу открывает лист этой аудитории на нужных
+ * дне и паре этой недели.
+ */
 export function openRoom(l: Lesson) {
   if (!l.room) return;
   Haptics.selectionAsync();
-  router.push({ pathname: '/rooms', params: { day: l.day_of_week, pair: l.pair_number } });
+  const dayIdx = DAYS_ORDER.indexOf(l.day_of_week);
+  const weekStart = l.lesson_date && dayIdx >= 0 ? addDays(l.lesson_date, -dayIdx) : '';
+  router.push({
+    pathname: '/rooms',
+    params: { day: l.day_of_week, pair: l.pair_number, room: l.room.name, week_start: weekStart },
+  });
 }
 
 /** До 48 dp по высоте у строки подписи 16 dp. */

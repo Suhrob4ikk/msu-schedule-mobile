@@ -9,7 +9,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, RefreshControl, ScrollView, StatusBar, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -237,6 +237,34 @@ export default function RoomsScreenNew() {
   const [whenOpen, setWhenOpen] = useState(false);
   const openRoom = useCallback((room: string) => setSheetRoom(room), []);
   const openWhen = useCallback(() => setWhenOpen(true), []);
+
+  // Переход из Расписания по нажатию на аудиторию: ручной режим на день и
+  // пару этой пары и сразу лист этой аудитории (см. openRoom в LessonRow).
+  const params = useLocalSearchParams<{ day?: string; pair?: string; room?: string; week_start?: string }>();
+  const pendingRoom = useRef<string | null>(null);
+  useEffect(() => {
+    if (!params.day || !params.pair) return;
+    const dayIndex = DAYS_ORDER.indexOf(params.day);
+    if (dayIndex >= 0 && dayIndex <= 5 && PAIRS.includes(params.pair)) {
+      const n = new Date();
+      const weekStart = params.week_start || addDays(isoOf(n), -((n.getDay() + 6) % 7));
+      setQuery('');
+      pickSlot({ date: addDays(weekStart, dayIndex), weekStart, dayIndex, pair: params.pair });
+      pendingRoom.current = params.room ? params.room.trim().toLowerCase() : null;
+    }
+    // Гасим сразу: повторное нажатие на ту же аудиторию должно сработать снова
+    router.setParams({ day: '', pair: '', room: '', week_start: '' });
+  }, [params.day, params.pair, params.room, params.week_start, pickSlot]);
+  // Лист открываем, когда данные нужного дня уже на экране
+  useEffect(() => {
+    const want = pendingRoom.current;
+    if (!want || !days) return;
+    // «601 702» — пара сразу в двух аудиториях: открываем первую
+    const hit = days.find(d => d.room.toLowerCase() === want)
+      ?? days.find(d => want.split(/\s+/).includes(d.room.toLowerCase()));
+    pendingRoom.current = null;
+    if (hit) setSheetRoom(hit.room);
+  }, [days]);
 
   useFocusEffect(
     useCallback(() => {
