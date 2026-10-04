@@ -6,8 +6,9 @@ import { KindPalette, lessonKind } from './state';
 
 type TypeName = keyof typeof TYPE;
 
-/** Text со стилем из таблицы типографики и потолком масштаба шрифта из ТЗ. */
-export function Txt({ t, color, style, ...rest }: TextProps & { t: TypeName; color: string }) {
+/** Text со стилем из таблицы типографики и потолком масштаба шрифта из ТЗ.
+ *  ref (React 19 передаёт его обычным свойством) уходит в Text — для фокуса диктора. */
+export function Txt({ t, color, style, ...rest }: TextProps & { t: TypeName; color: string; ref?: React.Ref<Text> }) {
   const spec = TYPE[t];
   return <Text maxFontSizeMultiplier={spec.max} {...rest} style={[spec.style, { color }, style]} />;
 }

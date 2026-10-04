@@ -21,12 +21,14 @@ import { useThemeMode } from '../theme';
 import { useSyncStatus } from '../SyncContext';
 import { useTokens, GUTTER, RADIUS, TOUCH_MIN, Tokens } from '../schedule/tokens';
 import { Txt, Divider } from '../schedule/ui';
-import { isoOf } from '../schedule/state';
+import { addDays, isoOf } from '../schedule/state';
 import ScheduleHeader, { linkState } from '../schedule/ScheduleHeader';
 import {
   PAIRS, RoomDay, RoomSlot, Slot, buildDay, headerSubtitle, nowKey, nowSlot, pairTitle, roomStatus, searchRooms,
 } from './state';
 import RoomCard from './RoomCard';
+import RoomSheet from './RoomSheet';
+import WhenSheet from './WhenSheet';
 import RoomRow, { ROW_MIN_H } from './RoomRow';
 import SearchField from './SearchField';
 
@@ -231,8 +233,10 @@ export default function RoomsScreenNew() {
 
   // ─── Поиск и листы ────────────────────────────────────────────────────
   const [query, setQuery] = useState('');
-  const openRoom = useCallback((_room: string) => { /* лист аудитории — следующим шагом */ }, []);
-  const openWhen = useCallback(() => { /* лист «Когда» — следующим шагом */ }, []);
+  const [sheetRoom, setSheetRoom] = useState<string | null>(null);
+  const [whenOpen, setWhenOpen] = useState(false);
+  const openRoom = useCallback((room: string) => setSheetRoom(room), []);
+  const openWhen = useCallback(() => setWhenOpen(true), []);
 
   useFocusEffect(
     useCallback(() => {
@@ -245,6 +249,9 @@ export default function RoomsScreenNew() {
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: k.bg }} />;
 
   const sub = headerSubtitle(slot, manual ? null : now, clock);
+  // «Эта» неделя — календарная; в воскресенье она уже прошла, но так и подписана
+  const thisWeek = addDays(isoOf(clock), -((clock.getDay() + 6) % 7));
+  const nextWeek = addDays(thisWeek, 7);
   const link = linkState({
     syncing: isSyncing || refreshing || (loading && !days),
     offline: !isOnline || loadFailed,
@@ -372,6 +379,28 @@ export default function RoomsScreenNew() {
       >
         {body}
       </ScrollView>
+
+      <WhenSheet
+        visible={whenOpen}
+        onClose={() => setWhenOpen(false)}
+        k={k}
+        slot={slot}
+        nowPair={now.pair}
+        thisWeek={thisWeek}
+        nextWeek={nextWeek}
+        nextPublished={!!weeks?.some(w => w.week_start === nextWeek)}
+        todayIso={isoOf(clock)}
+        onNow={backToNow}
+        onApply={pickSlot}
+      />
+      <RoomSheet
+        day={sheetRoom && days ? days.find(d => d.room === sheetRoom) ?? null : null}
+        initialPair={pairIdx}
+        date={slot.date}
+        weekStart={slot.weekStart}
+        k={k}
+        onClose={() => setSheetRoom(null)}
+      />
     </View>
   );
 }
