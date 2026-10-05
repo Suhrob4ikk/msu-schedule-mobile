@@ -205,6 +205,8 @@ export async function scheduleExamReminders(
     const date = isoDate(examDate);
     const examId = examIdOf(date, lesson.pair_number, subject);
     const data = { type: 'exam', examId, date, pair: lesson.pair_number };
+    // Раньше заголовок всегда говорил «зачёт» — и про экзамен тоже
+    const kind = examKind(lesson).toLowerCase();
     let firstAt: number | null = null;
 
     // Накануне вечером в 20:00
@@ -214,7 +216,7 @@ export async function scheduleExamReminders(
     if (eveBefore > new Date()) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: '⏰ Завтра зачёт!',
+          title: `⏰ Завтра ${kind}!`,
           body: `${subject}${time ? ` в ${time}` : ''}. Готовьтесь, вы сможете! 💪`,
           data, sound: true,
         },
@@ -233,7 +235,7 @@ export async function scheduleExamReminders(
     if (dayOf > new Date()) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: '🍀 Сегодня зачёт!',
+          title: `🍀 Сегодня ${kind}!`,
           body: `${subject}${time ? ` в ${time}` : ''}. Удачи вам!`,
           data, sound: true,
         },
