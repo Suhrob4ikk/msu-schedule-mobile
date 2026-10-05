@@ -339,7 +339,7 @@ function AppTabs() {
         {/* «Табло»: своя шапка с «Назад», статусом связи и колокольчиком */}
         <Tabs.Screen name="changes" options={{ href: null, headerShown: false, title: 'История изменений' }} />
         <Tabs.Screen name="notifications" options={{ href: null, headerShown: false, title: 'Уведомления' }} />
-        <Tabs.Screen name="compare" options={{ href: null, title: 'Сравнить с группой' }} />
+        <Tabs.Screen name="compare" options={{ href: null, headerShown: false, title: 'Сравнить с группой' }} />
         <Tabs.Screen
           name="profile"
           options={{

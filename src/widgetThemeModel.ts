@@ -20,13 +20,13 @@ export const WIDGET_THEME_KEY = 'widget_theme';
 
 /** Все цвета непрозрачные «#RRGGBB». */
 export interface WidgetPalette {
-  /** Фон «Пар больше нет» и пустых состояний. */
+  /** Фон темы (карточка приложения) — от него считаются оттенки. */
   surface: string;
-  /** Основной текст и подписи на surface и soft; ink3 — группа в пустых. */
+  /** Основной текст и подписи на tint и soft; ink3 — группа в пустых. */
   ink: string;
   ink2: string;
   ink3: string;
-  /** Разделители сетки на surface. */
+  /** Граница карточек приложения (виджету — запасной цвет линий). */
   line: string;
   /** Фон «Идёт пара», плашка отсчёта в перемену; текст и подписи на нём, разделители. */
   fill: string;
@@ -37,12 +37,19 @@ export interface WidgetPalette {
   soft: string;
   onSoft: string;
   softLine: string;
-  /** Аудитория в плитках на surface. */
+  /**
+   * Фон «Пар больше нет» и пустых состояний — лёгкий оттенок акцента, вдвое
+   * слабее soft (решение владельца 6 окт 2026: не белый, а цвет акцента —
+   * светлее в светлой теме, темнее в тёмной). Разделители на нём.
+   */
+  tint: string;
+  tintLine: string;
+  /** Аудитория в плитках на tint. */
   accentText: string;
 }
 
 export interface WidgetTheme {
-  version: 2;
+  version: 3;
   background: Background;
   light: WidgetPalette;
   dark: WidgetPalette;
@@ -60,8 +67,11 @@ export function widgetPalette(mode: BaseMode, accent: string): WidgetPalette {
     const c = mix(k.onAccent, k.accent, t);
     if (contrast(c, k.accent) >= 4.5) { onFill2 = c; break; }
   }
-  // Группа в пустых состояниях — тише ink2, но читаемая
-  const ink3 = ensureContrast(mix(k.textSecondary, k.surface, 0.25), k.surface, lighter);
+  // Лёгкий оттенок: ~2/3 доли акцента, что у accent-soft (0,12 / 0,16 / 0,14) — заметно
+  // цветной, но светлее (в тёмной — темнее) карточки перемены, чтобы состояния не сливались
+  const tint = mix(k.surface, k.accent, mode === 'light' ? 0.08 : mode === 'black' ? 0.09 : 0.1);
+  // Группа в пустых состояниях — тише ink2, но читаемая на tint
+  const ink3 = ensureContrast(mix(k.textSecondary, tint, 0.25), tint, lighter);
   return {
     surface: up(k.surface),
     ink: up(k.text),
@@ -75,14 +85,16 @@ export function widgetPalette(mode: BaseMode, accent: string): WidgetPalette {
     soft: up(k.accentSoft),
     onSoft: up(k.onAccentSoft),
     softLine: up(mix(k.accentSoft, k.accent, 0.18)),
-    accentText: up(k.accentText),
+    tint: up(tint),
+    tintLine: up(mix(tint, k.accent, 0.18)),
+    accentText: up(ensureContrast(k.accentText, tint, lighter)),
   };
 }
 
 export function widgetTheme(a: Appearance): WidgetTheme {
   const accent = accentHex(a);
   return {
-    version: 2,
+    version: 3,
     background: a.background,
     light: widgetPalette('light', accent),
     dark: widgetPalette('dark', accent),

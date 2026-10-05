@@ -20,10 +20,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useThemeMode } from '../theme';
 import { setAppearance, resetAppearance, useSelectedAppearance } from '../appearance';
-import { accentHex, onAccentLine, type Background } from '../appearanceModel';
+import { accentHex, onAccentLine, type Appearance, type Background } from '../appearanceModel';
 import {
   useTokens, Tokens, RADIUS, TOUCH_MIN, TYPE,
-  ACCENT_PRESETS, TYPE_SHADES, BASE_THEMES, normalizeHex, pickOnAccent, accentTokens,
+  ACCENT_PRESETS, TYPE_SHADES, BASE_THEMES, normalizeHex, pickOnAccent, accentTokens, shadePair,
   type BaseMode, type Density, type LessonTypeKey, type ShadeId,
 } from '../schedule/tokens';
 import { Txt, Divider, FixedFontScale } from '../schedule/ui';
@@ -252,22 +252,37 @@ function AccentGrid({ k, width, onCustom }: { k: Tokens; width: number; onCustom
 
 // ─── «Свой цвет» ─────────────────────────────────────────────────────────────
 
-function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
-  k: Tokens; visible: boolean; width: number; onClose: () => void;
+/** Чей свой цвет выбирают: акцента или одного типа занятий (с 2.0.2). */
+type ColorTarget = 'accent' | LessonTypeKey;
+
+/** С какого цвета открыть лист: сохранённый свой, иначе действующий сейчас. */
+function startColor(a: Appearance, target: ColorTarget): string {
+  if (target === 'accent') return a.accent.custom ?? accentHex(a);
+  const saved = a.typesCustom[target];
+  if (saved) return saved;
+  const choice = a.types[target];
+  return TYPE_SHADES.find(s => s.id === choice)?.hex ?? TYPE_SHADES[0].hex;
+}
+
+function CustomColorSheet({ k, target, width, onClose, onPreview }: {
+  k: Tokens; target: ColorTarget | null; width: number; onClose: () => void;
   /** Предпросмотр на экране — по отпусканию пальца; null — вернуть как было. */
   onPreview: (hex: string | null) => void;
 }) {
   const a = useSelectedAppearance();
-  const start = a.accent.custom ?? accentHex(a);
+  const visible = target != null;
+  const t: ColorTarget = target ?? 'accent';
+  const start = startColor(a, t);
   const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(start));
   const [text, setText] = useState(start);
   const [dragging, setDragging] = useState(false);
+  const row = TYPE_ROWS.find(r => r.key === t);
 
   // Каждое открытие — с текущего цвета
-  const [wasVisible, setWasVisible] = useState(visible);
-  if (visible !== wasVisible) {
-    setWasVisible(visible);
-    if (visible) {
+  const [wasOpen, setWasOpen] = useState<ColorTarget | null>(target);
+  if (target !== wasOpen) {
+    setWasOpen(target);
+    if (target) {
       setHsv(hexToHsv(start));
       setText(start);
     }
@@ -289,10 +304,13 @@ function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
   const cancel = () => { onPreview(null); onClose(); };
   const apply = () => {
     if (!valid) return;
-    setAppearance(prev => ({ ...prev, accent: { preset: 'custom', custom: hex } }));
+    if (t === 'accent') setAppearance(prev => ({ ...prev, accent: { preset: 'custom', custom: hex } }));
+    else setAppearance(prev => ({ ...prev, types: { ...prev.types, [t]: 'custom' }, typesCustom: { ...prev.typesCustom, [t]: hex } }));
     onPreview(null);
     onClose();
   };
+  const badge = shadePair(hex, k.mode);
+  const title = row ? `Свой цвет · ${row.label}` : 'Свой цвет';
   const squareH = Math.min(200, Math.round(width * 0.55));
 
   return (
@@ -300,11 +318,11 @@ function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
       visible={visible}
       onClose={cancel}
       k={k}
-      label="Свой цвет"
+      label={title}
       scrollEnabled={!dragging}
       header={(
         <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: TOUCH_MIN }}>
-          <Txt t="titleScreen" color={k.text} accessibilityRole="header" style={{ flex: 1 }}>Свой цвет</Txt>
+          <Txt t="titleScreen" color={k.text} accessibilityRole="header" style={{ flex: 1 }}>{title}</Txt>
           <Pressable
             onPress={cancel}
             accessibilityRole="button"
@@ -321,9 +339,16 @@ function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
         <View style={{ width: 56, height: 56, borderRadius: RADIUS.md, backgroundColor: hex, borderWidth: 1, borderColor: k.border, alignItems: 'center', justifyContent: 'center' }}>
           <Txt t="labelStrong" color={pickOnAccent(hex)}>Аа</Txt>
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, rowGap: 4 }}>
           <Txt t="titleRow" color={k.text}>{hex}</Txt>
-          <Txt t="caption" color={k.textSecondary}>{onAccentLine(hex)}</Txt>
+          {row ? (
+            // Так бейдж будет выглядеть в расписании: фон и текст считаются от цвета
+            <View style={{ alignSelf: 'flex-start', backgroundColor: badge.bg, borderRadius: RADIUS.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Txt t="captionStrong" color={badge.text}>{row.label}</Txt>
+            </View>
+          ) : (
+            <Txt t="caption" color={k.textSecondary}>{onAccentLine(hex)}</Txt>
+          )}
         </View>
       </View>
 
@@ -377,7 +402,7 @@ function CustomColorSheet({ k, visible, width, onClose, onPreview }: {
 
 // ─── Типы занятий ────────────────────────────────────────────────────────────
 
-function TypeRows({ k }: { k: Tokens }) {
+function TypeRows({ k, onCustom }: { k: Tokens; onCustom: (key: LessonTypeKey) => void }) {
   const a = useSelectedAppearance();
   const set = (key: LessonTypeKey, id: ShadeId) => {
     Haptics.selectionAsync();
@@ -386,9 +411,10 @@ function TypeRows({ k }: { k: Tokens }) {
   return (
     <View style={{ rowGap: 4 }}>
       {TYPE_ROWS.map(row => (
-        // Без переноса: бейдж занимает остаток строки, четыре круга — всегда справа
-        <View key={row.key} style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}><TypeBadge k={k} row={row} /></View>
+        // Бейдж слева, пять кругов справа; на узком экране круги уходят строкой ниже
+        <View key={row.key} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+          <View style={{ flexGrow: 1, paddingRight: 8 }}><TypeBadge k={k} row={row} /></View>
+          <View style={{ flexDirection: 'row', marginLeft: 'auto' }}>
           {TYPE_SHADES.map(sh => {
             const sel = a.types[row.key] === sh.id;
             return (
@@ -404,9 +430,31 @@ function TypeRows({ k }: { k: Tokens }) {
               </Pressable>
             );
           })}
+          <CustomTypeSwatch k={k} label={row.label} custom={a.typesCustom[row.key]} selected={a.types[row.key] === 'custom'} onPress={() => onCustom(row.key)} />
+          </View>
         </View>
       ))}
     </View>
+  );
+}
+
+/** Пятый круг «Свой»: открывает выбор своего цвета для этого типа. */
+function CustomTypeSwatch({ k, label, custom, selected, onPress }: {
+  k: Tokens; label: string; custom: string | undefined; selected: boolean; onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={custom ? `${label}: свой цвет ${custom}` : `${label}: свой цвет`}
+      accessibilityHint="Открыть выбор своего цвета"
+      style={{ width: TOUCH_MIN, height: TOUCH_MIN, alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Swatch k={k} color={custom ?? k.surface2} size={28} selected={selected}>
+        <Ionicons name={custom ? 'color-palette' : 'add'} size={16} color={custom ? pickOnAccent(custom) : k.textSecondary} />
+      </Swatch>
+    </Pressable>
   );
 }
 
@@ -544,17 +592,24 @@ export default function AppearanceScreen() {
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
-  const [customOpen, setCustomOpen] = useState(false);
-  const [previewAccent, setPreviewAccent] = useState<string | null>(null);
+  const [colorTarget, setColorTarget] = useState<ColorTarget | null>(null);
+  const [preview, setPreview] = useState<{ target: ColorTarget; hex: string } | null>(null);
 
   // Ширины — целые числа из ширины окна, без измерений
   const panelW = Math.floor(winW - GUTTER * 2 - PANEL_PAD * 2);
   const sheetW = Math.floor(winW - 32);
 
   // Пока выбирают свой цвет — предпросмотр показывает его, приложение — нет
-  const previewK = useMemo(
-    () => (previewAccent ? { ...k, ...accentTokens(previewAccent, k.mode) } : k),
-    [k, previewAccent],
+  const previewK = useMemo(() => {
+    if (!preview) return k;
+    if (preview.target === 'accent') return { ...k, ...accentTokens(preview.hex, k.mode) };
+    const row = TYPE_ROWS.find(r => r.key === preview.target)!;
+    const p = shadePair(preview.hex, k.mode);
+    return { ...k, [row.bg]: p.bg, [row.fg]: p.text };
+  }, [k, preview]);
+  const onPreview = useCallback(
+    (hex: string | null) => setPreview(hex && colorTarget ? { target: colorTarget, hex } : null),
+    [colorTarget],
   );
 
   const back = useCallback(() => { router.navigate('/profile'); }, []);
@@ -595,10 +650,10 @@ export default function AppearanceScreen() {
         </View>
 
         <Panel k={k} title="Акцент">
-          <AccentGrid k={k} width={panelW} onCustom={() => setCustomOpen(true)} />
+          <AccentGrid k={k} width={panelW} onCustom={() => setColorTarget('accent')} />
         </Panel>
         <Panel k={k} title="Типы занятий">
-          <TypeRows k={k} />
+          <TypeRows k={k} onCustom={setColorTarget} />
         </Panel>
         <Panel k={k} title="Фон">
           <BackgroundTiles k={k} />
@@ -618,10 +673,10 @@ export default function AppearanceScreen() {
 
       <CustomColorSheet
         k={k}
-        visible={customOpen}
+        target={colorTarget}
         width={sheetW}
-        onClose={() => setCustomOpen(false)}
-        onPreview={setPreviewAccent}
+        onClose={() => setColorTarget(null)}
+        onPreview={onPreview}
       />
     </View>
   );

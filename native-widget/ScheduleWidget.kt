@@ -63,6 +63,8 @@ private class Palette(o: JSONObject) {
     val soft = c(o, "soft")
     val onSoft = c(o, "onSoft")
     val softLine = c(o, "softLine")
+    val tint = c(o, "tint")
+    val tintLine = c(o, "tintLine")
     val accentText = c(o, "accentText")
 
     private fun c(o: JSONObject, key: String): Int = Color.parseColor(o.getString(key))
@@ -189,9 +191,9 @@ class ScheduleWidget : AppWidgetProvider() {
 
         /** Синий по умолчанию — пока приложение не записало widget_theme (вывод widgetTheme(DEFAULT_APPEARANCE)). */
         private const val DEFAULT_THEME = """{"background":"system",
-            "light":{"surface":"#FFFFFF","ink":"#10131A","ink2":"#4B5262","ink3":"#6C717D","line":"#DDE2EA","fill":"#2F62EA","onFill":"#FFFFFF","onFill2":"#EAEFFD","fillLine":"#5981EE","soft":"#E5ECFD","onSoft":"#1E46B8","softLine":"#C4D3FA","accentText":"#2856D6"},
-            "dark":{"surface":"#151821","ink":"#F1F3F7","ink2":"#A8AFBD","ink3":"#838996","line":"#2A2F3B","fill":"#2F62EA","onFill":"#FFFFFF","onFill2":"#EAEFFD","fillLine":"#5981EE","soft":"#1C2850","onSoft":"#BFD0FF","softLine":"#1F326C","accentText":"#8FB0FF"},
-            "black":{"surface":"#0E0F12","ink":"#F1F3F7","ink2":"#A8AFBD","ink3":"#828792","line":"#24272F","fill":"#2F62EA","onFill":"#FFFFFF","onFill2":"#EAEFFD","fillLine":"#5981EE","soft":"#16204A","onSoft":"#BFD0FF","softLine":"#1B2C67","accentText":"#8FB0FF"}}"""
+            "light":{"surface":"#FFFFFF","ink":"#10131A","ink2":"#4B5262","ink3":"#686E7D","line":"#DDE2EA","fill":"#2F62EA","onFill":"#FFFFFF","onFill2":"#EAEFFD","fillLine":"#5981EE","soft":"#E5ECFD","onSoft":"#1E46B8","softLine":"#C4D3FA","tint":"#EEF2FD","tintLine":"#CCD8FA","accentText":"#2856D6"},
+            "dark":{"surface":"#151821","ink":"#F1F3F7","ink2":"#A8AFBD","ink3":"#848B9B","line":"#2A2F3B","fill":"#2F62EA","onFill":"#FFFFFF","onFill2":"#EAEFFD","fillLine":"#5981EE","soft":"#1C2850","onSoft":"#BFD0FF","softLine":"#1F326C","tint":"#181F35","tintLine":"#1C2B56","accentText":"#8FB0FF"},
+            "black":{"surface":"#0E0F12","ink":"#F1F3F7","ink2":"#A8AFBD","ink3":"#828997","line":"#24272F","fill":"#2F62EA","onFill":"#FFFFFF","onFill2":"#EAEFFD","fillLine":"#5981EE","soft":"#16204A","onSoft":"#BFD0FF","softLine":"#1B2C67","tint":"#111625","tintLine":"#162448","accentText":"#8FB0FF"}}"""
 
         fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
             val options = try { manager.getAppWidgetOptions(widgetId) } catch (_: Exception) { null }
@@ -261,23 +263,65 @@ class ScheduleWidget : AppWidgetProvider() {
             return min(at, midnight)
         }
 
-        // ── Сетка (ТЗ 2.3) ───────────────────────────────────────────────────
+        // ── Сетка (ТЗ 2.3) и масштаб ─────────────────────────────────────────
+
+        /** Ширина, под которую нарисован макет ТЗ, и потолок увеличения (решение владельца 6 окт 2026). */
+        private const val BASE_WIDTH = 280f
+        private const val MAX_SCALE = 1.25f
 
         /**
-         * Высота шапки. Строка шапки — 56/44 dp по ТЗ, но не ниже блока отсчёта
-         * (2 + строка счётчика + подпись 14·f): при ×1,3 подпись иначе срезалась бы.
+         * Строка шапки (аудитория + блок отсчёта). По ТЗ 56/44 dp, но не ниже блока
+         * отсчёта: 2 + строка счётчика 32/26 + подпись 14·f — при ×1,3 подпись иначе
+         * срезалась бы. s — масштаб под ширину виджета.
          */
-        private fun heroHeight(full: Boolean, f: Float): Float =
-            if (full) 14f * f + 6f + max(56f, 34f + 14f * f) + 4f + 22f * f + 18f * f
-            else max(44f, 28f + 14f * f) + 4f + 19f * f + 16f * f
+        private fun heroRow(full: Boolean, f: Float, s: Float): Float =
+            if (full) max(56f * s, 2f + 32f * s + 14f * f * s) else max(44f * s, 2f + 26f * s + 14f * f * s)
 
-        private fun gridFor(h: Float, f: Float, full: Boolean, upcoming: Int): Grid {
+        private fun heroHeight(full: Boolean, f: Float, s: Float, meta: Boolean = true): Float =
+            if (full) 14f * f * s + 6f + heroRow(true, f, s) + 4f + 22f * f * s + (if (meta) 18f * f * s else 0f)
+            else heroRow(false, f, s) + 4f + 19f * f * s + (if (meta) 16f * f * s else 0f)
+
+        private fun gridFor(h: Float, f: Float, full: Boolean, upcoming: Int, s: Float): Grid {
             val top = if (full) 14f else 12f
-            val avail = h - top - heroHeight(full, f) - 10f - 12f - 1f
-            val minRow = max(44f, ceil(34f * f) + 10f)
+            val avail = h - top - heroHeight(full, f, s) - 10f - 12f - 1f
+            val minRow = max(44f * s, ceil(34f * f * s) + 10f)
             val n = minOf(6, floor(avail / minRow).toInt(), (upcoming + 1) / 2).coerceAtLeast(0)
-            return if (n == 0) Grid(0, 0f) else Grid(n, min(60f, avail / n))
+            return if (n == 0) Grid(0, 0f) else Grid(n, min(60f * s, avail / n))
         }
+
+        private data class Plan(val full: Boolean, val s: Float, val grid: Grid, val meta: Boolean)
+
+        /**
+         * Раскладка под размер (решение владельца 6 окт 2026: макет ТЗ рисовали на
+         * 280 × 110 dp, а на крупных ячейках Xiaomi оставалось много пустого места).
+         *
+         * Полная — от 245 dp. Масштаб s растёт с шириной (280 dp → ×1), не больше ×1,25,
+         * только на Android 12+: там высоты шапки и рядов задаёт код. Число рядов пар —
+         * сколько помещается без увеличения (сетка появляется примерно с 160 dp, а не
+         * строго с 170, как в ТЗ), а s — самый крупный, который не отнимает ни одного
+         * ряда: пары важнее крупного шрифта. Ряд не помещается или пар нет — только
+         * шапка по центру, а s — пока она влезает по высоте. Строка «время · тип · преподаватель»
+         * прячется, если не влезает и она (в ТЗ: малый 110 dp при шрифте ≥ ×1,15).
+         */
+        private fun plan(w: Float, h: Float, f: Float, upcoming: Int, scalable: Boolean): Plan {
+            val full = h >= FULL_FROM
+            val sMax = if (scalable) (w / BASE_WIDTH).coerceIn(1f, MAX_SCALE) else 1f
+            // Сколько рядов помещается без увеличения — столько и оставляем: крупнее
+            // делаем, только пока это не отнимает ни одного ряда пар.
+            val rows = if (upcoming > 0) gridFor(h, f, full, upcoming, 1f).rows else 0
+            if (rows > 0) {
+                var s = sMax
+                while (s > 1f && gridFor(h, f, full, upcoming, s).rows < rows) s = max(1f, s - 0.01f)
+                return Plan(full, s, gridFor(h, f, full, upcoming, s), true)
+            }
+            val pads = (if (full) 14f else 12f) + 12f
+            var s = sMax
+            while (s > 1f && pads + heroHeight(full, f, s) > h) s = max(1f, s - 0.01f)
+            return Plan(full, s, Grid(0, 0f), pads + heroHeight(full, f, s) <= h)
+        }
+
+        private fun scaleOf(w: Float) =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) (w / BASE_WIDTH).coerceIn(1f, MAX_SCALE) else 1f
 
         // ── Отрисовка ────────────────────────────────────────────────────────
 
@@ -313,17 +357,22 @@ class ScheduleWidget : AppWidgetProvider() {
             colors: WidgetColors, night: Boolean, now: Long,
         ): RemoteViews {
             val h = size.height
-            val full = h >= FULL_FROM
-            val small = h < SMALL_BELOW
             val f = context.resources.configuration.fontScale
+            val hero = heroOf(state)
+            val upcoming = if (hero != null) data!!.items.filter { it.start > hero.start }.take(12) else emptyList()
+            val scalable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            val p = plan(size.width, h, f, upcoming.size, scalable)
+            val full = p.full
+            val s = p.s
             val views = RemoteViews(context.packageName, if (full) R.layout.widget_full else R.layout.widget_compact)
             val paint = Painter(views, colors, night)
+            val sp = TypedValue.COMPLEX_UNIT_SP
+            val dip = TypedValue.COMPLEX_UNIT_DIP
 
             views.setOnClickPendingIntent(R.id.widget_root, openScheduleIntent(context))
 
-            val hero = heroOf(state)
             if (state is WState.Empty || hero == null) {
-                fillEmpty(views, paint, state as WState.Empty, small)
+                fillEmpty(views, paint, state as WState.Empty, !full && h < SMALL_BELOW, full, scaleOf(size.width))
                 return views
             }
             views.setViewVisibility(R.id.widget_content, View.VISIBLE)
@@ -332,11 +381,12 @@ class ScheduleWidget : AppWidgetProvider() {
             val live = state is WState.Live
             val soft = state is WState.Break || state is WState.Next
             // Палитра по состояниям — ТЗ 4.2
-            val bg: (Palette) -> Int = { if (live) it.fill else if (soft) it.soft else it.surface }
+            // «Пар больше нет» — не белый, а лёгкий оттенок акцента (решение владельца 6 окт 2026)
+            val bg: (Palette) -> Int = { if (live) it.fill else if (soft) it.soft else it.tint }
             val ink: (Palette) -> Int = { if (live) it.onFill else it.ink }
             val ink2: (Palette) -> Int = { if (live) it.onFill2 else it.ink2 }
             val room: (Palette) -> Int = { if (live) it.onFill else if (soft) it.onSoft else it.ink }
-            val line: (Palette) -> Int = { if (live) it.fillLine else if (soft) it.softLine else it.line }
+            val line: (Palette) -> Int = { if (live) it.fillLine else if (soft) it.softLine else it.tintLine }
             val tileRoom: (Palette) -> Int = { if (live) it.onFill else if (soft) it.onSoft else it.accentText }
 
             paint.fill(R.id.widget_bg, bg)
@@ -345,14 +395,22 @@ class ScheduleWidget : AppWidgetProvider() {
             if (full) {
                 views.setTextViewText(R.id.widget_status, statusText(state).uppercase(RU))
                 views.setTextViewText(R.id.widget_group, data?.group ?: "")
+                views.setTextViewTextSize(R.id.widget_status, sp, 11f * s)
+                views.setTextViewTextSize(R.id.widget_group, sp, 11f * s)
                 paint.text(R.id.widget_status, ink2)
                 paint.text(R.id.widget_group, ink2)
             }
 
             // 2. Шапка: блок отсчёта справа
             val density = context.resources.displayMetrics.density
-            val timerDp = if (full) 28f else 22f
-            val labelPaint = textPaint("sans-serif-medium", 11f * f * density)
+            val timerDp = (if (full) 28f else 22f) * s
+            val dayDp = (if (full) 20f else 17f) * s
+            val labelPaint = textPaint("sans-serif-medium", 11f * f * s * density)
+            views.setTextViewTextSize(R.id.widget_countdown, dip, timerDp)
+            views.setTextViewTextSize(R.id.widget_day, dip, dayDp)
+            views.setTextViewTextSize(R.id.widget_timer_label, sp, 11f * s)
+            // Строка шапки — ровно по формуле (на старых Android — 44/56 dp из разметки)
+            if (scalable) views.setViewLayoutHeight(R.id.widget_hero, heroRow(full, f, s), dip)
             var blockPx: Float
             val plate = state is WState.Break
             views.setViewVisibility(R.id.widget_plate, if (plate) View.VISIBLE else View.GONE)
@@ -369,7 +427,7 @@ class ScheduleWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_timer_label, dateLine)
                 paint.text(R.id.widget_day) { it.ink }
                 blockPx = max(
-                    textPaint("sans-serif", (if (full) 20f else 17f) * density, bold = true).measureText(dayWord),
+                    textPaint("sans-serif", dayDp * density, bold = true).measureText(dayWord),
                     labelPaint.measureText(dateLine),
                 )
             } else {
@@ -394,7 +452,7 @@ class ScheduleWidget : AppWidgetProvider() {
             // Аудитория: 56/44 dp; длиннее 4 знаков — 32; не влезает — меньше, но не ниже 20 (ТЗ 6)
             val roomText = hero.room.ifEmpty { "—" }
             val availPx = size.width * density - 32f * density - 12f * density - blockPx
-            var roomDp = if (roomText.length > 4) 32f else if (full) 56f else 44f
+            var roomDp = (if (roomText.length > 4) 32f else if (full) 56f else 44f) * s
             val roomPaint = textPaint("sans-serif-black", 0f).apply { letterSpacing = -0.02f }
             while (roomDp > 20f) {
                 roomPaint.textSize = roomDp * density
@@ -408,15 +466,16 @@ class ScheduleWidget : AppWidgetProvider() {
             // 3–4. Предмет и «время · тип · преподаватель»
             views.setTextViewText(R.id.widget_subject, hero.subject)
             views.setTextViewText(R.id.widget_meta, metaLine(hero))
+            views.setTextViewTextSize(R.id.widget_subject, sp, (if (full) 17f else 15f) * s)
+            views.setTextViewTextSize(R.id.widget_meta, sp, (if (full) 13f else 12f) * s)
             paint.text(R.id.widget_subject, ink)
             paint.text(R.id.widget_meta, ink2)
-            // В малой при крупном шрифте третья строка не помещается (ТЗ 2.2)
-            views.setViewVisibility(R.id.widget_meta, if (small && f >= 1.15f) View.GONE else View.VISIBLE)
+            // Не влезает по высоте (малый при крупном шрифте, ТЗ 2.2) — третью строку прячем
+            views.setViewVisibility(R.id.widget_meta, if (p.meta) View.VISIBLE else View.GONE)
 
             // 5–6. Распорка и сетка
-            val upcoming = data!!.items.filter { it.start > hero.start }.take(12)
-            val grid = if (small) Grid(0, 0f) else gridFor(h, f, full, upcoming.size)
-            fillGrid(views, paint, grid, upcoming, hero, ink, ink2, line, tileRoom)
+            val grid = p.grid
+            fillGrid(views, paint, grid, upcoming, hero, ink, ink2, line, tileRoom, s)
             // Нет сетки — шапка по центру, как у малой: без пустой полосы внизу
             views.setInt(R.id.widget_content, "setGravity", if (grid.rows == 0) Gravity.CENTER_VERTICAL else Gravity.TOP)
 
@@ -427,6 +486,7 @@ class ScheduleWidget : AppWidgetProvider() {
         private fun fillGrid(
             views: RemoteViews, paint: Painter, grid: Grid, upcoming: List<LessonItem>, hero: LessonItem,
             ink: (Palette) -> Int, ink2: (Palette) -> Int, line: (Palette) -> Int, tileRoom: (Palette) -> Int,
+            s: Float,
         ) {
             val show = if (grid.rows > 0) View.VISIBLE else View.GONE
             views.setViewVisibility(R.id.widget_spacer, show)
@@ -457,16 +517,26 @@ class ScheduleWidget : AppWidgetProvider() {
                 views.setTextViewText(ids[0], item?.let { tileTime(it, hero) } ?: "")
                 views.setTextViewText(ids[1], item?.let { it.room.ifEmpty { "—" } } ?: "")
                 views.setTextViewText(ids[2], item?.subject ?: "")
+                views.setTextViewTextSize(ids[0], TypedValue.COMPLEX_UNIT_SP, 13f * s)
+                views.setTextViewTextSize(ids[1], TypedValue.COMPLEX_UNIT_SP, 15f * s)
+                views.setTextViewTextSize(ids[2], TypedValue.COMPLEX_UNIT_SP, 12f * s)
                 paint.text(ids[0], ink)
                 paint.text(ids[1], tileRoom)
                 paint.text(ids[2], ink2)
             }
         }
 
-        private fun fillEmpty(views: RemoteViews, paint: Painter, s: WState.Empty, small: Boolean) {
+        private fun fillEmpty(
+            views: RemoteViews, paint: Painter, s: WState.Empty, small: Boolean, full: Boolean, scale: Float,
+        ) {
             views.setViewVisibility(R.id.widget_content, View.GONE)
             views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-            paint.fill(R.id.widget_bg) { it.surface }
+            // Не белый, а лёгкий оттенок акцента (решение владельца 6 окт 2026)
+            paint.fill(R.id.widget_bg) { it.tint }
+            val sp = TypedValue.COMPLEX_UNIT_SP
+            views.setTextViewTextSize(R.id.widget_empty_group, sp, 11f * scale)
+            views.setTextViewTextSize(R.id.widget_empty_title, sp, (if (full) 30f else 17f) * scale)
+            views.setTextViewTextSize(R.id.widget_empty_text, sp, 13f * scale)
 
             val (title, text) = when (s.kind) {
                 EmptyKind.NOT_LOADED ->

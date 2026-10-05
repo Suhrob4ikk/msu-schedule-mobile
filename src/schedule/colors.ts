@@ -270,12 +270,15 @@ const SHADE_TABLE: Partial<Record<ShadeId, Record<BaseMode, ShadePair>>> = {
   },
 };
 
-/** Пара бейджа для оттенка. Для мятного — по правилу ТЗ: фон = смесь оттенка
- *  с surface, текст = оттенок, доведённый до 4,5 : 1 к этому фону. */
-export function shadePair(id: ShadeId, mode: BaseMode): ShadePair {
-  const t = SHADE_TABLE[id];
+/** Оттенок типа занятия: готовый (ShadeId) или свой цвет «#RRGGBB» (с 2.0.2). */
+export type ShadeChoice = ShadeId | string;
+
+/** Пара бейджа для оттенка. Для мятного и своего цвета — по правилу ТЗ: фон =
+ *  смесь оттенка с surface, текст = оттенок, доведённый до 4,5 : 1 к этому фону. */
+export function shadePair(id: ShadeChoice, mode: BaseMode): ShadePair {
+  const t = SHADE_TABLE[id as ShadeId];
   if (t) return t[mode];
-  const hue = TYPE_SHADES.find(s => s.id === id)!.hex;
+  const hue = TYPE_SHADES.find(s => s.id === id)?.hex ?? normalizeHex(id) ?? TYPE_SHADES[0].hex;
   const base = BASE_THEMES[mode];
   const bg = mix(base.surface, hue, mode === 'light' ? 0.16 : 0.22);
   return { bg, text: ensureContrast(hue, bg, mode !== 'light') };
@@ -324,9 +327,9 @@ export const DENSITY: Record<Density, DensityTokens> = {
 
 export type Tokens = BaseTheme & AccentTokens & DensityTokens;
 
-export type TypeShades = Record<LessonTypeKey, ShadeId>;
+export type TypeShades = Record<LessonTypeKey, ShadeChoice>;
 
-export const DEFAULT_TYPES: TypeShades = { lecture: 'sky', practice: 'lilac', exam: 'amber' };
+export const DEFAULT_TYPES: Record<LessonTypeKey, ShadeId> = { lecture: 'sky', practice: 'lilac', exam: 'amber' };
 
 // Пересчёт один раз на набор настроек — ТЗ: «пересчитывать при смене цвета
 // или темы и кешировать».

@@ -5,7 +5,7 @@
  */
 import {
   ACCENT_PRESETS, TYPE_SHADES, DEFAULT_TYPES, normalizeHex, contrast, pickOnAccent,
-  type AccentPresetId, type ShadeId, type Density, type BaseMode, type TypeShades,
+  type AccentPresetId, type ShadeId, type Density, type BaseMode, type TypeShades, type LessonTypeKey,
 } from './schedule/colors';
 
 export type Background = 'system' | 'light' | 'dark' | 'black';
@@ -14,7 +14,9 @@ export interface Appearance {
   version: 1;
   /** preset 'custom' — действует свой цвет; custom хранит последний свой цвет. */
   accent: { preset: AccentPresetId | 'custom'; custom: string | null };
-  types: TypeShades;
+  /** 'custom' — действует свой цвет из typesCustom (с 2.0.2), он же запоминается. */
+  types: Record<LessonTypeKey, ShadeId | 'custom'>;
+  typesCustom: Partial<Record<LessonTypeKey, string>>;
   background: Background;
   density: Density;
 }
@@ -23,6 +25,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   version: 1,
   accent: { preset: 'blue', custom: null },
   types: DEFAULT_TYPES,
+  typesCustom: {},
   background: 'system',
   density: 'regular',
 };
@@ -33,6 +36,22 @@ const BACKGROUNDS: Background[] = ['system', 'light', 'dark', 'black'];
 
 function oneOf<T extends string>(v: unknown, allowed: readonly string[], fallback: T): T {
   return typeof v === 'string' && allowed.includes(v) ? (v as T) : fallback;
+}
+
+const TYPE_KEYS: LessonTypeKey[] = ['lecture', 'practice', 'exam'];
+
+/** Готовый оттенок или 'custom' — только если свой цвет этого типа сохранён и читается. */
+function typeChoice(o: any, key: LessonTypeKey, fallback: ShadeId | 'custom'): ShadeId | 'custom' {
+  const v = oneOf<ShadeId | 'custom'>(o.types?.[key], [...SHADE_IDS, 'custom'], fallback);
+  if (v !== 'custom') return v;
+  const hex = typeof o.typesCustom?.[key] === 'string' ? normalizeHex(o.typesCustom[key]) : null;
+  return hex ? 'custom' : DEFAULT_APPEARANCE.types[key];
+}
+
+/** Оттенки для buildTokens: свой цвет подставляется кодом «#RRGGBB». */
+export function resolveTypes(a: Appearance): TypeShades {
+  const one = (k: LessonTypeKey) => (a.types[k] === 'custom' ? a.typesCustom[k] ?? DEFAULT_TYPES[k] : a.types[k]);
+  return { lecture: one('lecture'), practice: one('practice'), exam: one('exam') };
 }
 
 /** Разбор сохранённого JSON. null — ключа нет или он нечитаем целиком;
@@ -50,10 +69,13 @@ export function parseAppearance(raw: string | null): Appearance | null {
     version: 1,
     accent: { preset, custom },
     types: {
-      lecture: oneOf<ShadeId>(o.types?.lecture, SHADE_IDS, d.types.lecture),
-      practice: oneOf<ShadeId>(o.types?.practice, SHADE_IDS, d.types.practice),
-      exam: oneOf<ShadeId>(o.types?.exam, SHADE_IDS, d.types.exam),
+      lecture: typeChoice(o, 'lecture', d.types.lecture),
+      practice: typeChoice(o, 'practice', d.types.practice),
+      exam: typeChoice(o, 'exam', d.types.exam),
     },
+    typesCustom: Object.fromEntries(TYPE_KEYS
+      .map(k => [k, typeof o.typesCustom?.[k] === 'string' ? normalizeHex(o.typesCustom[k]) : null])
+      .filter(([, v]) => v)) as Partial<Record<LessonTypeKey, string>>,
     background: oneOf<Background>(o.background, BACKGROUNDS, d.background),
     density: oneOf<Density>(o.density, ['regular', 'compact'], d.density),
   };

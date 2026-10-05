@@ -4,7 +4,7 @@ import { captureRef } from 'react-native-view-shot';
 import ThemeReveal from './ThemeReveal';
 import { buildTokens, type Tokens, type BaseMode } from './schedule/colors';
 import { useAppearance, setAppearance } from './appearance';
-import { Appearance, Background, DEFAULT_APPEARANCE, accentHex, resolveMode } from './appearanceModel';
+import { Appearance, Background, DEFAULT_APPEARANCE, accentHex, resolveMode, resolveTypes } from './appearanceModel';
 
 /**
  * Палитра прежних вкладок (Педагоги, Изменения, Уведомления, Сравнение,
@@ -120,8 +120,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const accent = accentHex(appearance);
 
   const tokens = useMemo(
-    () => buildTokens(base, accent, appearance.types, appearance.density),
-    [base, accent, appearance.types, appearance.density],
+    () => buildTokens(base, accent, resolveTypes(appearance), appearance.density),
+    [base, accent, appearance.types, appearance.typesCustom, appearance.density],
   );
   const colors = useMemo(() => legacyColors(tokens), [tokens]);
 

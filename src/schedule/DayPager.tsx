@@ -3,8 +3,8 @@
  * Внутри каждого дня — своя вертикальная прокрутка. Выбранный день
  * управляется снаружи (index), как и в ленте — ряд дней внизу его переключает.
  */
-import React, { useCallback, useEffect, useRef } from 'react';
-import { RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Animated, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Tokens } from './tokens';
 import { Block, DayData, Focus, WeekRel } from './state';
 import DaySection, { Marks } from './DaySection';
@@ -13,11 +13,13 @@ const noop = () => {};
 
 export default function DayPager({
   days, k, now, rel, focus, doneToday, marks, index, onIndex, refreshing, onRefresh,
-  bottomPad, onRowPress, onFocusPress, onExpire,
+  bottomPad, onRowPress, onFocusPress, onExpire, scrollX,
 }: {
   days: DayData[]; k: Tokens; now: Date; rel: WeekRel; focus: Focus | null; doneToday: boolean; marks: Marks;
   index: number; onIndex: (i: number) => void; refreshing: boolean; onRefresh: () => void; bottomPad: number;
   onRowPress: (b: Block) => void; onFocusPress: () => void; onExpire: () => void;
+  /** Горизонтальная прокрутка — по ней едет подсветка дня в ряду дней (DayBar). */
+  scrollX: Animated.Value;
 }) {
   const { width } = useWindowDimensions();
   const ref = useRef<ScrollView>(null);
@@ -32,9 +34,15 @@ export default function DayPager({
 
   // При открытии — сразу на нужной странице, без анимации
   useEffect(() => {
+    scrollX.setValue(shown.current * width);
     const id = setTimeout(() => ref.current?.scrollTo({ x: shown.current * width, animated: false }), 0);
     return () => clearTimeout(id);
-  }, [width]);
+  }, [width, scrollX]);
+
+  const onScroll = useMemo(
+    () => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true }),
+    [scrollX],
+  );
 
   const onEnd = useCallback((x: number) => {
     const i = Math.max(0, Math.min(days.length - 1, Math.round(x / width)));
@@ -43,13 +51,15 @@ export default function DayPager({
   }, [days.length, width, onIndex]);
 
   return (
-    <ScrollView
-      ref={ref}
+    <Animated.ScrollView
+      ref={ref as React.Ref<any>}
       horizontal
       pagingEnabled
       showsHorizontalScrollIndicator={false}
       style={{ flex: 1 }}
-      onMomentumScrollEnd={e => onEnd(e.nativeEvent.contentOffset.x)}
+      scrollEventThrottle={16}
+      onScroll={onScroll}
+      onMomentumScrollEnd={(e: { nativeEvent: { contentOffset: { x: number } } }) => onEnd(e.nativeEvent.contentOffset.x)}
     >
       {days.map(d => (
         <View key={d.date} style={{ width }}>
@@ -68,6 +78,6 @@ export default function DayPager({
           </ScrollView>
         </View>
       ))}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }

@@ -466,6 +466,10 @@ export default function ScheduleScreenNew() {
   );
 
   const isMyGroup = selectedGroup != null && myGroupId != null && selectedGroup.id === myGroupId;
+  // Открыта чужая группа — на виду кнопка «К моей группе» (просьба владельца, 2.0.2):
+  // раньше путь назад был только в листе под заголовком.
+  const myGroup = myGroupId != null ? groups.find(g => g.id === myGroupId) ?? null : null;
+  const showMyGroup = myGroup != null && selectedGroup != null && !isMyGroup;
   const showAttendance = featureAttendance && isMyGroup;
   const showNotes = featureNotes && isMyGroup;
 
@@ -592,6 +596,8 @@ export default function ScheduleScreenNew() {
     AsyncStorage.getItem('schedule_view_mode').then(v => { if (v === 'pages') setViewModeState('pages'); }).catch(() => null);
   }, []);
   const [pageIdx, setPageIdx] = useState(0);
+  // Прокрутка страниц «По дням» — по ней едет подсветка в ряду дней
+  const pagerX = useRef(new Animated.Value(0)).current;
   const pagedFor = useRef('');
   const pagesOn = viewMode === 'pages' && lessons.length > 0 && days.length > 0;
   const setViewMode = useCallback((m: 'list' | 'pages') => {
@@ -671,6 +677,12 @@ export default function ScheduleScreenNew() {
   }, []);
   const onFocusPress = useCallback(() => { if (focus) openLesson(focus.block); }, [focus, openLesson]);
 
+  const toMyGroup = useCallback(() => {
+    if (!myGroup) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    loadGroup(myGroup);
+  }, [myGroup, loadGroup]);
+
   const toThisWeek = useCallback(() => {
     const cur = weeks.length ? currentWeekOf(weeks, new Date()) : null;
     if (cur && weekRel(cur.week_start, new Date()) === 'current') switchWeek(cur);
@@ -688,6 +700,9 @@ export default function ScheduleScreenNew() {
     : 'Группа не выбрана';
   const title = selectedWeek ? headerTitle(selectedWeek.week_start, now) : selectedGroup ? 'Расписание' : 'Выберите группу';
   const hasThisWeek = weeks.some(w => weekRel(w.week_start, now) === 'current');
+  const showThisWeek = selectedWeek != null && rel !== 'current' && hasThisWeek;
+  // Место под плавающие кнопки внизу, чтобы они не закрывали последнюю пару
+  const floatPad = showThisWeek || showMyGroup ? TOUCH_MIN + 12 : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: k.bg }}>
@@ -713,7 +728,7 @@ export default function ScheduleScreenNew() {
 
       {/* Ряд дней — под шапкой и только в режиме «По дням»; в ленте дни листаются прокруткой */}
       {pagesOn && (
-        <DayBar days={days} k={k} todayIso={isoOf(now)} visible={pageIdx} onPick={pickDay} atTop />
+        <DayBar days={days} k={k} todayIso={isoOf(now)} visible={pageIdx} onPick={pickDay} atTop scrollX={pagerX} />
       )}
 
       {pagesOn ? (
@@ -724,9 +739,10 @@ export default function ScheduleScreenNew() {
             days={days} k={k} now={now} rel={rel} focus={focus} doneToday={doneToday} marks={marks}
             index={pageIdx}
             onIndex={i => { setPageIdx(i); setVisible(i); }}
+            scrollX={pagerX}
             refreshing={refreshing}
             onRefresh={onRefresh}
-            bottomPad={24 + (rel !== 'current' ? TOUCH_MIN + 12 : 0)}
+            bottomPad={24 + floatPad}
             onRowPress={openLesson}
             onFocusPress={onFocusPress}
             onExpire={recheck}
@@ -736,7 +752,7 @@ export default function ScheduleScreenNew() {
       <Animated.ScrollView
         ref={scrollRef as React.Ref<any>}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 + (rel !== 'current' ? TOUCH_MIN + 12 : 0) }}
+        contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 + floatPad }}
         onLayout={e => { viewportH.current = e.nativeEvent.layout.height; requestAnimationFrame(tryInitialScroll); }}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true, listener: onScroll })}
         onScrollBeginDrag={() => { lockRef.current = false; }}
@@ -800,9 +816,33 @@ export default function ScheduleScreenNew() {
       </Animated.ScrollView>
       )}
 
-      {/* «К этой неделе» — плавающая пилюля над рядом дней */}
-      {selectedWeek && rel !== 'current' && hasThisWeek && (
-        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 12, alignItems: 'center' }}>
+      {/* Плавающие пилюли внизу: «К моей группе» и «К этой неделе» */}
+      {(showThisWeek || showMyGroup) && (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute', left: 0, right: 0, bottom: 12, paddingHorizontal: GUTTER,
+            flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 8, rowGap: 8,
+          }}
+        >
+          {showMyGroup && (
+            <Pressable
+              onPress={toMyGroup}
+              accessibilityRole="button"
+              accessibilityLabel={`Вернуться к моей группе, ${shortGroupName(myGroup!.name)}, ${myGroup!.year} курс`}
+              style={{
+                minHeight: TOUCH_MIN, paddingHorizontal: 18, borderRadius: RADIUS.pill,
+                flexDirection: 'row', alignItems: 'center', columnGap: 6, backgroundColor: k.accent,
+                elevation: 4,
+              }}
+            >
+              <Ionicons name="arrow-undo" size={16} color={k.onAccent} />
+              <Txt t="labelStrong" color={k.onAccent} numberOfLines={1}>
+                {`К моей группе · ${shortGroupName(myGroup!.name)}`}
+              </Txt>
+            </Pressable>
+          )}
+          {showThisWeek && (
           <Pressable
             onPress={toThisWeek}
             accessibilityRole="button"
@@ -816,6 +856,7 @@ export default function ScheduleScreenNew() {
             <Ionicons name="chevron-up" size={16} color={k.bg} />
             <Txt t="labelStrong" color={k.bg}>К этой неделе</Txt>
           </Pressable>
+          )}
         </View>
       )}
 
@@ -841,7 +882,7 @@ export default function ScheduleScreenNew() {
         selectedWeek={selectedWeek}
         groups={groups}
         group={selectedGroup}
-        myGroup={groups.find(g => g.id === myGroupId) ?? null}
+        myGroup={myGroup}
         onPickWeek={switchWeek}
         onPickGroup={g => { if (g.id !== selectedGroup?.id) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); loadGroup(g); } }}
         onShare={share}

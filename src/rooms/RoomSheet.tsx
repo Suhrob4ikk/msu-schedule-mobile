@@ -16,7 +16,7 @@ import { Txt, KindBadge } from '../schedule/ui';
 import { dayTitle } from '../schedule/state';
 import BottomSheet from '../schedule/BottomSheet';
 import {
-  Occupant, PAIRS, RoomDay, displayRoom, groupSpan, groupsWord, isNumbered, overlapOf, pairTitle,
+  Occupant, PAIRS, RoomDay, displayRoom, groupSpan, isNumbered, pairTitle,
   roomStatus, statusText,
 } from './state';
 import DayCells from './DayCells';
@@ -125,8 +125,9 @@ export default function RoomSheet({ day, initialPair, date, weekStart, k, onClos
   if (!d) return <BottomSheet visible={false} onClose={onClose} k={k} label="Аудитория">{null}</BottomSheet>;
 
   const st = roomStatus(d, pairIdx);
+  // Плашек «Накладка · N группы» / «Общее занятие» нет (решение владельца 6 окт 2026):
+  // группы и так видны карточками ниже.
   const occ = d.occupants[pairIdx] ?? [];
-  const overlap = overlapOf(occ);
 
   const teacherId = (name: string | null): number | null => {
     if (!name) return null;
@@ -176,12 +177,6 @@ export default function RoomSheet({ day, initialPair, date, weekStart, k, onClos
           fg={st.free ? k.roomFreeText : k.roomBusyText}
           text={statusText(st)}
         />
-        {overlap.kind === 'conflict' && (
-          <Plaque k={k} dot bg={k.roomConflictBg} fg={k.roomConflictText} text={`Накладка в расписании · ${groupsWord(overlap.count)} одновременно`} />
-        )}
-        {overlap.kind === 'shared' && (
-          <Plaque k={k} dot={false} bg={k.surface2} fg={k.textSecondary} text={`Общее занятие · ${groupsWord(overlap.count)}`} />
-        )}
         {occ.map((o, i) => (
           <GroupCard
             key={`${o.group}|${i}`}

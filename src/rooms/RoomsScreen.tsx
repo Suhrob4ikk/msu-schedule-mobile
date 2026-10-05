@@ -29,8 +29,12 @@ import RoomSheet from './RoomSheet';
 import WhenSheet from './WhenSheet';
 import RoomRow from './RoomRow';
 import SearchField from './SearchField';
+import { RoomTiles, TileSkeleton } from './RoomTiles';
 
 const UPDATED_AT_KEY = 'rooms_updated_at';
+/** Вид списка: 'tiles' (по умолчанию, с 2.0.2) или 'list'. Хранится на телефоне. */
+const VIEW_KEY = 'rooms_view';
+type RoomsView = 'tiles' | 'list';
 const TICK_MS = 30_000;
 
 type ByPair = Record<string, RoomSlot[] | undefined>;
@@ -63,6 +67,15 @@ export function RoomList({ days, pairIdx, k, onPress }: {
       ))}
     </View>
   );
+}
+
+/** Плитки или строки — по выбору человека. */
+function Rooms({ view, days, pairIdx, k, onPress }: {
+  view: RoomsView; days: RoomDay[]; pairIdx: number; k: Tokens; onPress: (room: string) => void;
+}) {
+  return view === 'tiles'
+    ? <RoomTiles days={days} pairIdx={pairIdx} k={k} onPress={onPress} />
+    : <RoomList days={days} pairIdx={pairIdx} k={k} onPress={onPress} />;
 }
 
 /** Пустое состояние: иконка, заголовок, пояснение и кнопка (или без неё). */
@@ -226,6 +239,19 @@ export default function RoomsScreenNew() {
   const free = useMemo(() => (days ?? []).filter(d => roomStatus(d, pairIdx).free), [days, pairIdx]);
   const busy = useMemo(() => (days ?? []).filter(d => !roomStatus(d, pairIdx).free), [days, pairIdx]);
 
+  // ─── Вид: плитки или список ───────────────────────────────────────────
+  const [view, setViewState] = useState<RoomsView>('tiles');
+  useEffect(() => {
+    AsyncStorage.getItem(VIEW_KEY).then(v => { if (v === 'list') setViewState('list'); }).catch(() => null);
+  }, []);
+  const toggleView = useCallback(() => {
+    setViewState(v => {
+      const next: RoomsView = v === 'tiles' ? 'list' : 'tiles';
+      AsyncStorage.setItem(VIEW_KEY, next).catch(() => null);
+      return next;
+    });
+  }, []);
+
   // ─── Поиск и листы ────────────────────────────────────────────────────
   const [query, setQuery] = useState('');
   const [sheetRoom, setSheetRoom] = useState<string | null>(null);
@@ -308,10 +334,10 @@ export default function RoomsScreenNew() {
               onWho={() => openRoom(exact.room)}
             />
             <SectionHead k={k} left={`Ещё с «${q}»`} right={others.length ? undefined : 'нет'} />
-            <RoomList days={others} pairIdx={pairIdx} k={k} onPress={openRoom} />
+            <Rooms view={view} days={others} pairIdx={pairIdx} k={k} onPress={openRoom} />
           </>
         ) : others.length ? (
-          <RoomList days={others} pairIdx={pairIdx} k={k} onPress={openRoom} />
+          <Rooms view={view} days={others} pairIdx={pairIdx} k={k} onPress={openRoom} />
         ) : (
           <Txt t="body" color={k.textSecondary} style={{ paddingHorizontal: 4, paddingTop: 8 }}>Аудитории «{q}» нет</Txt>
         )}
@@ -322,14 +348,16 @@ export default function RoomsScreenNew() {
       <>
         <SectionHead k={k} left={`Свободны · ${free.length}`} right={`из ${days.length}`} />
         {free.length
-          ? <RoomList days={free} pairIdx={pairIdx} k={k} onPress={openRoom} />
+          ? <Rooms view={view} days={free} pairIdx={pairIdx} k={k} onPress={openRoom} />
           : <Txt t="small" color={k.textSecondary} style={{ paddingHorizontal: 4 }}>Свободных аудиторий нет</Txt>}
         <SectionHead k={k} left={`Заняты · ${busy.length}`} />
-        <RoomList days={busy} pairIdx={pairIdx} k={k} onPress={openRoom} />
+        <Rooms view={view} days={busy} pairIdx={pairIdx} k={k} onPress={openRoom} />
       </>
     );
   } else if (unpublished) {
     body = <Empty k={k} icon="calendar-outline" title="Расписание на следующую неделю ещё не опубликовано" />;
+  } else if ((loading || !canLoad) && view === 'tiles') {
+    body = <TileSkeleton k={k} />;
   } else if (loading || !canLoad) {
     // Заглушки строк без мерцания
     body = (
@@ -374,8 +402,22 @@ export default function RoomsScreenNew() {
         smallSize={13}
       />
 
-      <View style={{ paddingHorizontal: GUTTER, paddingBottom: 4 }}>
-        <SearchField k={k} value={query} onChange={setQuery} />
+      <View style={{ paddingHorizontal: GUTTER, paddingBottom: 4, flexDirection: 'row', alignItems: 'center', columnGap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <SearchField k={k} value={query} onChange={setQuery} />
+        </View>
+        {/* Плитки ⇄ список: значок показывает, на что переключит */}
+        <Pressable
+          onPress={toggleView}
+          accessibilityRole="button"
+          accessibilityLabel={view === 'tiles' ? 'Показать списком' : 'Показать плитками'}
+          style={{
+            width: TOUCH_MIN, height: TOUCH_MIN, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: k.surface, borderWidth: 1, borderColor: k.border,
+          }}
+        >
+          <Ionicons name={view === 'tiles' ? 'list-outline' : 'grid-outline'} size={20} color={k.text} />
+        </Pressable>
       </View>
 
       {/* Строка «Сейчас» — только когда день и пара выбраны вручную */}

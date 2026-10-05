@@ -184,11 +184,14 @@ ${head}
         android:paddingBottom="12dp">
 ${status}
         <!-- 2. Шапка: слева аудитория, справа блок отсчёта -->
+        <!-- Высота точная: на Android 12+ её ставит код (heroRow, растёт с шириной),
+             на старых — 44/56 dp. Аудитория выше строки обрезается только снизу,
+             где у цифр нет начертания. -->
         <LinearLayout
+            android:id="@+id/widget_hero"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="${s.heroMin}dp"
             android:layout_marginTop="${s.heroTop}dp"
-            android:minHeight="${s.heroMin}dp"
             android:orientation="horizontal">
 
             <TextView
