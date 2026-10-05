@@ -25,7 +25,7 @@ SDK="${ANDROID_HOME:-C:/Android/SDK}"
 # Последние стабильные build-tools (без -rc): нужен apksigner с --rotation-min-sdk-version
 BT="$SDK/build-tools/$(ls "$SDK/build-tools" | grep -v -- '-rc' | sort -V | tail -1)"
 APKSIGNER="$BT/apksigner.bat"
-[ -x "$APKSIGNER" ] || APKSIGNER="$BT/apksigner"
+[ -f "$APKSIGNER" ] || APKSIGNER="$BT/apksigner"
 
 for f in msu-schedule-release.p12 password.txt lineage.bin old-debug.keystore; do
   [ -f "$KEYDIR/$f" ] || { echo "Нет $KEYDIR/$f — без папки ключа подписать нельзя" >&2; exit 1; }
