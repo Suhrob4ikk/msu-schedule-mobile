@@ -1,5 +1,2 @@
-/**
- * «Уведомления» — экран «Табло» (src/notifications/). Прежний экран —
- * src/notifications/LegacyNotificationsScreen.tsx (не подключён).
- */
+/** «Уведомления» — экран «Табло» (src/notifications/). */
 export { default } from '../src/notifications/NotificationsScreen';

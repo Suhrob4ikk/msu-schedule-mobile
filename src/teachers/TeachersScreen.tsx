@@ -6,7 +6,6 @@
  *
  * Данные — сначала кэш (общий с полной синхронизацией), потом сеть. Статусы
  * строк считаются на телефоне из кэша расписаний педагогов (data.ts).
- * Прежний экран — src/teachers/LegacyTeachersScreen.tsx (не подключён).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {

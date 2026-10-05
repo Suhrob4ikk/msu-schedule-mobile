@@ -1,5 +1,2 @@
-/**
- * «История изменений» — экран «Табло» (src/notifications/). Прежний экран —
- * src/notifications/LegacyChangesScreen.tsx (не подключён).
- */
+/** «История изменений» — экран «Табло» (src/notifications/). */
 export { default } from '../src/notifications/HistoryScreen';

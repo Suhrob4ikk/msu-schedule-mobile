@@ -20,7 +20,7 @@ import {
 } from './state';
 
 const READ_KEY = 'notif_read';
-/** До 1.9.44 — момент последнего просмотра ленты изменений (src/changesFeed.ts). */
+/** До 1.9.44 — момент последнего просмотра старой ленты изменений. */
 const LEGACY_SEEN_KEY = 'changes_last_seen';
 const UPDATED_KEY = 'notif_updated_at';
 
