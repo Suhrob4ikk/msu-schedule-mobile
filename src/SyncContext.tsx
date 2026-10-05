@@ -3,6 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { performFullSync, getLastSyncTime, shouldResync, formatSyncTime } from './syncService';
 import { clearApiCache, API_BASE } from './api';
+import { onScheduleUpdated } from './scheduleEvents';
 
 /**
  * Проверка сети.
@@ -65,6 +66,8 @@ async function isBackendReachable(): Promise<boolean> {
  * канал (а на спящем Render — ещё и место в очереди). Пара секунд форы.
  */
 const SYNC_START_DELAY_MS = 3_000;
+/** Пауза после push перед синхронизацией: изменения часто приходят пачкой. */
+const PUSH_SYNC_DELAY_MS = 5_000;
 
 /** Короткая причина сбоя для человека: без неё «Не удалось обновить» ни о чём не говорит. */
 function describeSyncError(e: unknown): string {
@@ -223,6 +226,35 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineAt]);
+
+  // Пришёл push об изменении расписания или о новой неделе — обновляем
+  // офлайн-кэш сразу, не дожидаясь 4 часов (shouldResync). Иначе педагоги и
+  // аудитории только что вышедшей недели появлялись бы на телефоне без сети
+  // лишь к вечеру. Несколько push подряд — одна синхронизация (пауза 5 с).
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const off = onScheduleUpdated(() => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        timer = null;
+        if (!isOnlineRef.current || isSyncingRef.current) return;
+        isSyncingRef.current = true;
+        setIsSyncing(true);
+        try {
+          await performFullSync(msg => setSyncProgress(msg));
+          setLastSyncTime(new Date());
+          setSyncErrorText('');
+        } catch (e) {
+          setSyncErrorText(describeSyncError(e));
+        } finally {
+          isSyncingRef.current = false;
+          setIsSyncing(false);
+          setSyncProgress('');
+        }
+      }, PUSH_SYNC_DELAY_MS);
+    });
+    return () => { off(); if (timer) clearTimeout(timer); };
+  }, []);
 
   // Ручная синхронизация — вызывается кнопкой в профиле.
   const triggerSync = useCallback(async (): Promise<boolean> => {
