@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
-import { performFullSync, getLastSyncTime, shouldResync, formatSyncTime } from './syncService';
+import { performFullSync, getLastSyncTime, shouldResync, formatSyncTime, type ProgressCallback, type SyncSummary } from './syncService';
 import { clearApiCache, API_BASE } from './api';
 import { onScheduleUpdated } from './scheduleEvents';
 
@@ -83,8 +83,12 @@ type SyncState = {
   /** Increments every time we transition offline → online. Use in useEffect deps. */
   onlineAt: number;
   offlineBannerText: string;
-  /** Ручной запуск синхронизации. Возвращает true при успехе, false при ошибке. */
-  triggerSync: () => Promise<boolean>;
+  /**
+   * Ручной запуск синхронизации: итог при успехе, null при ошибке. Если
+   * синхронизация уже идёт — присоединяется к ней. onProgress — этапы (экран
+   * первой загрузки).
+   */
+  triggerSync: (onProgress?: ProgressCallback) => Promise<SyncSummary | null>;
   /** Причина последней неудачной синхронизации (для карточки в Кабинете); '' — сбоя не было. */
   syncErrorText: string;
 };
@@ -96,12 +100,31 @@ const SyncContext = createContext<SyncState>({
   isOnline: true,
   onlineAt: 0,
   offlineBannerText: '',
-  triggerSync: async () => false,
+  triggerSync: async () => null,
   syncErrorText: '',
 });
 
 export function useSyncStatus() {
   return useContext(SyncContext);
+}
+
+/**
+ * fn — когда сеть вернулась (или прошла синхронизация) ПОСЛЕ появления экрана.
+ * Не при первом кадре: onlineAt к тому моменту уже может быть не 0 (экран
+ * загрузки, кнопка в Кабинете), и тихий сетевой запрос на открытии перебивал
+ * показ кэша — без сети на «Педагогах» было «Нет подключения», хотя всё
+ * скачано, а после «Повторить» список появлялся (6 окт 2026).
+ */
+export function useOnlineAgain(fn: () => void): void {
+  const { onlineAt } = useContext(SyncContext);
+  const seen = useRef(onlineAt);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  useEffect(() => {
+    if (onlineAt === seen.current) return;
+    seen.current = onlineAt;
+    fnRef.current();
+  }, [onlineAt]);
 }
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
@@ -257,21 +280,26 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Ручная синхронизация — вызывается кнопкой в профиле.
-  const triggerSync = useCallback(async (): Promise<boolean> => {
-    if (isSyncingRef.current) return false;
+  const triggerSync = useCallback(async (onProgress?: ProgressCallback): Promise<SyncSummary | null> => {
+    // Уже идёт — не качаем второй раз, а ждём ту же (performFullSync присоединяет)
+    const joining = isSyncingRef.current;
+    isSyncingRef.current = true;
     setIsSyncing(true);
-    setSyncProgress('');
-    try {
+    if (!joining) {
+      setSyncProgress('');
       clearApiCache(); // чтобы тянуть свежие данные, а не из кэша
-      await performFullSync(msg => setSyncProgress(msg));
+    }
+    try {
+      const summary = await performFullSync((msg, stage) => { setSyncProgress(msg); onProgress?.(msg, stage); });
       setLastSyncTime(new Date());
       setSyncErrorText('');
       setOnlineAt(Date.now()); // подталкиваем экраны обновиться
-      return true;
+      return summary;
     } catch (e) {
       setSyncErrorText(describeSyncError(e));
-      return false;
+      return null;
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
       setSyncProgress('');
     }

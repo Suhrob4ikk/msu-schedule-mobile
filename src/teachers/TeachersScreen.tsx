@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { invalidateApiCache, Teacher, WeekOption } from '../api';
 import { useThemeMode } from '../theme';
-import { useSyncStatus } from '../SyncContext';
+import { useOnlineAgain, useSyncStatus } from '../SyncContext';
 import { useTokens, GUTTER, RADIUS, TOUCH_MIN, HEADER_H, Tokens } from '../schedule/tokens';
 import { Txt, Divider, useReduceMotion } from '../schedule/ui';
 import { isoOf } from '../schedule/state';
@@ -49,7 +49,7 @@ export default function TeachersScreen() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const { isOnline, isSyncing, lastSyncTime, onlineAt } = useSyncStatus();
+  const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
 
   // ─── Часы: раз в минуту — статусы видимых строк; сам экран — только в полночь ──
   const [today, setToday] = useState(() => isoOf(new Date()));
@@ -73,6 +73,11 @@ export default function TeachersScreen() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const reqRef = useRef(0);
+  // Кэш рисуем всегда, кроме двух случаев: уже пошло более новое чтение кэша
+  // или пришёл ответ сети. Тихий запрос (silent) показ кэша НЕ отменяет —
+  // раньше отменял, и без сети было «Нет подключения», хотя всё скачано.
+  const paintRef = useRef(0);
+  const netDayRef = useRef(''); // день, на который уже пришёл ответ сети
 
   useEffect(() => { readUpdatedAt().then(setUpdatedAt); }, []);
 
@@ -82,19 +87,22 @@ export default function TeachersScreen() {
     const day = isoOf(new Date());
     let painted = false;
     if (!silent) {
+      const paint = ++paintRef.current;
       const wa = await cachedWeeksAll();
       const lists = await cachedTeacherLists(listWeeks(wa, day));
-      if (!stale() && lists.some(Boolean)) {
+      if (paint === paintRef.current && netDayRef.current !== day && lists.some(Boolean)) {
         setWeeksAll(wa);
         setTeachers(mergeTeacherLists(lists));
         painted = true;
       }
-      if (!stale()) setLoading(!painted);
+      if (painted) setLoading(false);
+      else if (!stale()) setLoading(true);
     }
     try {
       const wa = await fetchWeeksAll();
       const lists = await fetchTeacherLists(listWeeks(wa, day));
       if (stale()) return;
+      netDayRef.current = day;
       setWeeksAll(wa);
       setTeachers(mergeTeacherLists(lists));
       const at = new Date();
@@ -110,7 +118,7 @@ export default function TeachersScreen() {
 
   useEffect(() => { load(); }, [load]);
   // Сеть вернулась — тихо обновляемся, без «Повторить»
-  useEffect(() => { if (onlineAt) load(true); }, [onlineAt, load]);
+  useOnlineAgain(() => load(true));
 
   const retry = useCallback(() => {
     invalidateApiCache('/schedule/teachers');
@@ -128,12 +136,16 @@ export default function TeachersScreen() {
   // ─── Статусы — из кэша расписаний педагогов этой недели ───────────────
   // Перечитываем, когда сменился список, неделя или закончилась синхронизация.
   const idsKey = teachers.map(t => t.id).join(',');
+  const syncSeenRef = useRef(lastSyncTime);
   useEffect(() => {
     let cancelled = false;
     const ids = teachers.map(t => t.id);
     cachedSchedules(ids, thisWeek).then(map => { if (!cancelled) statusStore.setAll(map); });
-    // Пока список пуст, а синхронизация принесла данные — перечитать и список
-    if (!teachers.length && lastSyncTime) load(true);
+    // Пока список пуст, а синхронизация принесла данные — перечитать список
+    // с диска. Только на НОВОЙ синхронизации, не при открытии экрана, и не
+    // тихо: тихий запрос идёт лишь в сеть, а без сети это «Нет подключения».
+    if (!teachers.length && lastSyncTime && lastSyncTime !== syncSeenRef.current) load();
+    syncSeenRef.current = lastSyncTime;
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey, thisWeek, lastSyncTime]);

@@ -18,6 +18,8 @@ import { api, Group, shortGroupName, rememberGroup } from '../api';
 import { useThemeMode, useAppearanceSettings } from '../theme';
 import { appearanceSummary } from '../appearanceModel';
 import { useSyncStatus } from '../SyncContext';
+import { isOfflineDataComplete } from '../offline/state';
+import { setUserName } from '../userName';
 import { formatSyncTime } from '../syncService';
 import { markGroupChosen } from '../features';
 import { collectSkips, collectNotes, type SkipStats } from '../studyData';
@@ -104,6 +106,35 @@ function SetupCard({ k, onChoose }: { k: Tokens; onChoose: () => void }) {
         <Txt t="titleScreen" color={k.text} style={{ flex: 1 }}>Группа не выбрана</Txt>
       </View>
       <Button k={k} primary title="Выбрать группу" onPress={onChoose} />
+    </View>
+  );
+}
+
+/**
+ * На телефоне не хватает чего-то для работы без интернета (на экране загрузки
+ * нажали «Позже», не было сети, загрузка оборвалась) — см. src/offline/state.ts.
+ */
+function OfflineCard({ k, busy, offline, onPress }: { k: Tokens; busy: boolean; offline: boolean; onPress: () => void }) {
+  return (
+    <View style={{ backgroundColor: k.card, borderRadius: RADIUS.lg, borderWidth: 2, borderColor: k.accentText, padding: 16, rowGap: 12, marginTop: 12 }}>
+      <View style={{ flexDirection: 'row', columnGap: 12 }}>
+        <Ionicons name="cloud-download-outline" size={22} color={k.accentText} style={{ marginTop: 2 }} />
+        <View style={{ flex: 1, rowGap: 2 }}>
+          <Txt t="titleCard" color={k.text}>Расписание скачано не полностью</Txt>
+          <Txt t="small" color={k.textSecondary}>
+            {offline
+              ? 'Нужен интернет. Как только он появится, скачаем сами.'
+              : 'Докачайте — и расписание, педагоги и аудитории откроются без интернета.'}
+          </Txt>
+        </View>
+      </View>
+      {busy ? (
+        <Button k={k} primary title="Скачиваем..." disabled busy onPress={onPress}>
+          <ActivityIndicator size="small" color={k.textSecondary} />
+        </Button>
+      ) : (
+        <Button k={k} primary title="Докачать" icon="download-outline" disabled={offline} onPress={onPress} />
+      )}
     </View>
   );
 }
@@ -196,6 +227,8 @@ export default function ProfileScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [syncError, setSyncError] = useState(false);
   const [skips, setSkips] = useState<SkipStats | null>(null);
+  // null — ещё не проверили; перепроверяем при входе на вкладку и после каждой синхронизации
+  const [offlineOk, setOfflineOk] = useState<boolean | null>(null);
 
   const attendance = useFeatureFlag('feature_attendance');
   const notes = useFeatureFlag('feature_notes');
@@ -241,6 +274,12 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!isSyncing) isOfflineDataComplete().then(setOfflineOk);
+    }, [isSyncing, lastSyncTime]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
       StatusBar.setBarStyle(mode === 'dark' ? 'light-content' : 'dark-content');
       return () => { StatusBar.setBarStyle(k.onAccent === '#FFFFFF' ? 'light-content' : 'dark-content'); };
     }, [mode, k.onAccent]),
@@ -257,7 +296,7 @@ export default function ProfileScreen() {
   };
 
   const saveProfile = async (newName: string, g: Group) => {
-    await AsyncStorage.setItem('user_name', newName);
+    if (!(await setUserName(newName))) return; // пустое имя лист не пропускает
     await AsyncStorage.setItem('selected_group_id', String(g.id));
     // Рядом с номером — название и курс: если номер разойдётся со списком, восстановимся по ним
     await rememberGroup(g);
@@ -312,6 +351,7 @@ export default function ProfileScreen() {
         {noGroup
           ? <SetupCard k={k} onChoose={() => setSheetOpen(true)} />
           : <ProfileCard k={k} name={name} group={group} onEdit={() => setSheetOpen(true)} />}
+        {offlineOk === false && !noGroup ? <OfflineCard k={k} busy={isSyncing} offline={!isOnline} onPress={sync} /> : null}
 
         {/* Оформление */}
         <SectionTitle k={k}>Оформление</SectionTitle>

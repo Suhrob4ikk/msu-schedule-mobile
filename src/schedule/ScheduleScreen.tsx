@@ -21,7 +21,7 @@ import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, Group, Lesson, WeekInfo, shortGroupName, weekRangeStr } from '../api';
 import { useThemeMode } from '../theme';
-import { useSyncStatus } from '../SyncContext';
+import { useOnlineAgain, useSyncStatus } from '../SyncContext';
 import { scheduleExamReminders, scheduleLessonReminders, NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY } from '../examNotifications';
 import { writeWidgetData } from '../widgetData';
 import { refreshLiveLesson } from '../liveLesson';
@@ -37,6 +37,7 @@ import {
 } from './state';
 import { Txt } from './ui';
 import ScheduleHeader, { linkState } from './ScheduleHeader';
+import Greeting from './Greeting';
 import DaySection, { Marks } from './DaySection';
 import DayBar from './DayBar';
 import WeekSheet from './WeekSheet';
@@ -66,7 +67,7 @@ export default function ScheduleScreenNew() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const { isOnline, isSyncing, lastSyncTime, onlineAt } = useSyncStatus();
+  const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
@@ -355,11 +356,10 @@ export default function ScheduleScreenNew() {
   }, [loadSchedule]);
 
   // Интернет вернулся — тихо обновляемся
-  useEffect(() => {
-    if (onlineAt === 0) return;
+  useOnlineAgain(() => {
     const g = selectedGroupRef.current;
     if (g) loadSchedule(g, picked() ? selectedWeekRef.current?.id : undefined, true);
-  }, [onlineAt, loadSchedule]);
+  });
 
   // Группы — сначала из кэша, потом с сервера
   useEffect(() => {
@@ -714,6 +714,9 @@ export default function ScheduleScreenNew() {
         link={link}
         onOpen={openHeaderSheet}
       />
+
+      {/* Приветствие — своя группа, эта неделя (там статистики нет, они не встречаются) */}
+      {selectedWeek && rel === 'current' && isMyGroup && <Greeting k={k} now={now} days={days} />}
 
       {/* Статистика — только когда открыта другая неделя. Отступ до первого
           заголовка дня (8 dp, «между блоками ленты» по ТЗ) даёт сам день. */}

@@ -157,6 +157,15 @@ export function refreshInbox(opts: { network?: boolean; force?: boolean } = {}):
   return p;
 }
 
+/** Скачать ленту своей группы заранее — экран первой загрузки. Ошибка — наружу. */
+export async function prefetchMyChanges(gid: number): Promise<void> {
+  invalidateApiCache('/schedule/changes');
+  const data = (await api.getChanges(gid)) as ChangeRec[];
+  const at = new Date();
+  await AsyncStorage.multiSet([[myCacheKey(gid), JSON.stringify(data)], [UPDATED_KEY, at.toISOString()]]);
+  if (snap.groupId === gid) emit({ changes: data, updatedAt: at, failed: false });
+}
+
 let started = false;
 /** Слушатели — один раз на всё приложение: зачёты, push, возврат в приложение. */
 function ensureStarted() {

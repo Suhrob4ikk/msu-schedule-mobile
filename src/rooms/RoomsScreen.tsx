@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, DAYS_ORDER, WeekOption } from '../api';
 import { useThemeMode } from '../theme';
 import { useBackTo } from '../backTo';
-import { useSyncStatus } from '../SyncContext';
+import { useOnlineAgain, useSyncStatus } from '../SyncContext';
 import { useTokens, GUTTER, RADIUS, TOUCH_MIN, Tokens } from '../schedule/tokens';
 import { Txt, Divider } from '../schedule/ui';
 import { addDays, isoOf } from '../schedule/state';
@@ -106,7 +106,7 @@ export default function RoomsScreenNew() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const { isOnline, isSyncing, lastSyncTime, onlineAt } = useSyncStatus();
+  const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
 
   // ─── Часы и режим «Сейчас» ────────────────────────────────────────────
   const [clock, setClock] = useState(() => new Date());
@@ -170,6 +170,10 @@ export default function RoomsScreenNew() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const reqRef = useRef(0);
+  // Как в «Педагогах»: тихий запрос показ кэша не отменяет — только новое
+  // чтение кэша или ответ сети по этому же дню
+  const paintRef = useRef(0);
+  const netKeyRef = useRef('');
 
   useEffect(() => {
     AsyncStorage.getItem(UPDATED_AT_KEY).then(v => { if (v) setUpdatedAt(new Date(v)); }).catch(() => null);
@@ -182,21 +186,24 @@ export default function RoomsScreenNew() {
 
     let painted = false;
     if (!silent) {
+      const paint = ++paintRef.current;
       try {
         const cached = await AsyncStorage.multiGet(PAIRS.map(p => cacheKey(dayIndex, p, weekStart)));
         if (cached.every(([, v]) => v)) {
           const byPair: ByPair = {};
           PAIRS.forEach((p, i) => { byPair[p] = JSON.parse(cached[i][1]!); });
-          if (!stale()) { setData({ key, byPair }); painted = true; }
+          if (paint === paintRef.current && netKeyRef.current !== key) { setData({ key, byPair }); painted = true; }
         }
       } catch { /* битый кэш — ждём сеть */ }
-      if (!stale()) setLoading(!painted);
+      if (painted) setLoading(false);
+      else if (!stale()) setLoading(true);
     }
 
     try {
       const day = DAYS_ORDER[dayIndex];
       const res = await Promise.all(PAIRS.map(p => api.getFreeRooms(day, p, weekStart)));
       if (stale()) return;
+      netKeyRef.current = key;
       const byPair: ByPair = {};
       PAIRS.forEach((p, i) => { byPair[p] = res[i]; });
       setData({ key, byPair });
@@ -219,10 +226,7 @@ export default function RoomsScreenNew() {
   }, [curKey, canLoad, load]);
 
   // Сеть вернулась — подгружаемся сами, без «Повторить»
-  useEffect(() => {
-    if (onlineAt && canLoad) load(slot.dayIndex, slot.weekStart, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlineAt]);
+  useOnlineAgain(() => { if (canLoad) load(slot.dayIndex, slot.weekStart, true); });
 
   const retry = useCallback(() => {
     invalidateApiCache('/schedule/free-rooms');

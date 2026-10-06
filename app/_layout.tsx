@@ -7,6 +7,10 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import OnboardingScreen from './onboarding';
+import OfflineSetupScreen from '../src/offline/OfflineSetupScreen';
+import { isOfflineDataComplete } from '../src/offline/state';
+import NameRequiredScreen from '../src/profile/NameRequiredScreen';
+import { getUserName, nameOk } from '../src/userName';
 import { ThemeProvider, useTheme } from '../src/theme';
 import { SyncProvider, useSyncStatus } from '../src/SyncContext';
 import { formatSyncTime } from '../src/syncService';
@@ -239,6 +243,11 @@ function tabIcon(name: keyof typeof Ionicons.glyphMap, lit: boolean, litColor: C
 function AppTabs() {
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  // Экран «Скачиваем расписание» — сразу после онбординга и при каждом
+  // запуске, пока на телефоне не хватает чего-то для работы без интернета.
+  const [offlineSetup, setOfflineSetup] = useState<'first' | 'resume' | null>(null);
+  // Имя обязательно, как на сайте: у кого оно пустое с прежних версий — спросим
+  const [needsName, setNeedsName] = useState(false);
   const C = useTheme();
   // Экраны «Табло» рисуют свою шапку со статусом связи и колокольчиком —
   // общую шапку и плавающую точку статуса на них прячем.
@@ -252,8 +261,10 @@ function AppTabs() {
   useRemotePushRefresh(pathRef);
 
   useEffect(() => {
-    AsyncStorage.getItem('selected_group_id').then(id => {
+    AsyncStorage.getItem('selected_group_id').then(async id => {
       setNeedsOnboarding(!id);
+      if (id && !nameOk(await getUserName())) setNeedsName(true);
+      if (id && !(await isOfflineDataComplete())) setOfflineSetup('resume');
       setReady(true);
       // Уже зарегистрированные пользователи не проходят онбординг заново —
       // здесь они напоминают серверу о себе (регистрация + push-токен).
@@ -281,7 +292,15 @@ function AppTabs() {
   if (!ready) return null;
 
   if (needsOnboarding) {
-    return <OnboardingScreen onDone={() => setNeedsOnboarding(false)} />;
+    return <OnboardingScreen onDone={() => { setNeedsOnboarding(false); setOfflineSetup('first'); }} />;
+  }
+
+  if (needsName) {
+    return <NameRequiredScreen onDone={() => setNeedsName(false)} />;
+  }
+
+  if (offlineSetup) {
+    return <OfflineSetupScreen mode={offlineSetup} onDone={() => setOfflineSetup(null)} />;
   }
 
   return (

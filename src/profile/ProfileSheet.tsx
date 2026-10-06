@@ -18,6 +18,7 @@ import { Txt } from '../schedule/ui';
 import BottomSheet from '../schedule/BottomSheet';
 import { Button } from './rows';
 import { saveLabel } from './state';
+import { NAME_MAX, NAME_REQUIRED_HINT, nameOk } from '../userName';
 
 export default function ProfileSheet({ k, visible, groups, name, group, onClose, onSave }: {
   k: Tokens;
@@ -67,8 +68,10 @@ export default function ProfileSheet({ k, visible, groups, name, group, onClose,
     if (year && !groups.some(g => shortGroupName(g.name) === d && g.year === year)) setYear(null);
   };
 
+  // Имя обязательно, как на сайте: стереть его в Кабинете нельзя
+  const hasName = nameOk(draftName);
   const save = async () => {
-    if (!chosen || saving) return;
+    if (!chosen || !hasName || saving) return;
     setSaving(true);
     try { await onSave(draftName.trim(), chosen); } finally { setSaving(false); }
   };
@@ -101,13 +104,18 @@ export default function ProfileSheet({ k, visible, groups, name, group, onClose,
         placeholderTextColor={k.textSecondary}
         autoFocus
         returnKeyType="done"
-        accessibilityLabel="Имя, необязательно"
+        accessibilityLabel="Имя"
+        accessibilityHint={hasName ? undefined : NAME_REQUIRED_HINT}
+        maxLength={NAME_MAX}
         maxFontSizeMultiplier={TYPE.body.max}
         style={[TYPE.body.style, {
           minHeight: TOUCH_MIN, borderRadius: RADIUS.sm, paddingHorizontal: 14, color: k.text,
-          backgroundColor: k.surface2, borderWidth: 1, borderColor: k.border,
+          backgroundColor: k.surface2, borderWidth: hasName ? 1 : 2, borderColor: hasName ? k.border : k.statusOffline,
         }]}
       />
+      {!hasName && (
+        <Txt t="small" color={k.statusOffline} accessibilityLiveRegion="polite" style={{ marginTop: 6 }}>{NAME_REQUIRED_HINT}</Txt>
+      )}
 
       <Txt t="overline" color={k.textSecondary} style={{ marginTop: 16, marginBottom: 6 }}>Направление</Txt>
       <View style={{ borderRadius: RADIUS.sm, borderWidth: 1, borderColor: k.border, overflow: 'hidden' }}>
@@ -162,7 +170,7 @@ export default function ProfileSheet({ k, visible, groups, name, group, onClose,
           k={k}
           primary
           title={saving ? 'Сохраняем' : saveLabel(chosen ? dir : null, chosen ? year : null)}
-          disabled={!chosen || saving}
+          disabled={!chosen || !hasName || saving}
           busy={saving}
           onPress={save}
         />

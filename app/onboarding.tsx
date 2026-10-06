@@ -15,6 +15,7 @@ import type { Colors } from '../src/theme';
 import { requestNotificationPermission } from '../src/examNotifications';
 import { syncWithServer } from '../src/pushToken';
 import { markGroupChosen } from '../src/features';
+import { NAME_MAX, setUserName } from '../src/userName';
 import { useTokens, RADIUS, TOUCH_MIN, type as typeStyle } from '../src/schedule/tokens';
 import { ACCENT_PRESETS, AccentPresetId } from '../src/schedule/colors';
 import { Txt } from '../src/schedule/ui';
@@ -61,7 +62,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
     // разойдётся со списком групп, восстановимся по ним (см. src/api.ts).
     await rememberGroup(selected);
     await markGroupChosen(); // новичку про смену курса напоминать не нужно
-    await AsyncStorage.setItem('user_name', name.trim());
+    await setUserName(name);
     let deviceId = await AsyncStorage.getItem('msu_device_id');
     if (!deviceId) {
       deviceId = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -115,6 +116,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
           placeholder="Как вас зовут"
           placeholderTextColor={k.textSecondary}
           returnKeyType="done"
+          maxLength={NAME_MAX}
           maxFontSizeMultiplier={2}
           accessibilityLabel="Имя"
           style={[typeStyle(16, 22, 500), {

@@ -1,7 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
 
-export type ProgressCallback = (step: string) => void;
+/**
+ * Этап полной синхронизации — для экрана первой загрузки (src/offline/), где
+ * этапы отмечаются галочками. Событие приходит в НАЧАЛЕ этапа: все прежние
+ * уже пройдены.
+ */
+export type SyncStage = 'download' | 'groups' | 'teachers' | 'rooms';
+export type ProgressCallback = (step: string, stage: SyncStage) => void;
+
+/** Что лежит на телефоне после синхронизации — итог экрана первой загрузки. */
+export interface SyncSummary {
+  groups: number;
+  teachers: number;
+  rooms: number;
+}
 
 /**
  * Полная офлайн-синхронизация — раньше делала 300+ отдельных HTTP-запросов
@@ -31,35 +44,74 @@ async function purgeStaleCache(keepNew: Set<string> | null): Promise<void> {
   if (stale.length) await AsyncStorage.multiRemove(stale);
 }
 
-export async function performFullSync(onProgress?: ProgressCallback): Promise<void> {
-  onProgress?.('Загружаем расписание...');
+/**
+ * Стоит, пока идёт запись в хранилище: если приложение закрыли посередине,
+ * на телефоне половина нового и половина старого — экран загрузки
+ * (src/offline/) по этой метке предложит докачать. Не `cache_*`: те чистит purge.
+ */
+export const SYNC_INCOMPLETE_KEY = 'sync_incomplete';
+
+const STEP_TEXT: Record<SyncStage, string> = {
+  download: 'Загружаем расписание...',
+  groups: 'Сохраняем расписание групп...',
+  teachers: 'Сохраняем педагогов...',
+  rooms: 'Сохраняем аудитории...',
+};
+
+// Синхронизация, которая идёт прямо сейчас. Её запускают с разных мест (старт,
+// возврат сети, push, кнопка в Кабинете, экран первой загрузки) — второй
+// запуск не качает ответ заново, а присоединяется к первому.
+let running: Promise<SyncSummary> | null = null;
+let currentStage: SyncStage = 'download';
+const listeners = new Set<ProgressCallback>();
+
+function report(stage: SyncStage) {
+  currentStage = stage;
+  listeners.forEach(fn => fn(STEP_TEXT[stage], stage));
+}
+
+async function runFullSync(): Promise<SyncSummary> {
+  report('download');
   const bulk = await api.getBulkSync();
 
-  const entries: [string, string][] = [
+  const groupEntries: [string, string][] = [
     ['cache_groups', JSON.stringify(bulk.groups)],
     ['cache_weeks_all', JSON.stringify(bulk.weeks_all)],
   ];
   for (const [groupId, weeks] of Object.entries(bulk.group_weeks)) {
-    entries.push([`cache_weeks_${groupId}`, JSON.stringify(weeks)]);
+    groupEntries.push([`cache_weeks_${groupId}`, JSON.stringify(weeks)]);
   }
   for (const [key, sched] of Object.entries(bulk.schedules)) {
-    entries.push([`cache_schedule_${key}`, JSON.stringify(sched)]);
+    groupEntries.push([`cache_schedule_${key}`, JSON.stringify(sched)]);
   }
+  const teacherEntries: [string, string][] = [];
+  const teacherIds = new Set<number>();
   for (const [weekStart, teachers] of Object.entries(bulk.teachers_by_week)) {
-    entries.push([`cache_teachers_${weekStart}`, JSON.stringify(teachers)]);
+    teacherEntries.push([`cache_teachers_${weekStart}`, JSON.stringify(teachers)]);
+    teachers.forEach(t => teacherIds.add(t.id));
   }
   for (const [key, sched] of Object.entries(bulk.teacher_schedules)) {
-    entries.push([`cache_teacher_${key}`, JSON.stringify(sched)]);
+    teacherEntries.push([`cache_teacher_${key}`, JSON.stringify(sched)]);
   }
+  const roomEntries: [string, string][] = [];
+  const roomNames = new Set<string>();
   for (const [key, rooms] of Object.entries(bulk.free_rooms)) {
-    entries.push([`cache_rooms_${key}`, JSON.stringify(rooms)]);
+    roomEntries.push([`cache_rooms_${key}`, JSON.stringify(rooms)]);
+    rooms.forEach(r => roomNames.add(r.room_name));
   }
+  const entries = [...groupEntries, ...teacherEntries, ...roomEntries];
 
-  onProgress?.('Сохраняем...');
   // Сначала убираем устаревшее — свежий ответ уже в памяти, потерять нечего.
+  report('groups');
+  await AsyncStorage.setItem(SYNC_INCOMPLETE_KEY, '1');
   await purgeStaleCache(new Set(entries.map(e => e[0])));
   try {
-    await AsyncStorage.multiSet(entries);
+    // Тремя частями — чтобы экран первой загрузки отмечал их по очереди
+    await AsyncStorage.multiSet(groupEntries);
+    report('teachers');
+    await AsyncStorage.multiSet(teacherEntries);
+    report('rooms');
+    await AsyncStorage.multiSet(roomEntries);
   } catch {
     // Всё равно не влезло — чистим кэш целиком и пишем заново.
     await purgeStaleCache(null);
@@ -67,6 +119,21 @@ export async function performFullSync(onProgress?: ProgressCallback): Promise<vo
   }
 
   await AsyncStorage.setItem('cache_sync_timestamp', new Date().toISOString());
+  await AsyncStorage.removeItem(SYNC_INCOMPLETE_KEY);
+  return { groups: bulk.groups.length, teachers: teacherIds.size, rooms: roomNames.size };
+}
+
+export function performFullSync(onProgress?: ProgressCallback): Promise<SyncSummary> {
+  if (onProgress) {
+    listeners.add(onProgress);
+    // Присоединились к уже идущей — сразу говорим, на каком она этапе
+    if (running) onProgress(STEP_TEXT[currentStage], currentStage);
+  }
+  if (!running) {
+    running = runFullSync().finally(() => { running = null; });
+  }
+  const p = running;
+  return onProgress ? p.finally(() => { listeners.delete(onProgress); }) : p;
 }
 
 export async function getLastSyncTime(): Promise<Date | null> {

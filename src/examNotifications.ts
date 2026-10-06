@@ -12,6 +12,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { firstName, getUserName } from './userName';
 import { syncExamInbox } from './notificationHistory';
 import type { ExamEntry } from './notifications/state';
 
@@ -129,6 +130,7 @@ export async function scheduleLessonReminders(
 
   // Пересобираем весь набор: расписание могло измениться
   await cancelLessonReminders();
+  const who = firstName(await getUserName());
 
   const now = new Date();
   for (const lesson of lessons) {
@@ -145,7 +147,7 @@ export async function scheduleLessonReminders(
     const where = lesson.room?.name ? `Ауд. ${lesson.room.name}` : null;
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `Через ${MINUTES_BEFORE_LESSON} минут — ${lesson.subject}`,
+        title: `${who ? `${who}, через` : 'Через'} ${MINUTES_BEFORE_LESSON} минут — ${lesson.subject}`,
         body: [where, `начало в ${time}`].filter(Boolean).join(' · '),
         data: { type: 'lesson' },
         sound: false,   // вибрация есть, звука нет — это подсказка, а не тревога
@@ -190,6 +192,8 @@ export async function scheduleExamReminders(
 
   // Отменяем только наши напоминания о зачётах
   await cancelExamReminders();
+  // Обращение по имени: «⏰ Сухроб, завтра зачёт!»
+  const who = firstName(await getUserName());
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -216,7 +220,7 @@ export async function scheduleExamReminders(
     if (eveBefore > new Date()) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `⏰ Завтра ${kind}!`,
+          title: who ? `⏰ ${who}, завтра ${kind}!` : `⏰ Завтра ${kind}!`,
           body: `${subject}${time ? ` в ${time}` : ''}. Готовьтесь, вы сможете! 💪`,
           data, sound: true,
         },
@@ -235,7 +239,7 @@ export async function scheduleExamReminders(
     if (dayOf > new Date()) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `🍀 Сегодня ${kind}!`,
+          title: who ? `🍀 ${who}, сегодня ${kind}!` : `🍀 Сегодня ${kind}!`,
           body: `${subject}${time ? ` в ${time}` : ''}. Удачи вам!`,
           data, sound: true,
         },

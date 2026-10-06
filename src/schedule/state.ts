@@ -409,6 +409,36 @@ export function weekIsOver(now: Date, days: DayData[]): boolean {
   return !days.some(d => d.blocks.some(b => b.endAt > t));
 }
 
+// ─── Приветствие ───────────────────────────────────────────────────────────
+
+/** «Доброе утро» — по часам: 5–11 утро, 12–17 день, 18–22 вечер, иначе ночь. */
+export function partOfDay(now: Date): string {
+  const h = now.getHours();
+  if (h >= 5 && h < 12) return 'Доброе утро';
+  if (h >= 12 && h < 18) return 'Добрый день';
+  if (h >= 18 && h < 23) return 'Добрый вечер';
+  return 'Доброй ночи';
+}
+
+/**
+ * Вторая половина строки приветствия — главное о сегодняшнем дне своей
+ * группы: «сегодня 3 пары, первая в 09:45», «осталось ещё 2 пары»,
+ * «идёт последняя пара», «на сегодня всё», «сегодня пар нет».
+ */
+export function greetingRest(now: Date, today: DayData | undefined): string {
+  if (!today || !today.blocks.length) return 'сегодня пар нет';
+  const t = now.getTime();
+  const first = today.blocks[0];
+  const last = today.blocks[today.blocks.length - 1];
+  if (last.endAt <= t) return 'на сегодня всё';
+  if (first.startAt > t) {
+    const n = today.pairCount;
+    return `сегодня ${n} ${plural(n, 'пара', 'пары', 'пар')}, первая в ${first.start}`;
+  }
+  const left = today.blocks.filter(b => b.startAt > t).reduce((n, b) => n + b.pairs.length, 0);
+  return left > 0 ? `осталось ещё ${left} ${plural(left, 'пара', 'пары', 'пар')}` : 'идёт последняя пара';
+}
+
 // ─── Шапка ─────────────────────────────────────────────────────────────────
 
 /** Крупная строка шапки: сегодняшняя дата или «Следующая неделя». */

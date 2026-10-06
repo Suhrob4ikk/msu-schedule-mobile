@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { invalidateApiCache, Lesson, Teacher, WeekOption } from '../api';
-import { useSyncStatus } from '../SyncContext';
+import { useOnlineAgain, useSyncStatus } from '../SyncContext';
 import { Tokens, GUTTER, RADIUS, TOUCH_MIN, HEADER_H, FONT } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
 import { addDays, isoOf, weekRel } from '../schedule/state';
@@ -76,7 +76,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   onBack: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { isOnline, isSyncing, lastSyncTime, onlineAt } = useSyncStatus();
+  const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
 
   const [now, setNow] = useState(() => new Date());
   const today = isoOf(now);
@@ -94,15 +94,21 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   const [refreshing, setRefreshing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const reqRef = useRef(0);
+  // Как в списке: тихий запрос показ кэша не отменяет — только новое чтение кэша или ответ сети
+  const paintRef = useRef(0);
+  const netKeyRef = useRef(''); // недели, на которые уже пришёл ответ сети
 
   const load = useCallback(async (silent = false) => {
     const req = ++reqRef.current;
     const stale = () => req !== reqRef.current;
     if (!silent) {
+      const paint = ++paintRef.current;
       const [c1, c2] = await Promise.all([cachedTeacherWeek(teacher.id, thisWs), cachedTeacherWeek(teacher.id, nextWs)]);
+      if (paint === paintRef.current && netKeyRef.current !== `${thisWs}|${nextWs}`) {
+        if (c1) setThisLs(c1);
+        if (c2) setNextLs(c2);
+      }
       if (stale()) return;
-      if (c1) setThisLs(c1);
-      if (c2) setNextLs(c2);
     }
     setNetBusy(true);
     const [r1, r2] = await Promise.allSettled([
@@ -110,6 +116,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
       nextPublished === false ? Promise.resolve(null) : fetchTeacherWeek(teacher.id, nextWs),
     ]);
     if (stale()) return;
+    if (r1.status === 'fulfilled' || r2.status === 'fulfilled') netKeyRef.current = `${thisWs}|${nextWs}`;
     if (r1.status === 'fulfilled') {
       setThisLs(r1.value);
       statusStore.setOne(teacher.id, r1.value);
@@ -122,7 +129,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   }, [teacher.id, thisWs, nextWs, nextPublished]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (onlineAt) load(true); }, [onlineAt, load]);
+  useOnlineAgain(() => load(true));
   // Следующая неделя оказалась неопубликованной — так и показываем
   useEffect(() => { if (nextPublished === false) setNextLs(null); }, [nextPublished]);
 
