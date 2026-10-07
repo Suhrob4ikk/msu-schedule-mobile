@@ -63,6 +63,28 @@ const EXPAND_ANIM = {
 const currentWeekOf = (wks: WeekInfo[], now: Date): WeekInfo =>
   wks.find(w => weekRel(w.week_start, now) === 'current') ?? wks.find(w => w.is_latest) ?? wks[0];
 
+/** Плавающая кнопка внизу: пилюля с подписью или (compact) круг 48 со значком. */
+function FloatPill({ k, icon, label, a11y, compact, onPress }: {
+  k: ReturnType<typeof useTokens>; icon: keyof typeof Ionicons.glyphMap; label: string; a11y?: string;
+  compact: boolean; onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={a11y ?? label}
+      style={{
+        minHeight: TOUCH_MIN, minWidth: TOUCH_MIN, paddingHorizontal: compact ? 0 : 18, borderRadius: RADIUS.pill,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 6,
+        backgroundColor: k.text, elevation: 4,
+      }}
+    >
+      <Ionicons name={icon} size={compact ? 20 : 16} color={k.bg} />
+      {!compact && <Txt t="labelStrong" color={k.bg}>{label}</Txt>}
+    </Pressable>
+  );
+}
+
 export default function ScheduleScreenNew() {
   const k = useTokens();
   const { mode } = useThemeMode();
@@ -701,8 +723,12 @@ export default function ScheduleScreenNew() {
   const title = selectedWeek ? headerTitle(selectedWeek.week_start, now) : selectedGroup ? 'Расписание' : 'Выберите группу';
   const hasThisWeek = weeks.some(w => weekRel(w.week_start, now) === 'current');
   const showThisWeek = selectedWeek != null && rel !== 'current' && hasThisWeek;
+  // «К сегодня» — эта неделя открыта, но сегодняшний день прокручен / перелистнут
+  // (просьба владельца, 7 окт 2026; так же у педагогов)
+  const todayIdx = rel === 'current' ? days.findIndex(d => d.date === isoOf(now)) : -1;
+  const showToday = todayIdx >= 0 && visibleDay !== todayIdx && !showThisWeek;
   // Место под плавающие кнопки внизу, чтобы они не закрывали последнюю пару
-  const floatPad = showThisWeek || showMyGroup ? TOUCH_MIN + 12 : 0;
+  const floatPad = showThisWeek || showMyGroup || showToday ? TOUCH_MIN + 12 : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: k.bg }}>
@@ -819,8 +845,8 @@ export default function ScheduleScreenNew() {
       </Animated.ScrollView>
       )}
 
-      {/* Плавающие пилюли внизу: «К моей группе» и «К этой неделе» */}
-      {(showThisWeek || showMyGroup) && (
+      {/* Плавающие пилюли внизу: «К моей группе», «К этой неделе», «К сегодня» */}
+      {(showThisWeek || showMyGroup || showToday) && (
         <View
           pointerEvents="box-none"
           style={{
@@ -841,24 +867,17 @@ export default function ScheduleScreenNew() {
             >
               <Ionicons name="arrow-undo" size={16} color={k.onAccent} />
               <Txt t="labelStrong" color={k.onAccent} numberOfLines={1}>
-                {`К моей группе · ${shortGroupName(myGroup!.name)}`}
+                {`К моей группе · ${shortGroupName(myGroup!.name)} ${myGroup!.year}`}
               </Txt>
             </Pressable>
           )}
+          {/* Рядом с «К моей группе» — круглые кнопки со значком: иначе две пилюли не
+              помещались в строку и налезали друг на друга (владелец, 7 окт 2026) */}
           {showThisWeek && (
-          <Pressable
-            onPress={toThisWeek}
-            accessibilityRole="button"
-            accessibilityLabel="К этой неделе"
-            style={{
-              minHeight: TOUCH_MIN, paddingHorizontal: 18, borderRadius: RADIUS.pill,
-              flexDirection: 'row', alignItems: 'center', columnGap: 6, backgroundColor: k.text,
-              elevation: 4,
-            }}
-          >
-            <Ionicons name="chevron-up" size={16} color={k.bg} />
-            <Txt t="labelStrong" color={k.bg}>К этой неделе</Txt>
-          </Pressable>
+            <FloatPill k={k} icon="chevron-up" label="К этой неделе" compact={showMyGroup} onPress={toThisWeek} />
+          )}
+          {showToday && (
+            <FloatPill k={k} icon="today-outline" label="К сегодня" a11y="К сегодняшнему дню" compact={showMyGroup} onPress={() => pickDay(todayIdx)} />
           )}
         </View>
       )}

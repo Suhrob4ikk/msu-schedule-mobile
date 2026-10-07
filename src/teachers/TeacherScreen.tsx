@@ -259,6 +259,29 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
     setVisible(idx);
   }, []);
 
+  // ─── «К сегодня» (просьба владельца, 7 окт 2026; как в Расписании) ─────
+  // Показываем, если у педагога сегодня есть пары, а на экране не сегодняшний
+  // день или открыта следующая неделя. Нажатие — эта неделя и прокрутка к дню.
+  const todayDow = (now.getDay() + 6) % 7;
+  const todayHas = !!thisDays?.[todayDow]?.blocks.length;
+  const showToday = todayHas && (shown !== 'this' || visibleDay !== todayDow);
+  const pendingTodayRef = useRef(false);
+  const scrollToToday = useCallback(() => {
+    const y = dayY.current[todayDow];
+    if (y == null) return false;
+    lockRef.current = true;
+    setVisible(todayDow);
+    scrollRef.current?.scrollTo({ y: Math.max(0, y - 4), animated: true });
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayDow]);
+  // Переключили с «Следующей» — дни ещё не измерены: докручиваем, когда измерятся
+  useEffect(() => {
+    if (!pendingTodayRef.current || shown !== 'this') return;
+    const id = setTimeout(() => { if (scrollToToday()) pendingTodayRef.current = false; }, 120);
+    return () => clearTimeout(id);
+  });
+
   const pickWeek = useCallback((w: Which) => {
     if (w === which) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -362,7 +385,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
       <Animated.ScrollView
         ref={scrollRef as React.Ref<any>}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 }}
+        contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 24 + (showToday ? TOUCH_MIN + 12 : 0) }}
         onLayout={e => { viewportH.current = e.nativeEvent.layout.height; requestAnimationFrame(tryInitialScroll); }}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true, listener: onScroll })}
         onScrollBeginDrag={() => { lockRef.current = false; }}
@@ -410,6 +433,26 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
         ))}
       </Animated.ScrollView>
 
+      {showToday && (
+        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 12, alignItems: 'center' }}>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync();
+              if (shown !== 'this') { pendingTodayRef.current = true; pickWeek('this'); return; }
+              scrollToToday();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="К сегодняшнему дню"
+            style={{
+              minHeight: TOUCH_MIN, paddingHorizontal: 18, borderRadius: RADIUS.pill,
+              flexDirection: 'row', alignItems: 'center', columnGap: 6, backgroundColor: k.text, elevation: 4,
+            }}
+          >
+            <Ionicons name="today-outline" size={16} color={k.bg} />
+            <Txt t="labelStrong" color={k.bg}>К сегодня</Txt>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
