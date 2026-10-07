@@ -12,6 +12,7 @@ import { AppState, Pressable, RefreshControl, ScrollView, StatusBar, View } from
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, invalidateApiCache, DAYS_ORDER, WeekOption } from '../api';
 import { useThemeMode } from '../theme';
@@ -22,7 +23,7 @@ import { Txt, Divider } from '../schedule/ui';
 import { addDays, isoOf } from '../schedule/state';
 import ScheduleHeader, { linkState } from '../schedule/ScheduleHeader';
 import {
-  PAIRS, RoomDay, RoomSlot, Slot, buildDay, headerSubtitle, nowKey, nowSlot, pairTitle, roomStatus, searchRooms,
+  PAIRS, RoomDay, RoomSlot, Slot, buildDay, stepLabel, stepSlot, headerSubtitle, nowKey, nowSlot, pairTitle, roomStatus, searchRooms,
 } from './state';
 import RoomCard from './RoomCard';
 import RoomSheet from './RoomSheet';
@@ -50,6 +51,32 @@ function SectionHead({ k, left, right }: { k: Tokens; left: string; right?: stri
       <Txt t="overline" color={k.textSecondary}>{left}</Txt>
       {right ? <Txt t="overline" color={k.textSecondary}>{right}</Txt> : null}
     </View>
+  );
+}
+
+/** Стрелка ‹ / › с подписью соседней пары; дальше некуда — бледная и не нажимается. */
+function StepButton({ k, dir, from, to, onPress }: {
+  k: Tokens; dir: 1 | -1; from: Slot; to: Slot | null; onPress: (s: Slot) => void;
+}) {
+  const label = to ? stepLabel(from, to) : null;
+  const icon = dir < 0 ? 'chevron-back' : 'chevron-forward';
+  return (
+    <Pressable
+      onPress={() => { if (to) { Haptics.selectionAsync(); onPress(to); } }}
+      disabled={!to}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !to }}
+      accessibilityLabel={to ? `${dir < 0 ? 'Предыдущая' : 'Следующая'} пара: ${label}` : dir < 0 ? 'Предыдущей пары нет' : 'Следующей пары нет'}
+      style={({ pressed }) => ({
+        minHeight: TOUCH_MIN, minWidth: TOUCH_MIN, paddingHorizontal: 12, borderRadius: RADIUS.pill,
+        flexDirection: dir < 0 ? 'row' : 'row-reverse', alignItems: 'center', justifyContent: 'center', columnGap: 4,
+        backgroundColor: k.surface, borderWidth: 1, borderColor: k.border,
+        opacity: !to ? 0.4 : pressed ? 0.7 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={18} color={k.text} />
+      {label ? <Txt t="labelStrong" color={k.text} numberOfLines={1}>{label}</Txt> : null}
+    </Pressable>
   );
 }
 
@@ -309,6 +336,9 @@ export default function RoomsScreenNew() {
   // «Эта» неделя — календарная; в воскресенье она уже прошла, но так и подписана
   const thisWeek = addDays(isoOf(clock), -((clock.getDay() + 6) % 7));
   const nextWeek = addDays(thisWeek, 7);
+  const lastWeek = weeks?.some(w => w.week_start === nextWeek) ? nextWeek : thisWeek;
+  const prevSlot = stepSlot(slot, -1, thisWeek, lastWeek);
+  const nextSlot = stepSlot(slot, 1, thisWeek, lastWeek);
   const link = linkState({
     syncing: isSyncing || refreshing || (loading && !days),
     offline: !isOnline || loadFailed,
@@ -424,23 +454,24 @@ export default function RoomsScreenNew() {
         </Pressable>
       </View>
 
-      {/* Строка «Сейчас» — только когда день и пара выбраны вручную */}
-      {manual && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 4, paddingHorizontal: GUTTER + 4, paddingTop: 8 }}>
-          <Txt t="labelStrong" color={k.text}>
-            {days ? `Свободно ${free.length} из ${days.length}` : ' '}
-          </Txt>
-          <Pressable
-            onPress={backToNow}
-            accessibilityRole="button"
-            accessibilityLabel="Вернуться к режиму «Сейчас»"
-            style={{ minHeight: TOUCH_MIN, flexDirection: 'row', alignItems: 'center', columnGap: 6, paddingHorizontal: 16, borderRadius: RADIUS.pill, backgroundColor: k.accentSoft }}
-          >
-            <Ionicons name="time-outline" size={16} color={k.onAccentSoft} />
-            <Txt t="labelStrong" color={k.onAccentSoft}>Сейчас</Txt>
-          </Pressable>
+      {/* ‹ пред. пара · «Сейчас» · след. пара › — без листа «Когда» (просьба владельца, 7 окт 2026) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 8, paddingHorizontal: GUTTER, paddingTop: 8 }}>
+        <StepButton k={k} dir={-1} from={slot} to={prevSlot} onPress={pickSlot} />
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          {manual && (
+            <Pressable
+              onPress={backToNow}
+              accessibilityRole="button"
+              accessibilityLabel="Вернуться к режиму «Сейчас»"
+              style={{ minHeight: TOUCH_MIN, flexDirection: 'row', alignItems: 'center', columnGap: 6, paddingHorizontal: 16, borderRadius: RADIUS.pill, backgroundColor: k.accentSoft }}
+            >
+              <Ionicons name="time-outline" size={16} color={k.onAccentSoft} />
+              <Txt t="labelStrong" color={k.onAccentSoft}>Сейчас</Txt>
+            </Pressable>
+          )}
         </View>
-      )}
+        <StepButton k={k} dir={1} from={slot} to={nextSlot} onPress={pickSlot} />
+      </View>
 
       <ScrollView
         style={{ flex: 1 }}

@@ -125,9 +125,17 @@ function ScheduleHeader({ k, topInset, subtitle, subtitleLead, title, link, onOp
             {subtitleLead ? <Txt t={smallSize === 13 ? 'smallStrong' : 'captionStrong'} color={k.accentText}>{subtitleLead}</Txt> : null}
             {subtitle}
           </Txt>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4 }}>
-            <Txt t="titleCard" color={k.text}>{title}</Txt>
-            <Ionicons name="chevron-down" size={18} color={k.textSecondary} />
+          {/* Плашка цвета приложения (accent-soft), чтобы было видно, что это кнопка —
+              раньше это был просто текст (просьба владельца, 7 окт 2026) */}
+          <View
+            style={{
+              flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, alignSelf: 'flex-start',
+              marginTop: 2, paddingLeft: 12, paddingRight: 8, paddingVertical: 3,
+              borderRadius: RADIUS.pill, backgroundColor: k.accentSoft,
+            }}
+          >
+            <Txt t="titleCard" color={k.onAccentSoft}>{title}</Txt>
+            <Ionicons name="chevron-down" size={18} color={k.onAccentSoft} />
           </View>
         </Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }}>

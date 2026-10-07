@@ -255,6 +255,28 @@ export function nowSlot(now: Date): NowSlot {
   return { ...slotOf(next, PAIRS[0]), kind: 'nearest', targetAt: null };
 }
 
+/**
+ * Соседняя пара для стрелок ‹ › (просьба владельца, 7 окт 2026): после V пары —
+ * I пара следующего учебного дня, воскресенье пропускаем; назад так же. Шаг за
+ * пределы недель, которые можно показать (эта … последняя опубликованная), — null.
+ */
+export function stepSlot(slot: Slot, dir: 1 | -1, firstWeek: string, lastWeek: string): Slot | null {
+  let p = PAIRS.indexOf(slot.pair) + dir;
+  let date = slot.date;
+  if (p >= PAIRS.length || p < 0) {
+    p = dir > 0 ? 0 : PAIRS.length - 1;
+    date = addDays(date, dir);
+    if (parseIso(date).getDay() === 0) date = addDays(date, dir);
+  }
+  const s = slotOf(date, PAIRS[p]);
+  return s.weekStart < firstWeek || s.weekStart > lastWeek ? null : s;
+}
+
+/** Подпись стрелки: «II пара» в тот же день, «пн · I» — в другой. */
+export function stepLabel(from: Slot, to: Slot): string {
+  return to.date === from.date ? `${to.pair} пара` : `${DAY_SHORT[to.dayIndex]} · ${to.pair}`;
+}
+
 /** Ключ режима «Сейчас»: меняется только на границах пар. */
 export const nowKey = (s: NowSlot) => `${s.kind}|${s.date}|${s.pair}`;
 

@@ -194,6 +194,9 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   // ─── Прокрутка ────────────────────────────────────────────────────────
   const scrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
+  // Имя в шапке: проступает, пока крупное (≈ 30 dp + отступ) уезжает за край
+  const titleOpacity = scrollY.interpolate({ inputRange: [24, 52], outputRange: [0, 1], extrapolate: 'clamp' });
+  const displayName = teacher.name || thisLs?.[0]?.teacher?.name || 'Педагог';
   const dayY = useRef<(number | undefined)[]>([]);
   const focusBox = useRef<{ day: number; y: number; h: number } | null>(null);
   const viewportH = useRef(0);
@@ -340,6 +343,15 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
           >
             <Ionicons name="arrow-back" size={24} color={k.text} />
           </Pressable>
+          {/* Крупное имя уехало вверх — то же имя проступает в шапке (просьба владельца,
+              7 окт 2026): видно, чьё расписание листаешь. Прозрачность — нативным драйвером. */}
+          <Animated.View
+            pointerEvents="none"
+            importantForAccessibility="no-hide-descendants"
+            style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, opacity: titleOpacity }}
+          >
+            <Txt t="teacherName" color={k.text} numberOfLines={1}>{displayName}</Txt>
+          </Animated.View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }}>
             <StatusPill s={link} k={k} />
             <Bell k={k} />
@@ -367,7 +379,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
             android_hyphenationFrequency="full"
             textBreakStrategy="highQuality"
           >
-            {teacher.name || thisLs?.[0]?.teacher?.name || 'Педагог'}
+            {displayName}
           </Txt>
           <Txt t="small" color={k.textSecondary} style={{ marginTop: 4, fontFamily: FONT[400] }}>
             {summary ? (
