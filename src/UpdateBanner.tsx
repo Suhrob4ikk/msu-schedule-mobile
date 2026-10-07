@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, TouchableOpacity, Linking, StyleSheet, AppState, AppStateStatus, Modal, ScrollView,
+  View, TouchableOpacity, StyleSheet, AppState, AppStateStatus, Modal, ScrollView,
 } from 'react-native';
 import { Text } from './OnestText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { api } from './api';
+import {
+  cancelDownload, installUpdate, openInBrowser, prepareUpdate, sizeLabel, startDownload, useUpdateState,
+} from './appUpdate';
 import { useTheme, useThemeMode } from './theme';
 
 const DISMISSED_KEY = 'update_dismissed_version';
@@ -51,6 +54,7 @@ export default function UpdateBanner() {
         const dismissedVersion = await AsyncStorage.getItem(DISMISSED_KEY);
         if (dismissedVersion === latest.version) { setDismissed(true); return; }
         setInfo(latest);
+        prepareUpdate(latest.version, latest.download_url);
       } catch {
         // Нет сети или GitHub недоступен — баннер просто не показываем.
       }
@@ -71,7 +75,27 @@ export default function UpdateBanner() {
     setDismissed(true);
   };
 
+  const up = useUpdateState();
+  const downloading = up.phase === 'downloading';
+  const pct = up.total > 0 ? Math.min(100, Math.round((up.received / up.total) * 100)) : null;
+
   if (!info || dismissed) return null;
+
+  // Подпись под «Версия 2.0.4» и кнопка — по ходу загрузки (src/appUpdate.ts)
+  const subtitle = downloading
+    ? `Загрузка${pct != null ? ` ${pct}%` : ''} · ${sizeLabel(up.received, up.total)}`
+    : up.phase === 'ready'
+      ? 'Загружено — можно установить'
+      : up.phase === 'error'
+        ? 'Не удалось скачать'
+        : info.missed_count > 1 ? `Что нового · ${info.missed_count} версии подряд` : 'Что нового';
+  const action = downloading
+    ? { label: 'Отмена', onPress: cancelDownload, a11y: 'Отменить загрузку' }
+    : up.phase === 'ready'
+      ? { label: 'Установить', onPress: installUpdate, a11y: `Установить версию ${info.version}` }
+      : up.phase === 'error'
+        ? { label: 'Повторить', onPress: startDownload, a11y: 'Скачать ещё раз' }
+        : { label: 'Обновить', onPress: startDownload, a11y: `Скачать и установить версию ${info.version}` };
 
   // высота панели вкладок (60) + системный отступ снизу + зазор
   const bottom = 60 + insets.bottom + 12;
@@ -106,24 +130,29 @@ export default function UpdateBanner() {
           <Text style={[s.title, { color: C.fg }]} numberOfLines={1}>
             Версия {info.version}
           </Text>
-          <Text style={[s.sub, { color: C.primaryText }]} numberOfLines={1}>
-            {info.missed_count > 1
-              ? `Что нового · ${info.missed_count} версии подряд`
-              : 'Что нового'}
+          <Text
+            style={[s.sub, { color: up.phase === 'error' ? C.statusOffline : C.primaryText }]}
+            numberOfLines={1}
+            accessibilityLiveRegion="polite"
+          >
+            {subtitle}
           </Text>
         </TouchableOpacity>
         {info.download_url && (
           <TouchableOpacity
-            onPress={() => Linking.openURL(info.download_url!)}
+            onPress={action.onPress}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`Скачать версию ${info.version}`}
-            style={[s.btn, { backgroundColor: C.primary }]}
+            accessibilityLabel={action.a11y}
+            style={[s.btn, downloading
+              ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border }
+              : { backgroundColor: C.primary }]}
           >
-            <Text style={[s.btnText, { color: C.primaryFg }]}>Скачать</Text>
+            <Text style={[s.btnText, { color: downloading ? C.fg : C.primaryFg }]}>{action.label}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
+        {/* Пока качается — без крестика: закрытие карточки загрузку бы не остановило, только спрятало */}
+        {!downloading && <TouchableOpacity
           onPress={dismiss}
           hitSlop={10}
           accessibilityRole="button"
@@ -131,7 +160,13 @@ export default function UpdateBanner() {
           style={s.close}
         >
           <Ionicons name="close" size={16} color={C.muted} />
-        </TouchableOpacity>
+        </TouchableOpacity>}
+        {/* Полоска загрузки по нижнему краю карточки */}
+        {downloading && (
+          <View pointerEvents="none" style={[s.track, { backgroundColor: C.border }]}>
+            <View style={{ height: 3, width: `${pct ?? 5}%`, backgroundColor: C.primary }} />
+          </View>
+        )}
       </BlurView>
 
       {/* Что нового: заметки всех пропущенных релизов, не только последнего */}
@@ -161,13 +196,21 @@ export default function UpdateBanner() {
               <Text style={[s.notesText, { color: C.fg }]}>{cleanNotes(info.notes)}</Text>
             </ScrollView>
 
-            {info.download_url && (
+            {info.download_url && !downloading && (
               <TouchableOpacity
-                onPress={() => { setShowNotes(false); Linking.openURL(info.download_url!); }}
+                onPress={() => { setShowNotes(false); action.onPress(); }}
                 activeOpacity={0.85}
                 style={[s.modalBtn, { backgroundColor: C.primary }]}
               >
-                <Text style={[s.btnText, { color: C.primaryFg }]}>Скачать обновление</Text>
+                <Text style={[s.btnText, { color: C.primaryFg }]}>
+                  {up.phase === 'ready' ? 'Установить' : 'Скачать и установить'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {/* Запасной путь: в приложении не качается — по ссылке в браузере */}
+            {info.download_url && (
+              <TouchableOpacity onPress={openInBrowser} style={{ alignItems: 'center', paddingVertical: 10 }}>
+                <Text style={[s.sub, { color: C.muted }]}>Скачать в браузере</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -204,6 +247,7 @@ const s = StyleSheet.create({
   btn: { borderRadius: 9, paddingHorizontal: 14, paddingVertical: 7 },
   btnText: { fontSize: 12.5, fontWeight: '700' },
   close: { padding: 2 },
+  track: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3 },
 
   modalBackdrop: {
     flex: 1,
