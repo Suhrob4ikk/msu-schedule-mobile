@@ -4,30 +4,59 @@
  * две части, а между ними встаёт большая карточка (как на макете).
  */
 import React, { memo, useEffect, useState } from 'react';
-import { Animated, AppState, LayoutChangeEvent, View } from 'react-native';
-import { Tokens, RADIUS } from './tokens';
+import { Animated, AppState, LayoutChangeEvent, View, useWindowDimensions } from 'react-native';
+import { Tokens, RADIUS, FONT, scaledWidth } from './tokens';
 import {
   Block, DayData, Focus, WeekRel, dayMeta, dayTitle, freeFromLabel, gapLabel, isPast, isoOf,
 } from './state';
 import { Txt, Divider } from './ui';
 import DayHeading, { dayPaddingTop } from './DayHeading';
-import LessonRow from './LessonRow';
+import LessonRow, { COL_GAP, COL_TIME, PairNum, ROW_PAD_X } from './LessonRow';
+import { PAIR_NUMBERS, PAIR_TIMES } from '../api';
 import FocusCard from './FocusCard';
 
 export type Marks = { notes: Set<string>; skips: Set<string> };
 
-type Item = { kind: 'row'; block: Block } | { kind: 'label'; text: string; key: string };
+type Item =
+  | { kind: 'row'; block: Block }
+  | { kind: 'label'; text: string; key: string }
+  | { kind: 'empty'; pair: string; key: string };
+
+/**
+ * Пустые пары до первой (проба по просьбе владельца, 7 окт 2026 — как в приложении
+ * msu.tj): день начинается с III — сверху бледные строки «I · 08:00–09:30» и
+ * «II · 09:45–11:15». После последней пары пустых строк нет.
+ */
+function emptiesBefore(blocks: Block[]): Item[] {
+  if (!blocks.length) return [];
+  const first = PAIR_NUMBERS.indexOf(blocks[0].pairs[0]);
+  return PAIR_NUMBERS.slice(0, Math.max(0, first)).map(p => ({ kind: 'empty' as const, pair: p, key: `empty|${p}` }));
+}
 
 function Segment({ items, k, now, rel, marks, onRowPress }: {
   items: Item[]; k: Tokens; now: Date; rel: WeekRel; marks: Marks; onRowPress: (b: Block) => void;
 }) {
+  const { fontScale } = useWindowDimensions();
   if (!items.length) return null;
   return (
     <View style={{ backgroundColor: k.card, borderRadius: RADIUS.card, overflow: 'hidden' }}>
       {items.map((it, i) => (
         <React.Fragment key={it.kind === 'row' ? it.block.key : it.key}>
           {i > 0 && <Divider k={k} />}
-          {it.kind === 'row' ? (
+          {it.kind === 'empty' ? (
+            <View
+              accessible
+              accessibilityLabel={`${it.pair} пара, ${PAIR_TIMES[it.pair][0]}–${PAIR_TIMES[it.pair][1]}, пары нет`}
+              // Как обычная пара: римская цифра и время, справа пусто — бледно (владелец, 7 окт 2026)
+              style={{ flexDirection: 'row', columnGap: COL_GAP, paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X }}
+            >
+              <PairNum pair={it.pair} color={k.textSecondary} fontScale={fontScale} />
+              <View style={{ width: scaledWidth(COL_TIME, fontScale) }}>
+                <Txt t="timeRow" color={k.textSecondary} numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: FONT[600] }}>{PAIR_TIMES[it.pair][0]}</Txt>
+                <Txt t="caption" color={k.textSecondary} numberOfLines={1} adjustsFontSizeToFit>{PAIR_TIMES[it.pair][1]}</Txt>
+              </View>
+            </View>
+          ) : it.kind === 'row' ? (
             <LessonRow
               block={it.block}
               k={k}
@@ -119,6 +148,7 @@ function DaySection({
   } else {
     before = itemsOf(d.blocks, null, !showDone);
   }
+  before = [...emptiesBefore(d.blocks), ...before];
 
   return (
     <View

@@ -220,8 +220,8 @@ function groupsOf(ls: Lesson[]): GroupRef[] {
 /**
  * Семь дней недели педагога. Пары одного слота с тем же предметом, типом и
  * аудиторией — одна строка с несколькими группами; разные предметы в одном
- * слоте — разные строки. Соседние слоты с тем же предметом, типом,
- * аудиторией и группами склеиваются («14:00 / 17:15 / 2 пары»).
+ * слоте — разные строки. Соседние пары не склеиваются — каждая своей строкой
+ * (решение владельца, 7 окт 2026; раньше было «14:00 / 17:15 / 2 пары»).
  */
 export function buildTeacherWeek(lessons: Lesson[], weekStart: string): TDay[] {
   return DAYS_ORDER.map((day, dayIndex) => {
@@ -239,15 +239,7 @@ export function buildTeacherWeek(lessons: Lesson[], weekStart: string): TDay[] {
       }
     }
 
-    const runs: Row[][] = [];
-    for (const r of rows) {
-      const run = runs.find(x => {
-        const last = x[x.length - 1];
-        return pairIdx(r.pair) - pairIdx(last.pair) === 1 && last.sig === r.sig && last.groupSig === r.groupSig;
-      });
-      if (run) run.push(r);
-      else runs.push([r]);
-    }
+    const runs: Row[][] = rows.map(r => [r]);
 
     const blocks: TBlock[] = runs.map(run => {
       const reps = run.map(r => r.lessons[0]);

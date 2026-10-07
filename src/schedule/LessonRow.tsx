@@ -10,13 +10,24 @@ import * as Haptics from 'expo-haptics';
 import type { Lesson } from '../api';
 import { DAYS_ORDER } from '../api';
 import { Tokens, FONT, scaledWidth } from './tokens';
-import { Block, addDays, blockA11y, pairsLabel, slotsLabel } from './state';
+import { Block, addDays, blockA11y, slotsLabel } from './state';
 import { Txt, KindBadge } from './ui';
 
 export const COL_TIME = 58;
 export const COL_ROOM = 56;
 export const COL_GAP = 12;
 export const ROW_PAD_X = 12;
+/** Узкий столбец номера пары слева («III»), как в приложении msu.tj (владелец, 7 окт 2026). */
+export const COL_PAIR = 30;
+
+/** Номер пары крупной римской цифрой — отдельным столбцом, вместо подписи «III пара» под временем. */
+export function PairNum({ pair, color, fontScale }: { pair: string; color: string; fontScale: number }) {
+  return (
+    <View style={{ width: scaledWidth(COL_PAIR, fontScale), marginRight: -4 }} importantForAccessibility="no-hide-descendants">
+      <Txt t="timeRow" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 22, lineHeight: 26, fontFamily: FONT[700] }}>{pair}</Txt>
+    </View>
+  );
+}
 
 export function openTeacher(l: Lesson) {
   if (!l.teacher) return;
@@ -74,19 +85,10 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
         backgroundColor: pressed ? k.surface2 : 'transparent',
       })}
     >
+      <PairNum pair={block.pairs[0]} color={sub} fontScale={fontScale} />
       <View style={{ width: scaledWidth(COL_TIME, fontScale) }}>
         <Txt t="timeRow" color={main} numberOfLines={1} adjustsFontSizeToFit style={bigWeight}>{block.start}</Txt>
-        {k.density === 'compact' ? (
-          // Компактная: конец и номер пары одной строкой — строка ниже на треть
-          <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>
-            {block.lessons.length > 1 ? block.end : `${block.end} · ${block.pairs[0]}`}
-          </Txt>
-        ) : (
-          <>
-            <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
-            <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{pairsLabel(block)}</Txt>
-          </>
-        )}
+        <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>

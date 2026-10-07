@@ -145,12 +145,9 @@ export function buildWeek(lessons: Lesson[], weekStart: string): DayData[] {
     const own = lessons
       .filter(l => l.day_of_week === day)
       .sort((a, b) => pairIdx(a.pair_number) - pairIdx(b.pair_number) || toMin(a.pair_time_start) - toMin(b.pair_time_start));
-    const runs: Lesson[][] = [];
-    for (const l of own) {
-      const run = runs[runs.length - 1];
-      if (run && sameBlock(run[run.length - 1], l)) run.push(l);
-      else runs.push([l]);
-    }
+    // Каждая пара — своей строкой, без склейки двух одинаковых подряд в «сдвоенную»
+    // (решение владельца, 7 окт 2026). sameBlock оставлен — на случай возврата.
+    const runs: Lesson[][] = own.map(l => [l]);
     const blocks = runs.map(r => makeBlock(r, lessonDate(r[0], weekStart)));
     return { day, dayIndex, date, blocks, pairCount: own.length };
   });
@@ -408,6 +405,15 @@ export function weekIsOver(now: Date, days: DayData[]): boolean {
   const t = now.getTime();
   return !days.some(d => d.blocks.some(b => b.endAt > t));
 }
+
+// ─── Аудитории в раскрытой карточке ─────────────────────────────────────────
+
+/**
+ * «404 401» → ['404', '401']: в раскрытой карточке каждая аудитория своей
+ * строкой, одна под другой (просьба владельца, 7 окт 2026), а не рядом.
+ */
+export const roomLines = (name: string | null | undefined): string[] =>
+  (name ?? '').trim().split(/\s+/).filter(Boolean);
 
 // ─── Приветствие ───────────────────────────────────────────────────────────
 

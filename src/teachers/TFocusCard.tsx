@@ -10,7 +10,7 @@ import React, { memo, useEffect, useState } from 'react';
 import { AppState, Pressable, View } from 'react-native';
 import { Tokens, RADIUS, TOUCH_MIN } from '../schedule/tokens';
 import { Txt, KindBadge, PillDot } from '../schedule/ui';
-import { leftParts } from '../schedule/state';
+import { leftParts, roomLines } from '../schedule/state';
 import { TFocus, focusA11y } from './state';
 import { GroupChips } from './TLessonRow';
 import { openRoomFromTeacher } from './ui';
@@ -41,6 +41,7 @@ function TFocusCard({ focus, k, onExpire }: { focus: TFocus; k: Tokens; onExpire
   const fg = filled ? k.onAccent : k.text;
   const fg2 = filled ? k.onAccent : k.textSecondary;
   const roomColor = filled ? k.onAccent : k.onAccentSoft;
+  const rooms = roomLines(block.room);
   const parts = leftMs != null ? leftParts(Math.max(0, leftMs)) : null;
   const progress = focus.progressFrom != null && focus.targetAt != null
     ? Math.min(1, Math.max(0, (now - focus.progressFrom) / (focus.targetAt - focus.progressFrom)))
@@ -102,8 +103,10 @@ function TFocusCard({ focus, k, onExpire }: { focus: TFocus; k: Tokens; onExpire
           accessibilityLabel={block.room ? `Аудитория ${block.room}, открыть` : 'Аудитория не указана'}
           style={{ alignItems: 'flex-end', marginLeft: 'auto', minHeight: TOUCH_MIN, justifyContent: 'flex-end' }}
         >
-          <Txt t="overline" color={fg2}>Аудитория</Txt>
-          <Txt t="display" color={roomColor} numberOfLines={1} adjustsFontSizeToFit>{block.room ?? '—'}</Txt>
+          <Txt t="overline" color={fg2}>{rooms.length > 1 ? 'Аудитории' : 'Аудитория'}</Txt>
+          {rooms.length
+            ? rooms.map(r => <Txt key={r} t="display" color={roomColor} numberOfLines={1} adjustsFontSizeToFit style={{ textAlign: 'right' }}>{r}</Txt>)
+            : <Txt t="display" color={roomColor}>—</Txt>}
         </Pressable>
       </View>
 

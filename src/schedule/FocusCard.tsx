@@ -9,7 +9,7 @@
 import React, { memo, useEffect, useState } from 'react';
 import { AppState, Pressable, View } from 'react-native';
 import { Tokens, RADIUS } from './tokens';
-import { Focus, blockA11y, leftParts, leftSpoken, slotsLabel } from './state';
+import { Focus, blockA11y, leftParts, leftSpoken, roomLines, slotsLabel } from './state';
 import { Txt, KindBadge, PillDot } from './ui';
 import { openRoom, openTeacher } from './LessonRow';
 
@@ -52,6 +52,7 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
   const fg2 = filled ? k.onAccent : k.textSecondary;
   const roomColor = filled ? k.onAccent : k.onAccentSoft;
   const l = block.lessons[0];
+  const rooms = roomLines(l.room?.name);
   const slots = slotsLabel(block);
   const parts = leftMs != null ? leftParts(Math.max(0, leftMs)) : null;
 
@@ -62,6 +63,46 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
   const status = leftMs != null
     ? `${focus.pill.toLowerCase()}, ${focus.countdownLabel} ${leftSpoken(Math.max(0, leftMs))}`
     : focus.pill.toLowerCase();
+
+  // Части карточки: при нескольких аудиториях они раскладываются по-другому (ниже)
+  const timeBlock = (
+    <View>
+      <Txt t="display" color={fg} numberOfLines={1}>{block.start}</Txt>
+      <Txt t="label" color={fg2} style={{ marginTop: 4 }}>до {block.end}</Txt>
+    </View>
+  );
+  const roomsEl = (
+    <Pressable
+      onPress={() => openRoom(slot)}
+      disabled={!l.room}
+      hitSlop={8}
+      accessibilityRole={l.room ? 'link' : 'text'}
+      accessibilityLabel={l.room ? `Аудитория ${l.room.name}, открыть во вкладке «Ауд.»` : 'Аудитория не указана'}
+      style={{ alignItems: 'flex-end', marginLeft: 'auto', minHeight: 48, justifyContent: rooms.length > 1 ? 'flex-start' : 'flex-end' }}
+    >
+      <Txt t="overline" color={fg2}>{rooms.length > 1 ? 'Аудитории' : 'Аудитория'}</Txt>
+      {rooms.length
+        ? rooms.map(r => <Txt key={r} t="display" color={roomColor} numberOfLines={1} style={{ textAlign: 'right' }}>{r}</Txt>)
+        : <Txt t="display" color={roomColor}>—</Txt>}
+    </Pressable>
+  );
+  const subjectEl = <Txt t="titleCard" color={fg} style={{ marginTop: 10 }}>{l.subject}</Txt>;
+  const metaEl = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 6, marginTop: 8 }}>
+      <KindBadge type={l.lesson_type} k={k} onAccent={filled} />
+      {l.teacher && (
+        <Pressable
+          onPress={() => openTeacher(l)}
+          hitSlop={SLOP}
+          accessibilityRole="link"
+          accessibilityLabel={`Расписание преподавателя ${l.teacher.name}`}
+        >
+          <Txt t="label" color={fg2}>{l.teacher.name}</Txt>
+        </Pressable>
+      )}
+    </View>
+  );
+  const slotsEl = slots ? <Txt t="caption" color={fg2} style={{ marginTop: 6 }}>{slots}</Txt> : null;
 
   return (
     <Pressable
@@ -106,43 +147,30 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
         )}
       </View>
 
-      {/* 2. Начало слева, аудитория справа; при крупном шрифте аудитория уходит вниз */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', columnGap: 12, rowGap: 6, marginTop: 10 }}>
-        <View>
-          <Txt t="display" color={fg} numberOfLines={1}>{block.start}</Txt>
-          <Txt t="label" color={fg2} style={{ marginTop: 4 }}>до {block.end}</Txt>
+      {rooms.length > 1 ? (
+        // Несколько аудиторий: первая — на уровне времени, остальные спускаются
+        // вниз, на пустое место рядом с предметом (владелец, 7 окт 2026)
+        <View style={{ flexDirection: 'row', columnGap: 12, marginTop: 10 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ marginTop: 14 }}>{timeBlock}</View>
+            {subjectEl}
+            {metaEl}
+            {slotsEl}
+          </View>
+          {roomsEl}
         </View>
-        <Pressable
-          onPress={() => openRoom(slot)}
-          disabled={!l.room}
-          hitSlop={8}
-          accessibilityRole={l.room ? 'link' : 'text'}
-          accessibilityLabel={l.room ? `Аудитория ${l.room.name}, открыть во вкладке «Ауд.»` : 'Аудитория не указана'}
-          style={{ alignItems: 'flex-end', marginLeft: 'auto', minHeight: 48, justifyContent: 'flex-end' }}
-        >
-          <Txt t="overline" color={fg2}>Аудитория</Txt>
-          <Txt t="display" color={roomColor} numberOfLines={1}>{l.room?.name ?? '—'}</Txt>
-        </Pressable>
-      </View>
-
-      {/* 3. Предмет */}
-      <Txt t="titleCard" color={fg} style={{ marginTop: 10 }}>{l.subject}</Txt>
-
-      {/* 4. Тип и преподаватель */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 6, marginTop: 8 }}>
-        <KindBadge type={l.lesson_type} k={k} onAccent={filled} />
-        {l.teacher && (
-          <Pressable
-            onPress={() => openTeacher(l)}
-            hitSlop={SLOP}
-            accessibilityRole="link"
-            accessibilityLabel={`Расписание преподавателя ${l.teacher.name}`}
-          >
-            <Txt t="label" color={fg2}>{l.teacher.name}</Txt>
-          </Pressable>
-        )}
-      </View>
-      {slots && <Txt t="caption" color={fg2} style={{ marginTop: 6 }}>{slots}</Txt>}
+      ) : (
+        <>
+          {/* 2. Начало слева, аудитория справа; при крупном шрифте аудитория уходит вниз */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', columnGap: 12, rowGap: 6, marginTop: 10 }}>
+            {timeBlock}
+            {roomsEl}
+          </View>
+          {subjectEl}
+          {metaEl}
+          {slotsEl}
+        </>
+      )}
 
       {/* 5. Прогресс — только в живых состояниях, во всю ширину */}
       {progress != null && (

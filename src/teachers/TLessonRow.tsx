@@ -7,7 +7,7 @@ import React, { memo } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import { Tokens, FONT, RADIUS, TOUCH_MIN, scaledWidth } from '../schedule/tokens';
 import { Txt, KindBadge } from '../schedule/ui';
-import { pairsLabel } from '../schedule/state';
+import { PairNum } from '../schedule/LessonRow';
 import { TBlock, tBlockA11y, GroupRef } from './state';
 import { openGroupSchedule, openRoomFromTeacher } from './ui';
 
@@ -71,6 +71,7 @@ function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolea
         paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X,
       }}
     >
+      <PairNum pair={block.pairs[0]} color={sub} fontScale={fontScale} />
       {/* Колонка времени — она же озвучивает строку целиком */}
       <View
         accessible
@@ -78,16 +79,7 @@ function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolea
         style={{ width: scaledWidth(COL_TIME, fontScale) }}
       >
         <Txt t="timeRow" color={main} numberOfLines={1} adjustsFontSizeToFit style={bigWeight}>{block.start}</Txt>
-        {k.density === 'compact' ? (
-          <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>
-            {block.lessons.length > 1 ? block.end : `${block.end} · ${block.pairs[0]}`}
-          </Txt>
-        ) : (
-          <>
-            <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
-            <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{pairsLabel(block)}</Txt>
-          </>
-        )}
+        <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>
