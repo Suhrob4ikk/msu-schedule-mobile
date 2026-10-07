@@ -322,12 +322,12 @@ function layout() {
             android:ellipsize="end"
             android:textColor="${W}" />
 
-        <!-- 5. Распорка: 10 dp + весь остаток высоты — сетка прижата к нижнему отступу -->
+        <!-- 5. Зазор 10 dp: сетка идёт сразу под карточкой (владелец 7 окт 2026: был большой
+             пустой зазор, когда распорка забирала весь остаток высоты) -->
         <LinearLayout
             android:id="@+id/widget_spacer"
             android:layout_width="match_parent"
             android:layout_height="10dp"
-            android:layout_weight="1"
             android:orientation="vertical" />
 
         <!-- 6. Сетка следующих пар: линия 1 dp + до 6 рядов по 2 плитки -->
@@ -345,6 +345,14 @@ function layout() {
                 android:background="${W}"
                 android:importantForAccessibility="no" />
 ${[1, 2, 3, 4, 5, 6].map(row).join('')}        </LinearLayout>
+
+        <!-- 7. Остаток высоты — внизу, под сеткой. Без сетки скрыт: карточка по центру -->
+        <LinearLayout
+            android:id="@+id/widget_filler"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical" />
     </LinearLayout>
 
     <!-- Пустые состояния: группа сверху, заголовок и подпись прижаты к низу -->

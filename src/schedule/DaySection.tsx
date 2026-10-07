@@ -11,7 +11,7 @@ import {
 } from './state';
 import { Txt, Divider } from './ui';
 import DayHeading, { dayPaddingTop } from './DayHeading';
-import LessonRow, { COL_GAP, PairNum, ROW_PAD_X, TimeRange } from './LessonRow';
+import LessonRow, { PairNum, ROW_GAP, ROW_PAD_X, TimeRange } from './LessonRow';
 import { PAIR_NUMBERS, PAIR_TIMES } from '../api';
 import FocusCard from './FocusCard';
 
@@ -48,7 +48,7 @@ function Segment({ items, k, now, rel, marks, onRowPress }: {
               accessible
               accessibilityLabel={`${it.pair} пара, ${PAIR_TIMES[it.pair][0]}–${PAIR_TIMES[it.pair][1]}, пары нет`}
               // Как обычная пара: римская цифра и время, справа пусто — бледно (владелец, 7 окт 2026)
-              style={{ flexDirection: 'row', columnGap: COL_GAP, paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X }}
+              style={{ flexDirection: 'row', columnGap: ROW_GAP, paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X }}
             >
               <PairNum pair={it.pair} color={k.textSecondary} fontScale={fontScale} />
               <View style={{ flex: 1 }} />

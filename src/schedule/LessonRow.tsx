@@ -18,7 +18,9 @@ export const COL_ROOM = 56;
 export const COL_GAP = 12;
 export const ROW_PAD_X = 12;
 /** Столбец номера пары слева («III»), как в приложении msu.tj (владелец, 7 окт 2026). */
-export const COL_PAIR = 50;
+export const COL_PAIR = 38;
+/** Зазор между столбцами строки пары — меньше общего (владелец: «отступ слишком большой»). */
+export const ROW_GAP = 8;
 /** Крупнее прежнего (владелец 7 окт 2026: «маленький шрифт»): предмет 17, серая строка 14. */
 export const ROW_SUBJ = { fontSize: 17, lineHeight: 22 } as const;
 export const ROW_LINE = { fontSize: 14, lineHeight: 19 } as const;
@@ -80,7 +82,7 @@ interface Props {
 
 /**
  * Строка в формате приложения msu.tj (решение владельца, 7 окт 2026): крупная
- * римская цифра · предмет, под ним серым «преподаватель · тип · ауд. 105»
+ * римская цифра · предмет, под ним серым «преподаватель · тип · 105» (номер аудитории жирным, без «ауд.»)
  * (преподаватель и аудитория нажимаются) · справа время в две строки.
  */
 function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
@@ -101,7 +103,7 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
   if (l.room) {
     parts.push(
       <Txt key="r" t="captionStrong" color={main} style={ROW_LINE} onPress={() => openRoom(l)} accessibilityRole="link"
-        accessibilityLabel={`Аудитория ${l.room.name}, открыть во вкладке «Ауд.»`}>ауд. {l.room.name}</Txt>,
+        accessibilityLabel={`Аудитория ${l.room.name}, открыть во вкладке «Ауд.»`}>{l.room.name}</Txt>,
     );
   }
 
@@ -111,7 +113,7 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={blockA11y(block, past ? 'прошла' : undefined)}
       style={({ pressed }) => ({
-        flexDirection: 'row', alignItems: 'stretch', columnGap: COL_GAP, minHeight: k.rowMin,
+        flexDirection: 'row', alignItems: 'stretch', columnGap: ROW_GAP, minHeight: k.rowMin,
         paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X,
         backgroundColor: pressed ? k.surface2 : 'transparent',
       })}

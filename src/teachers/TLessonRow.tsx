@@ -7,7 +7,7 @@ import React, { memo } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import { Tokens, FONT, RADIUS, TOUCH_MIN, scaledWidth } from '../schedule/tokens';
 import { Txt, KindBadge } from '../schedule/ui';
-import { PairNum, ROW_LINE, ROW_SUBJ, TimeRange } from '../schedule/LessonRow';
+import { PairNum, ROW_GAP, ROW_LINE, ROW_SUBJ, TimeRange } from '../schedule/LessonRow';
 import { lessonKind } from '../schedule/state';
 import { TBlock, tBlockA11y, GroupRef } from './state';
 import { openGroupSchedule, openRoomFromTeacher } from './ui';
@@ -58,7 +58,7 @@ export function GroupChips({ groups, date, k, variant = 'row', badge }: {
   );
 }
 
-/** Строка педагога в формате msu.tj, как у группы: цифра · предмет, «тип · ауд.», группы · время справа. */
+/** Строка педагога в формате msu.tj, как у группы: цифра · предмет, «тип · 105», группы · время справа. */
 function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolean }) {
   const { fontScale } = useWindowDimensions();
   const main = past ? k.textSecondary : k.text;
@@ -71,7 +71,7 @@ function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolea
     parts.push(
       <Txt key="r" t="captionStrong" color={main} style={ROW_LINE} accessibilityRole="link" accessibilityLabel={`Аудитория ${block.room}, открыть`}
         onPress={() => block.room && openRoomFromTeacher(block.room, first.day_of_week, first.pair_number, block.date)}>
-        ауд. {block.room}
+        {block.room}
       </Txt>,
     );
   }
@@ -79,7 +79,7 @@ function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolea
   return (
     <View
       style={{
-        flexDirection: 'row', columnGap: COL_GAP, minHeight: k.rowMin,
+        flexDirection: 'row', columnGap: ROW_GAP, minHeight: k.rowMin,
         paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X,
       }}
     >

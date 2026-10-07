@@ -321,7 +321,8 @@ class ScheduleWidget : AppWidgetProvider() {
             val avail = h - PADS - cardHeight(f, s, rooms, Detail.FULL) - 10f - 1f
             val minRow = max(44f * s, ceil(34f * f * s) + 10f)
             val n = minOf(6, floor(avail / minRow).toInt(), (upcoming + 1) / 2).coerceAtLeast(0)
-            return if (n == 0) Grid(0, 0f) else Grid(n, min(60f * s, avail / n))
+            // Ряды до 76 dp: свободное место уходит в ряды (они крупнее), остаток — вниз
+            return if (n == 0) Grid(0, 0f) else Grid(n, min(76f * s, avail / n))
         }
 
         private data class Plan(val s: Float, val grid: Grid, val detail: Detail)
@@ -514,7 +515,11 @@ class ScheduleWidget : AppWidgetProvider() {
             val show = if (grid.rows > 0) View.VISIBLE else View.GONE
             views.setViewVisibility(R.id.widget_spacer, show)
             views.setViewVisibility(R.id.widget_grid, show)
+            // Остаток высоты — под сеткой; без сетки — нет, тогда карточка по центру
+            views.setViewVisibility(R.id.widget_filler, show)
             if (grid.rows == 0) return
+            // Высокий ряд — шрифт плиток крупнее (до ×1,4), чтобы место не пустовало
+            val ts = s * (grid.rowH / (48f * s)).coerceIn(1f, 1.4f)
 
             // Ряды — ровно rowH (≤ 60); остаток высоты забирает распорка над сеткой
             // (weight в разметке): сетка прижата к нижнему отступу, пустой полосы внизу нет.
@@ -540,9 +545,9 @@ class ScheduleWidget : AppWidgetProvider() {
                 views.setTextViewText(ids[0], item?.let { tileTime(it, hero) } ?: "")
                 views.setTextViewText(ids[1], item?.let { it.room.ifEmpty { "—" } } ?: "")
                 views.setTextViewText(ids[2], item?.subject ?: "")
-                views.setTextViewTextSize(ids[0], TypedValue.COMPLEX_UNIT_SP, 13f * s)
-                views.setTextViewTextSize(ids[1], TypedValue.COMPLEX_UNIT_SP, 15f * s)
-                views.setTextViewTextSize(ids[2], TypedValue.COMPLEX_UNIT_SP, 12f * s)
+                views.setTextViewTextSize(ids[0], TypedValue.COMPLEX_UNIT_SP, 13f * ts)
+                views.setTextViewTextSize(ids[1], TypedValue.COMPLEX_UNIT_SP, 15f * ts)
+                views.setTextViewTextSize(ids[2], TypedValue.COMPLEX_UNIT_SP, 12f * ts)
                 paint.text(ids[0], ink)
                 paint.text(ids[1], tileRoom)
                 paint.text(ids[2], ink2)
