@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Предпросмотр в списке виджетов (Android 12+, previewLayout): малая
-     раскладка, «Идёт пара», синий акцент по умолчанию. Статичный — данных
-     здесь нет. Для Android 11 и старше — картинка widget_preview.png
-     (вырезана из макета). Размеры — как в widget_compact.xml. -->
+<!-- Предпросмотр в списке виджетов (Android 12+, previewLayout): карточка
+     «Идёт · III пара», синий акцент по умолчанию. Статичный — данных здесь нет.
+     Для Android 11 и старше — картинка widget_preview.png (старый вариант C).
+     Размеры — базовые из widget_full.xml (масштаб 1). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -22,25 +22,89 @@
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:paddingTop="12dp"
+        android:paddingTop="14dp"
         android:paddingBottom="12dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minHeight="44dp"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <TextView
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
-                android:text="403"
-                android:textSize="44dp"
-                android:fontFamily="sans-serif-black"
-                android:letterSpacing="-0.02"
+                android:layout_height="wrap_content"
+                android:background="@drawable/widget_plate"
+                android:backgroundTint="#5981EE"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:text="Идёт · III пара"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif"
+                android:textStyle="bold"
                 android:includeFontPadding="false"
                 android:textColor="#FFFFFF" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="до конца"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:textColor="#EAEFFD" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="24:12"
+                android:textSize="24dp"
+                android:fontFamily="sans-serif"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="bottom">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="11:30"
+                    android:textSize="42dp"
+                    android:fontFamily="sans-serif"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:textColor="#FFFFFF" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="до 13:00"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:textColor="#EAEFFD" />
+            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -50,40 +114,38 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
                 android:orientation="vertical"
                 android:gravity="end">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="42:13"
-                    android:textSize="22dp"
-                    android:lineHeight="26dp"
+                    android:text="АУДИТОРИЯ"
+                    android:textSize="10sp"
                     android:fontFamily="sans-serif"
                     android:textStyle="bold"
+                    android:letterSpacing="0.1"
                     android:includeFontPadding="false"
-                    android:textColor="#FFFFFF" />
+                    android:textColor="#EAEFFD" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="до конца"
-                    android:textSize="11sp"
-                    android:lineHeight="14sp"
-                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginTop="2dp"
+                    android:text="105"
+                    android:textSize="42dp"
+                    android:fontFamily="sans-serif-black"
                     android:includeFontPadding="false"
-                    android:textColor="#EAEFFD" />
+                    android:textColor="#FFFFFF" />
             </LinearLayout>
         </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Численные методы"
-            android:textSize="15sp"
-            android:lineHeight="19sp"
+            android:layout_marginTop="6dp"
+            android:text="Языки и методы программирования"
+            android:textSize="17sp"
             android:fontFamily="sans-serif"
             android:textStyle="bold"
             android:includeFontPadding="false"
@@ -94,14 +156,12 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="09:45–11:15 · Лекция · Хайбуллоев Д.А."
-            android:textSize="12sp"
-            android:lineHeight="16sp"
+            android:layout_marginTop="4dp"
+            android:text="Лекция · Самохина М.А."
+            android:textSize="13sp"
             android:fontFamily="sans-serif-medium"
             android:includeFontPadding="false"
             android:maxLines="1"
-            android:ellipsize="end"
             android:textColor="#EAEFFD" />
     </LinearLayout>
-
 </FrameLayout>

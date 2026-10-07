@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Виджет «Расписание», вариант C «Аудитория» — ПОЛНАЯ раскладка (H ≥ 245 dp).
-     ТЗ widget-C-TZ.md, разделы 2.1 и 3. Сгенерирована скриптом вместе с
-     widget_compact.xml — правя одну, правьте и другую (общие id).
+<!-- Виджет «Расписание» в виде карточки «идёт сейчас» из приложения (решение
+     владельца 7 окт 2026, вместо варианта C «Аудитория»): пилюля статуса и
+     отсчёт, крупно время начала и аудитория, предмет, «тип · преподаватель»,
+     под карточкой — сетка следующих пар, если виджет растянут выше.
+     Одна раскладка на все размеры: масштаб считает ScheduleWidget.kt (plan()).
+     Сгенерирована скриптом native-widget/gen-layouts.js — руками не править.
 
      Цвета здесь — заглушки: настоящие ставит ScheduleWidget.kt из widget_theme
-     (подложка — белая картинка, её красит setColorFilter; линии — setBackgroundColor).
-     Крупные цифры — в dp (не растут со шрифтом системы), остальное — в sp.
-     Ряды сетки: на Android 12+ высоту каждого ставит код (формула ТЗ 2.3, ≤ 60 dp),
-     на старых — 44 dp (наименьший ряд ТЗ). Остаток высоты всегда забирает распорка
-     над сеткой (weight), поэтому сетка прижата к нижнему отступу.
+     (подложки — белые картинки, их красит setColorFilter; линии — setBackgroundColor).
+     Ряды сетки: на Android 12+ высоту каждого ставит код, на старых — 44 dp.
      Только классы RemoteViews: простой <View> лаунчер не покажет. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -33,63 +33,118 @@
         android:paddingTop="14dp"
         android:paddingBottom="12dp">
 
-        <!-- 1. Строка статуса: слева статус (заглавные), справа группа -->
+        <!-- 1. Пилюля статуса слева, отсчёт справа -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-            <TextView
-                android:id="@+id/widget_status"
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+
+                <ImageView
+                    android:id="@+id/widget_pill_bg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/widget_plate"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/widget_pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF" />
+            </FrameLayout>
+
+            <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="1dp"
                 android:layout_weight="1"
-                android:textSize="11sp"
-                android:lineHeight="14sp"
-                android:fontFamily="sans-serif"
-                android:textStyle="bold"
-                android:letterSpacing="0.06"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFFFFF" />
+                android:minWidth="8dp" />
 
-            <TextView
-                android:id="@+id/widget_group"
+            <!-- «до конца» мелко + живой отсчёт крупно: тикает сам лаунчер (Chronometer) -->
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:textSize="11sp"
-                android:lineHeight="14sp"
-                android:fontFamily="sans-serif-medium"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textColor="#FFFFFF" />
+                android:orientation="horizontal"
+                android:baselineAligned="true">
+
+                <TextView
+                    android:id="@+id/widget_timer_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF" />
+
+                <Chronometer
+                    android:id="@+id/widget_countdown"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:gravity="end"
+                    android:textSize="24dp"
+                    android:fontFamily="sans-serif"
+                    android:textStyle="bold"
+                    android:fontFeatureSettings="tnum"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- 2. Шапка: слева аудитория, справа блок отсчёта -->
-        <!-- Высота точная: на Android 12+ её ставит код (heroRow, растёт с шириной),
-             на старых — 44/56 dp. Аудитория выше строки обрезается только снизу,
-             где у цифр нет начертания. -->
+        <!-- 2. Слева время начала и «до 13:00», справа «АУДИТОРИЯ» и номер -->
         <LinearLayout
             android:id="@+id/widget_hero"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="6dp"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="bottom">
 
-            <TextView
-                android:id="@+id/widget_room"
+            <LinearLayout
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
-                android:textSize="56dp"
-                android:fontFamily="sans-serif-black"
-                android:fontFeatureSettings="tnum"
-                android:letterSpacing="-0.02"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textColor="#FFFFFF" />
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/widget_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="42dp"
+                    android:fontFamily="sans-serif"
+                    android:textStyle="bold"
+                    android:fontFeatureSettings="tnum"
+                    android:letterSpacing="-0.02"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/widget_until"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF" />
+            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -100,71 +155,33 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
                 android:orientation="vertical"
                 android:gravity="end">
 
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content">
-
-                    <!-- Плашка отсчёта в перемену: фон fill, скругление 10 dp -->
-                    <ImageView
-                        android:id="@+id/widget_plate"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:scaleType="fitXY"
-                        android:src="@drawable/widget_plate"
-                        android:visibility="gone"
-                        android:importantForAccessibility="no" />
-
-                    <LinearLayout
-                        android:id="@+id/widget_timer_inner"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <!-- Живой отсчёт: тикает сам лаунчер, см. шапку ScheduleWidget.kt -->
-                        <Chronometer
-                            android:id="@+id/widget_countdown"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:gravity="end"
-                            android:textSize="28dp"
-                            android:lineHeight="32dp"
-                            android:fontFamily="sans-serif"
-                            android:textStyle="bold"
-                            android:fontFeatureSettings="tnum"
-                            android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:textColor="#FFFFFF"
-                            android:visibility="gone" />
-
-                        <!-- «Завтра» / «Пн» вместо отсчёта, когда пар сегодня больше нет -->
-                        <TextView
-                            android:id="@+id/widget_day"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textSize="20dp"
-                            android:lineHeight="32dp"
-                            android:fontFamily="sans-serif"
-                            android:textStyle="bold"
-                            android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:textColor="#FFFFFF"
-                            android:visibility="gone" />
-                    </LinearLayout>
-                </FrameLayout>
-
                 <TextView
-                    android:id="@+id/widget_timer_label"
+                    android:id="@+id/widget_room_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="11sp"
-                    android:lineHeight="14sp"
-                    android:fontFamily="sans-serif-medium"
+                    android:textSize="10sp"
+                    android:fontFamily="sans-serif"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.1"
                     android:includeFontPadding="false"
                     android:maxLines="1"
+                    android:textColor="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/widget_room"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:gravity="end"
+                    android:textSize="42dp"
+                    android:fontFamily="sans-serif-black"
+                    android:fontFeatureSettings="tnum"
+                    android:letterSpacing="-0.02"
+                    android:includeFontPadding="false"
+                    android:maxLines="2"
                     android:textColor="#FFFFFF" />
             </LinearLayout>
         </LinearLayout>
@@ -174,9 +191,8 @@
             android:id="@+id/widget_subject"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:textSize="17sp"
-            android:lineHeight="22sp"
             android:fontFamily="sans-serif"
             android:textStyle="bold"
             android:includeFontPadding="false"
@@ -184,13 +200,13 @@
             android:ellipsize="end"
             android:textColor="#FFFFFF" />
 
-        <!-- 4. Время · тип · преподаватель -->
+        <!-- 4. Тип · преподаватель -->
         <TextView
             android:id="@+id/widget_meta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
             android:textSize="13sp"
-            android:lineHeight="18sp"
             android:fontFamily="sans-serif-medium"
             android:includeFontPadding="false"
             android:maxLines="1"

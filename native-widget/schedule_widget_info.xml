@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Виджет «Расписание», вариант C «Аудитория» (ТЗ widget-C-TZ.md, раздел 1).
-     Один виджет, тянется по ширине и высоте; раскладку (малая / компактная /
-     полная) выбирает ScheduleWidget.kt по фактической высоте. По умолчанию 4×2.
+<!-- Виджет «Расписание» — карточка «идёт сейчас» (с 7 окт 2026; до того вариант C, ТЗ widget-C-TZ.md).
+     Один виджет, тянется по ширине и высоте; одна раскладка widget_full, размеры
+     подгоняет ScheduleWidget.kt под фактический размер. По умолчанию 4×2.
      previewLayout — Android 12+, previewImage — для старых. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
@@ -11,7 +11,7 @@
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/widget_compact"
+    android:initialLayout="@layout/widget_full"
     android:previewLayout="@layout/widget_preview"
     android:previewImage="@drawable/widget_preview"
     android:resizeMode="horizontal|vertical"

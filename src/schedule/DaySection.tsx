@@ -11,7 +11,7 @@ import {
 } from './state';
 import { Txt, Divider } from './ui';
 import DayHeading, { dayPaddingTop } from './DayHeading';
-import LessonRow, { COL_GAP, COL_TIME, PairNum, ROW_PAD_X } from './LessonRow';
+import LessonRow, { COL_GAP, PairNum, ROW_PAD_X, TimeRange } from './LessonRow';
 import { PAIR_NUMBERS, PAIR_TIMES } from '../api';
 import FocusCard from './FocusCard';
 
@@ -51,10 +51,8 @@ function Segment({ items, k, now, rel, marks, onRowPress }: {
               style={{ flexDirection: 'row', columnGap: COL_GAP, paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X }}
             >
               <PairNum pair={it.pair} color={k.textSecondary} fontScale={fontScale} />
-              <View style={{ width: scaledWidth(COL_TIME, fontScale) }}>
-                <Txt t="timeRow" color={k.textSecondary} numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: FONT[600] }}>{PAIR_TIMES[it.pair][0]}</Txt>
-                <Txt t="caption" color={k.textSecondary} numberOfLines={1} adjustsFontSizeToFit>{PAIR_TIMES[it.pair][1]}</Txt>
-              </View>
+              <View style={{ flex: 1 }} />
+              <TimeRange start={PAIR_TIMES[it.pair][0]} end={PAIR_TIMES[it.pair][1]} color={k.textSecondary} sub={k.textSecondary} past />
             </View>
           ) : it.kind === 'row' ? (
             <LessonRow

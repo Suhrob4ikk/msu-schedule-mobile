@@ -98,11 +98,12 @@ private enum class EmptyKind { NOT_LOADED, HOLIDAY, NO_NEXT_WEEK }
 private data class Grid(val rows: Int, val rowH: Float)
 
 /**
- * Виджет «Расписание», вариант C «Аудитория» (ТЗ widget-C-TZ.md, макет
- * widget-C-maket.png). Номер аудитории — самый крупный элемент, цвет всего
- * виджета показывает статус пары, под шапкой — сетка следующих пар, число
- * рядов зависит от высоты. Один виджет, тянется по ширине и высоте:
- * H < 170 — малая раскладка, 170…245 — компактная, от 245 — полная.
+ * Виджет «Расписание» — карточка «идёт сейчас» как в приложении (решение
+ * владельца 7 окт 2026; до того — вариант C «Аудитория», ТЗ widget-C-TZ.md):
+ * пилюля «Идёт · III пара» и отсчёт, крупно время начала и аудитория, предмет,
+ * «тип · преподаватель». Цвет всего виджета показывает статус пары. Растянут
+ * выше — под карточкой сетка следующих пар. Одна раскладка (widget_full.xml),
+ * размеры подгоняет plan() под фактическую ширину и высоту.
  *
  * Данные пишет приложение (src/widgetData.ts) в AsyncStorage под ключом
  * "widget_data" — эта и следующая неделя своей группы; читаем их напрямую из
@@ -121,7 +122,9 @@ private data class Grid(val rows: Int, val rowH: Float)
  * Отсчёт (widget_countdown) — системный android.widget.Chronometer:
  * setChronometer() один раз сообщает лаунчеру цель, а дальше ТИКАЕТ САМ
  * ЛАУНЧЕР, посекундно, без наших обновлений (с v1.9.25). Формат системный —
- * «42:13», после часа «1:05:09». Полос прогресса и колец нет.
+ * «42:13», после часа «1:05:09» (владелец выбрал секунды, а не «24 мин»:
+ * минутам пришлось бы будить виджет каждую минуту). Полосы прогресса нет —
+ * по той же причине.
  *
  * Размеры: на Android 12+ лаунчер сообщает все фактические размеры
  * (OPTION_APPWIDGET_SIZES), и мы отдаём по раскладке на каждый —
@@ -129,6 +132,7 @@ private data class Grid(val rows: Int, val rowH: Float)
  * (≤ 60 dp); остаток высоты всегда забирает распорка над сеткой (weight в
  * разметке). На старых — размер из MIN/MAX_WIDTH/HEIGHT по ориентации, ряды
  * по 44 dp из разметки (высоту ряда RemoteViews до Android 12 задать не умеют).
+ * Шрифты карточки ставит код (× масштаб), поэтому она уменьшается и на старых.
  *
  * Цвет фона со скруглением RemoteViews менять не умеют — подложки здесь
  * белые картинки (widget_bg, widget_plate), их перекрашивает setColorFilter;
@@ -172,7 +176,7 @@ class ScheduleWidget : AppWidgetProvider() {
         /** Наш будильник «пара сменилась, перерисуй виджет». */
         const val ACTION_TICK = "tj.msu.schedule.WIDGET_TICK"
 
-        /** Раскладки по высоте, dp (ТЗ, раздел 1). */
+        /** Пустые состояния: мельче заголовок у низкого виджета, крупнее у высокого, dp. */
         private const val SMALL_BELOW = 170f
         private const val FULL_FROM = 245f
 
@@ -263,65 +267,81 @@ class ScheduleWidget : AppWidgetProvider() {
             return min(at, midnight)
         }
 
-        // ── Сетка (ТЗ 2.3) и масштаб ─────────────────────────────────────────
+        // ── Размеры карточки и масштаб ───────────────────────────────────────
 
-        /** Ширина, под которую нарисован макет ТЗ, и потолок увеличения (решение владельца 6 окт 2026). */
+        /** Ширина, под которую подобраны базовые размеры; пределы масштаба. */
         private const val BASE_WIDTH = 280f
         private const val MAX_SCALE = 1.25f
+        private const val MIN_SCALE = 0.5f
+
+        /** Базовые размеры карточки при масштабе 1: крупные цифры — dp, подписи — sp. */
+        private const val PILL_SP = 12f
+        private const val LABEL_SP = 13f
+        private const val TIMER_DP = 24f
+        private const val TIME_DP = 42f
+        private const val UNTIL_SP = 14f
+        private const val ROOM_LABEL_SP = 10f
+        private const val ROOM_DP = 42f
+        private const val SUBJ_SP = 17f
+        private const val META_SP = 13f
+
+        /** Отступы карточки сверху и снизу, dp (разметка: 14 и 12). */
+        private const val PADS = 26f
+
+        /** Высота строки к размеру шрифта (includeFontPadding=false), с запасом. */
+        private const val LH = 1.22f
 
         /**
-         * Строка шапки (аудитория + блок отсчёта). По ТЗ 56/44 dp, но не ниже блока
-         * отсчёта: 2 + строка счётчика 32/26 + подпись 14·f — при ×1,3 подпись иначе
-         * срезалась бы. s — масштаб под ширину виджета.
+         * Высота карточки без сетки, dp. f — системный масштаб шрифта (растит только
+         * подписи в sp), s — наш масштаб под размер виджета, rooms — строк аудиторий.
          */
-        private fun heroRow(full: Boolean, f: Float, s: Float): Float =
-            if (full) max(56f * s, 2f + 32f * s + 14f * f * s) else max(44f * s, 2f + 26f * s + 14f * f * s)
+        private fun cardHeight(f: Float, s: Float, rooms: Int, meta: Boolean): Float {
+            val top = max(PILL_SP * f * s * LH + 8f, TIMER_DP * s * LH)
+            val timeCol = TIME_DP * s * LH + 2f + UNTIL_SP * f * s * LH
+            val roomCol = ROOM_LABEL_SP * f * s * LH + 2f + ROOM_DP * s * LH * max(1, rooms)
+            val subject = 6f + SUBJ_SP * f * s * LH
+            val metaH = if (meta) 4f + META_SP * f * s * LH else 0f
+            return top + 8f + max(timeCol, roomCol) + subject + metaH
+        }
 
-        private fun heroHeight(full: Boolean, f: Float, s: Float, meta: Boolean = true): Float =
-            if (full) 14f * f * s + 6f + heroRow(true, f, s) + 4f + 22f * f * s + (if (meta) 18f * f * s else 0f)
-            else heroRow(false, f, s) + 4f + 19f * f * s + (if (meta) 16f * f * s else 0f)
-
-        private fun gridFor(h: Float, f: Float, full: Boolean, upcoming: Int, s: Float): Grid {
-            val top = if (full) 14f else 12f
-            val avail = h - top - heroHeight(full, f, s) - 10f - 12f - 1f
+        /** Сетка следующих пар под карточкой: N рядов по rowH dp (как в ТЗ 2.3, ≤ 60 dp). */
+        private fun gridFor(h: Float, f: Float, upcoming: Int, s: Float, rooms: Int): Grid {
+            val avail = h - PADS - cardHeight(f, s, rooms, true) - 10f - 1f
             val minRow = max(44f * s, ceil(34f * f * s) + 10f)
             val n = minOf(6, floor(avail / minRow).toInt(), (upcoming + 1) / 2).coerceAtLeast(0)
             return if (n == 0) Grid(0, 0f) else Grid(n, min(60f * s, avail / n))
         }
 
-        private data class Plan(val full: Boolean, val s: Float, val grid: Grid, val meta: Boolean)
+        private data class Plan(val s: Float, val grid: Grid, val meta: Boolean)
 
         /**
-         * Раскладка под размер (решение владельца 6 окт 2026: макет ТЗ рисовали на
-         * 280 × 110 dp, а на крупных ячейках Xiaomi оставалось много пустого места).
-         *
-         * Полная — от 245 dp. Масштаб s растёт с шириной (280 dp → ×1), не больше ×1,25,
-         * только на Android 12+: там высоты шапки и рядов задаёт код. Число рядов пар —
-         * сколько помещается без увеличения (сетка появляется примерно с 160 dp, а не
-         * строго с 170, как в ТЗ), а s — самый крупный, который не отнимает ни одного
-         * ряда: пары важнее крупного шрифта. Ряд не помещается или пар нет — только
-         * шапка по центру, а s — пока она влезает по высоте. Строка «время · тип · преподаватель»
-         * прячется, если не влезает и она (в ТЗ: малый 110 dp при шрифте ≥ ×1,15).
+         * Раскладка под размер. Масштаб s растёт с шириной (280 dp → ×1, не больше
+         * ×1,25 — только Android 12+, где у каждого размера своя раскладка) и
+         * уменьшается, пока карточка не влезет по высоте (не меньше ×0,5). Ряды
+         * следующих пар — сколько помещается без увеличения: пары важнее крупного
+         * шрифта. Не влезает и при ×0,8 — прячем строку «тип · преподаватель».
          */
-        private fun plan(w: Float, h: Float, f: Float, upcoming: Int, scalable: Boolean): Plan {
-            val full = h >= FULL_FROM
-            val sMax = if (scalable) (w / BASE_WIDTH).coerceIn(1f, MAX_SCALE) else 1f
-            // Сколько рядов помещается без увеличения — столько и оставляем: крупнее
-            // делаем, только пока это не отнимает ни одного ряда пар.
-            val rows = if (upcoming > 0) gridFor(h, f, full, upcoming, 1f).rows else 0
+        private fun plan(w: Float, h: Float, f: Float, upcoming: Int, rooms: Int): Plan {
+            val sMax = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) (w / BASE_WIDTH).coerceIn(1f, MAX_SCALE) else 1f
+            val rows = if (upcoming > 0) gridFor(h, f, upcoming, 1f, rooms).rows else 0
             if (rows > 0) {
                 var s = sMax
-                while (s > 1f && gridFor(h, f, full, upcoming, s).rows < rows) s = max(1f, s - 0.01f)
-                return Plan(full, s, gridFor(h, f, full, upcoming, s), true)
+                while (s > 1f && gridFor(h, f, upcoming, s, rooms).rows < rows) s = max(1f, s - 0.01f)
+                return Plan(s, gridFor(h, f, upcoming, s, rooms), true)
             }
-            val pads = (if (full) 14f else 12f) + 12f
             var s = sMax
-            while (s > 1f && pads + heroHeight(full, f, s) > h) s = max(1f, s - 0.01f)
-            return Plan(full, s, Grid(0, 0f), pads + heroHeight(full, f, s) <= h)
+            while (s > 0.8f && PADS + cardHeight(f, s, rooms, true) > h) s -= 0.01f
+            if (PADS + cardHeight(f, s, rooms, true) <= h) return Plan(s, Grid(0, 0f), true)
+            s = sMax
+            while (s > MIN_SCALE && PADS + cardHeight(f, s, rooms, false) > h) s -= 0.01f
+            return Plan(s, Grid(0, 0f), false)
         }
 
         private fun scaleOf(w: Float) =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) (w / BASE_WIDTH).coerceIn(1f, MAX_SCALE) else 1f
+
+        /** «704 701» → ["704", "701"]: несколько аудиторий — одна под другой, как в приложении. */
+        private fun roomLines(room: String): List<String> = room.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
 
         // ── Отрисовка ────────────────────────────────────────────────────────
 
@@ -360,19 +380,19 @@ class ScheduleWidget : AppWidgetProvider() {
             val f = context.resources.configuration.fontScale
             val hero = heroOf(state)
             val upcoming = if (hero != null) data!!.items.filter { it.start > hero.start }.take(12) else emptyList()
-            val scalable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-            val p = plan(size.width, h, f, upcoming.size, scalable)
-            val full = p.full
+            val rooms = hero?.let { roomLines(it.room) } ?: emptyList()
+            val p = plan(size.width, h, f, upcoming.size, rooms.size.coerceIn(1, 2))
             val s = p.s
-            val views = RemoteViews(context.packageName, if (full) R.layout.widget_full else R.layout.widget_compact)
+            val views = RemoteViews(context.packageName, R.layout.widget_full)
             val paint = Painter(views, colors, night)
             val sp = TypedValue.COMPLEX_UNIT_SP
             val dip = TypedValue.COMPLEX_UNIT_DIP
+            val density = context.resources.displayMetrics.density
 
             views.setOnClickPendingIntent(R.id.widget_root, openScheduleIntent(context))
 
             if (state is WState.Empty || hero == null) {
-                fillEmpty(views, paint, state as WState.Empty, !full && h < SMALL_BELOW, full, scaleOf(size.width))
+                fillEmpty(views, paint, state as WState.Empty, h < SMALL_BELOW, h >= FULL_FROM, scaleOf(size.width))
                 return views
             }
             views.setViewVisibility(R.id.widget_content, View.VISIBLE)
@@ -380,8 +400,8 @@ class ScheduleWidget : AppWidgetProvider() {
 
             val live = state is WState.Live
             val soft = state is WState.Break || state is WState.Next
-            // Палитра по состояниям — ТЗ 4.2
-            // «Пар больше нет» — не белый, а лёгкий оттенок акцента (решение владельца 6 окт 2026)
+            // Палитра по состояниям: идёт — заливка акцентом (как карточка в приложении),
+            // перемена и утро — accent-soft, «пар больше нет» — лёгкий оттенок акцента
             val bg: (Palette) -> Int = { if (live) it.fill else if (soft) it.soft else it.tint }
             val ink: (Palette) -> Int = { if (live) it.onFill else it.ink }
             val ink2: (Palette) -> Int = { if (live) it.onFill2 else it.ink2 }
@@ -391,92 +411,76 @@ class ScheduleWidget : AppWidgetProvider() {
 
             paint.fill(R.id.widget_bg, bg)
 
-            // 1. Строка статуса (только полная)
-            if (full) {
-                views.setTextViewText(R.id.widget_status, statusText(state).uppercase(RU))
-                views.setTextViewText(R.id.widget_group, data?.group ?: "")
-                views.setTextViewTextSize(R.id.widget_status, sp, 11f * s)
-                views.setTextViewTextSize(R.id.widget_group, sp, 11f * s)
-                paint.text(R.id.widget_status, ink2)
-                paint.text(R.id.widget_group, ink2)
-            }
+            // 1. Пилюля статуса: «Идёт · III пара»
+            views.setTextViewText(R.id.widget_pill, statusText(state))
+            views.setTextViewTextSize(R.id.widget_pill, sp, PILL_SP * s)
+            paint.fill(R.id.widget_pill_bg, line)
+            paint.text(R.id.widget_pill, ink)
 
-            // 2. Шапка: блок отсчёта справа
-            val density = context.resources.displayMetrics.density
-            val timerDp = (if (full) 28f else 22f) * s
-            val dayDp = (if (full) 20f else 17f) * s
-            val labelPaint = textPaint("sans-serif-medium", 11f * f * s * density)
-            views.setTextViewTextSize(R.id.widget_countdown, dip, timerDp)
-            views.setTextViewTextSize(R.id.widget_day, dip, dayDp)
-            views.setTextViewTextSize(R.id.widget_timer_label, sp, 11f * s)
-            // Строка шапки — ровно по формуле (на старых Android — 44/56 dp из разметки)
-            if (scalable) views.setViewLayoutHeight(R.id.widget_hero, heroRow(full, f, s), dip)
-            var blockPx: Float
-            val plate = state is WState.Break
-            views.setViewVisibility(R.id.widget_plate, if (plate) View.VISIBLE else View.GONE)
-            val platePad = if (plate) (8f * density).toInt() else 0
-            views.setViewPadding(R.id.widget_timer_inner, platePad, 0, platePad, 0)
-
+            // Справа: «до конца» / «через» + живой отсчёт; пар сегодня больше нет — «Завтра, 8 окт.»
+            views.setTextViewTextSize(R.id.widget_timer_label, sp, LABEL_SP * s)
+            views.setTextViewTextSize(R.id.widget_countdown, dip, TIMER_DP * s)
             if (state is WState.Later) {
                 val tomorrow = isTomorrow(hero.start, now)
-                val dayWord = if (tomorrow) "Завтра" else dayShort(hero.start)
-                val dateLine = if (tomorrow) "${dayShort(hero.start)}, ${dateShort(hero.start)}" else dateShort(hero.start)
+                val label = if (tomorrow) "Завтра, ${dateShort(hero.start)}" else "${dayShort(hero.start)}, ${dateShort(hero.start)}"
                 views.setViewVisibility(R.id.widget_countdown, View.GONE)
-                views.setViewVisibility(R.id.widget_day, View.VISIBLE)
-                views.setTextViewText(R.id.widget_day, dayWord)
-                views.setTextViewText(R.id.widget_timer_label, dateLine)
-                paint.text(R.id.widget_day) { it.ink }
-                blockPx = max(
-                    textPaint("sans-serif", dayDp * density, bold = true).measureText(dayWord),
-                    labelPaint.measureText(dateLine),
-                )
+                views.setTextViewText(R.id.widget_timer_label, label)
+                paint.text(R.id.widget_timer_label, ink)
             } else {
                 val target = if (live) hero.end else hero.start
-                val label = if (live) "до конца" else "до начала"
                 // Chronometer считает от SystemClock.elapsedRealtime(), а не от
                 // System.currentTimeMillis() — переносим разницу в его систему отсчёта.
                 views.setChronometer(R.id.widget_countdown, SystemClock.elapsedRealtime() + (target - now), null, true)
                 views.setChronometerCountDown(R.id.widget_countdown, true)
                 views.setViewVisibility(R.id.widget_countdown, View.VISIBLE)
-                views.setViewVisibility(R.id.widget_day, View.GONE)
-                views.setTextViewText(R.id.widget_timer_label, label)
-                // Место под «0:00:00», чтобы шапка не прыгала, когда отсчёт перевалит за час
-                val timerPx = textPaint("sans-serif", timerDp * density, bold = true).measureText("0:00:00")
-                views.setInt(R.id.widget_countdown, "setMinWidth", ceil(timerPx).toInt())
-                paint.text(R.id.widget_countdown) { if (live || plate) it.onFill else it.onSoft }
-                if (plate) paint.fill(R.id.widget_plate) { it.fill }
-                blockPx = max(timerPx + 2 * platePad, labelPaint.measureText(label))
+                views.setTextViewText(R.id.widget_timer_label, if (live) "до конца" else "через")
+                paint.text(R.id.widget_countdown, ink)
+                paint.text(R.id.widget_timer_label, ink2)
             }
-            paint.text(R.id.widget_timer_label, ink2)
 
-            // Аудитория: 56/44 dp; длиннее 4 знаков — 32; не влезает — меньше, но не ниже 20 (ТЗ 6)
-            val roomText = hero.room.ifEmpty { "—" }
-            val availPx = size.width * density - 32f * density - 12f * density - blockPx
-            var roomDp = (if (roomText.length > 4) 32f else if (full) 56f else 44f) * s
+            // 2. Время начала и «до 13:00» слева
+            val timeText = hhmm(hero.start)
+            views.setTextViewText(R.id.widget_time, timeText)
+            views.setTextViewTextSize(R.id.widget_time, dip, TIME_DP * s)
+            views.setTextViewText(R.id.widget_until, "до ${hhmm(hero.end)}")
+            views.setTextViewTextSize(R.id.widget_until, sp, UNTIL_SP * s)
+            paint.text(R.id.widget_time, ink)
+            paint.text(R.id.widget_until, ink2)
+
+            // Аудитория справа: несколько — одна под другой; не влезает по ширине —
+            // меньше, но не ниже 18 dp
+            val roomTextLines = rooms.ifEmpty { listOf("—") }.take(2)
+            views.setTextViewText(R.id.widget_room_label, if (rooms.size > 1) "АУДИТОРИИ" else "АУДИТОРИЯ")
+            views.setTextViewTextSize(R.id.widget_room_label, sp, ROOM_LABEL_SP * s)
+            val timePx = textPaint("sans-serif", TIME_DP * s * density, bold = true).measureText(timeText)
+            val availPx = size.width * density - 32f * density - 12f * density - timePx
+            var roomDp = ROOM_DP * s
             val roomPaint = textPaint("sans-serif-black", 0f).apply { letterSpacing = -0.02f }
-            while (roomDp > 20f) {
+            while (roomDp > 18f) {
                 roomPaint.textSize = roomDp * density
-                if (roomPaint.measureText(roomText) <= availPx) break
+                if (roomTextLines.all { roomPaint.measureText(it) <= availPx }) break
                 roomDp -= 1f
             }
-            views.setTextViewText(R.id.widget_room, roomText)
-            views.setTextViewTextSize(R.id.widget_room, TypedValue.COMPLEX_UNIT_DIP, roomDp)
+            views.setTextViewText(R.id.widget_room, roomTextLines.joinToString("\n"))
+            views.setTextViewTextSize(R.id.widget_room, dip, roomDp)
+            paint.text(R.id.widget_room_label, ink2)
             paint.text(R.id.widget_room, room)
+            // Одна аудитория — низ номера на уровне «до 13:00»; несколько — столбик вниз от верха
+            views.setInt(R.id.widget_hero, "setGravity", if (rooms.size > 1) Gravity.TOP else Gravity.BOTTOM)
 
-            // 3–4. Предмет и «время · тип · преподаватель»
+            // 3–4. Предмет и «тип · преподаватель»
             views.setTextViewText(R.id.widget_subject, hero.subject)
             views.setTextViewText(R.id.widget_meta, metaLine(hero))
-            views.setTextViewTextSize(R.id.widget_subject, sp, (if (full) 17f else 15f) * s)
-            views.setTextViewTextSize(R.id.widget_meta, sp, (if (full) 13f else 12f) * s)
+            views.setTextViewTextSize(R.id.widget_subject, sp, SUBJ_SP * s)
+            views.setTextViewTextSize(R.id.widget_meta, sp, META_SP * s)
             paint.text(R.id.widget_subject, ink)
             paint.text(R.id.widget_meta, ink2)
-            // Не влезает по высоте (малый при крупном шрифте, ТЗ 2.2) — третью строку прячем
-            views.setViewVisibility(R.id.widget_meta, if (p.meta) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_meta, if (p.meta && metaLine(hero).isNotEmpty()) View.VISIBLE else View.GONE)
 
-            // 5–6. Распорка и сетка
+            // 5–6. Распорка и сетка следующих пар
             val grid = p.grid
             fillGrid(views, paint, grid, upcoming, hero, ink, ink2, line, tileRoom, s)
-            // Нет сетки — шапка по центру, как у малой: без пустой полосы внизу
+            // Нет сетки — карточка по центру: без пустой полосы внизу
             views.setInt(R.id.widget_content, "setGravity", if (grid.rows == 0) Gravity.CENTER_VERTICAL else Gravity.TOP)
 
             views.setContentDescription(R.id.widget_root, describe(state, hero, now))
@@ -563,6 +567,7 @@ class ScheduleWidget : AppWidgetProvider() {
 
         private fun pairWord(l: LessonItem) = if (l.pair.isNotEmpty()) " · ${l.pair} пара" else ""
 
+        /** Текст пилюли — как в карточке приложения: «Идёт · III пара». */
         private fun statusText(s: WState): String = when (s) {
             is WState.Live -> "Идёт${pairWord(s.hero)}".let { if (s.hero.pair.isEmpty()) "Идёт пара" else it }
             is WState.Break -> "Перемена${pairWord(s.hero)}"
@@ -571,9 +576,9 @@ class ScheduleWidget : AppWidgetProvider() {
             is WState.Empty -> ""
         }
 
-        /** «09:45–11:15 · Лекция · Хайбуллоев Д.А.» — преподаватель как пришёл. */
+        /** «Лекция · Хайбуллоев Д.А.» — время уже крупно сверху; преподаватель как пришёл. */
         private fun metaLine(l: LessonItem): String =
-            listOf("${hhmm(l.start)}–${hhmm(l.end)}", l.type, l.teacher).filter { it.isNotEmpty() }.joinToString(" · ")
+            listOf(l.type, l.teacher).filter { it.isNotEmpty() }.joinToString(" · ")
 
         /** «09:45», если в тот же день, что пара в шапке, иначе «Вт 09:45». */
         private fun tileTime(l: LessonItem, hero: LessonItem): String =

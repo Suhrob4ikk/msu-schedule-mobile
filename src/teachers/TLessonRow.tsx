@@ -7,7 +7,8 @@ import React, { memo } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import { Tokens, FONT, RADIUS, TOUCH_MIN, scaledWidth } from '../schedule/tokens';
 import { Txt, KindBadge } from '../schedule/ui';
-import { PairNum } from '../schedule/LessonRow';
+import { PairNum, TimeRange } from '../schedule/LessonRow';
+import { lessonKind } from '../schedule/state';
 import { TBlock, tBlockA11y, GroupRef } from './state';
 import { openGroupSchedule, openRoomFromTeacher } from './ui';
 
@@ -57,12 +58,23 @@ export function GroupChips({ groups, date, k, variant = 'row', badge }: {
   );
 }
 
+/** Строка педагога в формате msu.tj, как у группы: цифра · предмет, «тип · ауд.», группы · время справа. */
 function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolean }) {
   const { fontScale } = useWindowDimensions();
   const main = past ? k.textSecondary : k.text;
   const sub = k.textSecondary;
-  const bigWeight = past ? { fontFamily: FONT[600] } : null;
   const first = block.lessons[0];
+  const kind = lessonKind(block.type);
+  const parts: React.ReactNode[] = [];
+  if (kind) parts.push(<Txt key="k" t="caption" color={sub}>{kind.label}</Txt>);
+  if (block.room) {
+    parts.push(
+      <Txt key="r" t="captionStrong" color={main} accessibilityRole="link" accessibilityLabel={`Аудитория ${block.room}, открыть`}
+        onPress={() => block.room && openRoomFromTeacher(block.room, first.day_of_week, first.pair_number, block.date)}>
+        ауд. {block.room}
+      </Txt>,
+    );
+  }
 
   return (
     <View
@@ -71,53 +83,21 @@ function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolea
         paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X,
       }}
     >
-      <PairNum pair={block.pairs[0]} color={sub} fontScale={fontScale} />
-      {/* Колонка времени — она же озвучивает строку целиком */}
-      <View
-        accessible
-        accessibilityLabel={tBlockA11y(block, past ? 'прошла' : undefined)}
-        style={{ width: scaledWidth(COL_TIME, fontScale) }}
-      >
-        <Txt t="timeRow" color={main} numberOfLines={1} adjustsFontSizeToFit style={bigWeight}>{block.start}</Txt>
-        <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
-      </View>
+      <PairNum pair={block.pairs[0]} color={main} fontScale={fontScale} />
 
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Txt t="titleRow" color={main} importantForAccessibility="no" android_hyphenationFrequency="full">{block.subject}</Txt>
-        <View style={{ marginTop: -2, marginBottom: -k.rowPadY }}>
-          <GroupChips
-            groups={block.groups}
-            date={block.date}
-            k={k}
-            badge={<View importantForAccessibility="no-hide-descendants"><KindBadge type={block.type} k={k} muted={past} /></View>}
-          />
+      <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
+        <Txt t="titleRow" color={main} accessibilityLabel={tBlockA11y(block, past ? 'прошла' : undefined)} android_hyphenationFrequency="full">{block.subject}</Txt>
+        {parts.length > 0 && (
+          <Txt t="caption" color={sub} style={{ marginTop: 3 }}>
+            {parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? ' · ' : ''}{p}</React.Fragment>)}
+          </Txt>
+        )}
+        <View style={{ marginBottom: -k.rowPadY, marginTop: -6 }}>
+          <GroupChips groups={block.groups} date={block.date} k={k} />
         </View>
       </View>
 
-      {/* Вся правая ячейка на высоту строки — зона нажатия аудитории */}
-      <Pressable
-        onPress={() => block.room && openRoomFromTeacher(block.room, first.day_of_week, first.pair_number, block.date)}
-        disabled={!block.room}
-        accessibilityRole={block.room ? 'link' : 'text'}
-        accessibilityLabel={block.room ? `Аудитория ${block.room}, открыть` : 'Аудитория не указана'}
-        style={{
-          width: scaledWidth(COL_ROOM, fontScale) + ROW_PAD_X + COL_GAP / 2,
-          marginVertical: -k.rowPadY, paddingVertical: k.rowPadY,
-          marginRight: -ROW_PAD_X, paddingRight: ROW_PAD_X,
-          marginLeft: -COL_GAP / 2, minHeight: Math.max(k.rowMin, TOUCH_MIN),
-          alignItems: 'flex-end',
-        }}
-      >
-        <Txt
-          t="roomRow"
-          color={block.room ? main : sub}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          style={[{ textAlign: 'right' }, bigWeight]}
-        >
-          {block.room ?? '—'}
-        </Txt>
-      </Pressable>
+      <TimeRange start={block.start} end={block.end} color={main} sub={sub} past={past} />
     </View>
   );
 }

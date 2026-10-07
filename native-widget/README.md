@@ -4,22 +4,22 @@
 что должен жить внутри самого приложения. Папка `android/` в `.gitignore`
 (генерируется `expo prebuild`), поэтому исходники хранятся тут.
 
-## Виджет «Расписание» (вариант C «Аудитория», с 1.9.48)
+## Виджет «Расписание» (карточка «идёт сейчас», с 2.0.3; до того вариант C «Аудитория»)
 
 Если `android/` пересоздавался или файлы здесь правились — скопируй в `android/app/src/main/`:
 
 | Файл здесь | Куда |
 |---|---|
 | `ScheduleWidget.kt` | `java/tj/msu/schedule/` |
-| `widget_full.xml`, `widget_compact.xml`, `widget_preview.xml` | `res/layout/` |
+| `widget_full.xml`, `widget_preview.xml` | `res/layout/` |
 | `widget_bg.xml`, `widget_plate.xml` | `res/drawable/` |
 | `widget_bg_v31.xml` | `res/drawable-v31/` **под именем `widget_bg.xml`** |
 | `widget_preview.png` | `res/drawable-nodpi/` |
 | `schedule_widget_info.xml` | `res/xml/` |
 
-`widget_full.xml` и `widget_compact.xml` не правятся руками — их пишет
-`node native-widget/gen-layouts.js` (у них общие id, так они не разъедутся).
-`gen-layouts.js` в `android/` не копируется.
+`widget_full.xml` не правится руками — его пишет `node native-widget/gen-layouts.js`.
+`gen-layouts.js` в `android/` не копируется. С 2.0.3 раскладка одна: `widget_compact.xml`
+удалён (если остался в `android/res/layout/` — удалить).
 
 Удалены в 1.9.48 (если остались в `android/` — удалить, иначе висят мёртвым грузом):
 `res/layout/widget_schedule.xml`, `res/layout/widget_schedule_large.xml`,

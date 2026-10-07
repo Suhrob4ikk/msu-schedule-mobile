@@ -10,21 +10,31 @@ import * as Haptics from 'expo-haptics';
 import type { Lesson } from '../api';
 import { DAYS_ORDER } from '../api';
 import { Tokens, FONT, scaledWidth } from './tokens';
-import { Block, addDays, blockA11y, slotsLabel } from './state';
+import { Block, addDays, blockA11y, lessonKind, slotsLabel } from './state';
 import { Txt, KindBadge } from './ui';
 
 export const COL_TIME = 58;
 export const COL_ROOM = 56;
 export const COL_GAP = 12;
 export const ROW_PAD_X = 12;
-/** Узкий столбец номера пары слева («III»), как в приложении msu.tj (владелец, 7 окт 2026). */
-export const COL_PAIR = 30;
+/** Столбец номера пары слева («III»), как в приложении msu.tj (владелец, 7 окт 2026). */
+export const COL_PAIR = 44;
 
-/** Номер пары крупной римской цифрой — отдельным столбцом, вместо подписи «III пара» под временем. */
+/** Номер пары крупной римской цифрой на всю высоту строки. */
 export function PairNum({ pair, color, fontScale }: { pair: string; color: string; fontScale: number }) {
   return (
-    <View style={{ width: scaledWidth(COL_PAIR, fontScale), marginRight: -4 }} importantForAccessibility="no-hide-descendants">
-      <Txt t="timeRow" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 22, lineHeight: 26, fontFamily: FONT[700] }}>{pair}</Txt>
+    <View style={{ width: scaledWidth(COL_PAIR, fontScale), justifyContent: 'center' }} importantForAccessibility="no-hide-descendants">
+      <Txt t="timeRow" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 32, lineHeight: 36, fontFamily: FONT[500] }}>{pair}</Txt>
+    </View>
+  );
+}
+
+/** Время справа в две строки: начало жирным, ниже конец (владелец: «чтобы мало места по ширине»). */
+export function TimeRange({ start, end, color, sub, past }: { start: string; end: string; color: string; sub: string; past?: boolean }) {
+  return (
+    <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+      <Txt t="timeRow" color={color} numberOfLines={1} style={past ? { fontFamily: FONT[600] } : null}>{start}</Txt>
+      <Txt t="caption" color={sub} numberOfLines={1}>{end}</Txt>
     </View>
   );
 }
@@ -65,14 +75,32 @@ interface Props {
   onPress: (b: Block) => void;
 }
 
+/**
+ * Строка в формате приложения msu.tj (решение владельца, 7 окт 2026): крупная
+ * римская цифра · предмет, под ним серым «преподаватель · тип · ауд. 105»
+ * (преподаватель и аудитория нажимаются) · справа время в две строки.
+ */
 function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
   const { fontScale } = useWindowDimensions();
   const l = block.lessons[0];
   const main = past ? k.textSecondary : k.text;
   const sub = k.textSecondary;
-  // Прошедшие: весь текст в text-secondary, время и аудитория — начертание 600
-  const bigWeight = past ? { fontFamily: FONT[600] } : null;
   const slots = slotsLabel(block);
+  const kind = lessonKind(l.lesson_type);
+  const parts: React.ReactNode[] = [];
+  if (l.teacher) {
+    parts.push(
+      <Txt key="t" t="caption" color={sub} onPress={() => openTeacher(l)} accessibilityRole="link"
+        accessibilityLabel={`Расписание преподавателя ${l.teacher.name}`}>{l.teacher.name}</Txt>,
+    );
+  }
+  if (kind) parts.push(<Txt key="k" t="caption" color={sub}>{kind.label}</Txt>);
+  if (l.room) {
+    parts.push(
+      <Txt key="r" t="captionStrong" color={main} onPress={() => openRoom(l)} accessibilityRole="link"
+        accessibilityLabel={`Аудитория ${l.room.name}, открыть во вкладке «Ауд.»`}>ауд. {l.room.name}</Txt>,
+    );
+  }
 
   return (
     <Pressable
@@ -80,61 +108,28 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={blockA11y(block, past ? 'прошла' : undefined)}
       style={({ pressed }) => ({
-        flexDirection: 'row', columnGap: COL_GAP, minHeight: k.rowMin,
+        flexDirection: 'row', alignItems: 'stretch', columnGap: COL_GAP, minHeight: k.rowMin,
         paddingVertical: k.rowPadY, paddingHorizontal: ROW_PAD_X,
         backgroundColor: pressed ? k.surface2 : 'transparent',
       })}
     >
-      <PairNum pair={block.pairs[0]} color={sub} fontScale={fontScale} />
-      <View style={{ width: scaledWidth(COL_TIME, fontScale) }}>
-        <Txt t="timeRow" color={main} numberOfLines={1} adjustsFontSizeToFit style={bigWeight}>{block.start}</Txt>
-        <Txt t="caption" color={sub} numberOfLines={1} adjustsFontSizeToFit>{block.end}</Txt>
-      </View>
+      <PairNum pair={block.pairs[0]} color={main} fontScale={fontScale} />
 
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
         <Txt t="titleRow" color={main}>{l.subject}</Txt>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, marginTop: 4 }}>
-          <KindBadge type={l.lesson_type} k={k} muted={past} />
-          {l.teacher && (
-            <Pressable
-              onPress={() => openTeacher(l)}
-              hitSlop={SLOP}
-              accessibilityRole="link"
-              accessibilityLabel={`Расписание преподавателя ${l.teacher.name}`}
-            >
-              <Txt t="caption" color={sub}>{l.teacher.name}</Txt>
-            </Pressable>
-          )}
-          {skipped && <Ionicons name="close-circle" size={14} color={k.statusOffline} accessibilityLabel="пропуск отмечен" />}
-          {hasNote && <Ionicons name="create-outline" size={14} color={k.accentText} accessibilityLabel="есть заметка" />}
-        </View>
+        <Txt t="caption" color={sub} style={{ marginTop: 3 }}>
+          {parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? ' · ' : ''}{p}</React.Fragment>)}
+        </Txt>
+        {(skipped || hasNote) && (
+          <View style={{ flexDirection: 'row', columnGap: 6, marginTop: 3 }}>
+            {skipped && <Ionicons name="close-circle" size={14} color={k.statusOffline} accessibilityLabel="пропуск отмечен" />}
+            {hasNote && <Ionicons name="create-outline" size={14} color={k.accentText} accessibilityLabel="есть заметка" />}
+          </View>
+        )}
         {slots && <Txt t="caption" color={sub} style={{ marginTop: 2 }}>{slots}</Txt>}
       </View>
 
-      {/* Вся правая ячейка на высоту строки — зона нажатия аудитории */}
-      <Pressable
-        onPress={() => openRoom(l)}
-        disabled={!l.room}
-        accessibilityRole={l.room ? 'link' : 'text'}
-        accessibilityLabel={l.room ? `Аудитория ${l.room.name}, открыть во вкладке «Ауд.»` : 'Аудитория не указана'}
-        style={{
-          width: scaledWidth(COL_ROOM, fontScale) + ROW_PAD_X + COL_GAP / 2,
-          marginVertical: -k.rowPadY, paddingVertical: k.rowPadY,
-          marginRight: -ROW_PAD_X, paddingRight: ROW_PAD_X,
-          marginLeft: -COL_GAP / 2, minHeight: k.rowMin,
-          alignItems: 'flex-end',
-        }}
-      >
-        <Txt
-          t="roomRow"
-          color={l.room ? main : sub}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          style={[{ textAlign: 'right' }, bigWeight]}
-        >
-          {l.room?.name ?? '—'}
-        </Txt>
-      </Pressable>
+      <TimeRange start={block.start} end={block.end} color={main} sub={sub} past={past} />
     </Pressable>
   );
 }
