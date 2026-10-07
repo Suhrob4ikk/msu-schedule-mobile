@@ -7,7 +7,7 @@ import React, { memo } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import { Tokens, FONT, RADIUS, TOUCH_MIN, scaledWidth } from '../schedule/tokens';
 import { Txt, KindBadge } from '../schedule/ui';
-import { PairNum, TimeRange } from '../schedule/LessonRow';
+import { PairNum, ROW_LINE, ROW_SUBJ, TimeRange } from '../schedule/LessonRow';
 import { lessonKind } from '../schedule/state';
 import { TBlock, tBlockA11y, GroupRef } from './state';
 import { openGroupSchedule, openRoomFromTeacher } from './ui';
@@ -66,10 +66,10 @@ function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolea
   const first = block.lessons[0];
   const kind = lessonKind(block.type);
   const parts: React.ReactNode[] = [];
-  if (kind) parts.push(<Txt key="k" t="caption" color={sub}>{kind.label}</Txt>);
+  if (kind) parts.push(<Txt key="k" t="caption" color={sub} style={ROW_LINE}>{kind.label}</Txt>);
   if (block.room) {
     parts.push(
-      <Txt key="r" t="captionStrong" color={main} accessibilityRole="link" accessibilityLabel={`Аудитория ${block.room}, открыть`}
+      <Txt key="r" t="captionStrong" color={main} style={ROW_LINE} accessibilityRole="link" accessibilityLabel={`Аудитория ${block.room}, открыть`}
         onPress={() => block.room && openRoomFromTeacher(block.room, first.day_of_week, first.pair_number, block.date)}>
         ауд. {block.room}
       </Txt>,
@@ -86,9 +86,9 @@ function TLessonRow({ block, k, past }: { block: TBlock; k: Tokens; past: boolea
       <PairNum pair={block.pairs[0]} color={main} fontScale={fontScale} />
 
       <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
-        <Txt t="titleRow" color={main} accessibilityLabel={tBlockA11y(block, past ? 'прошла' : undefined)} android_hyphenationFrequency="full">{block.subject}</Txt>
+        <Txt t="titleRow" color={main} style={ROW_SUBJ} accessibilityLabel={tBlockA11y(block, past ? 'прошла' : undefined)} android_hyphenationFrequency="full">{block.subject}</Txt>
         {parts.length > 0 && (
-          <Txt t="caption" color={sub} style={{ marginTop: 3 }}>
+          <Txt t="caption" color={sub} style={[{ marginTop: 3 }, ROW_LINE]}>
             {parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? ' · ' : ''}{p}</React.Fragment>)}
           </Txt>
         )}

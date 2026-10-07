@@ -285,41 +285,54 @@ class ScheduleWidget : AppWidgetProvider() {
         private const val SUBJ_SP = 17f
         private const val META_SP = 13f
 
-        /** Отступы карточки сверху и снизу, dp (разметка: 14 и 12). */
+        /** Отступы карточки сверху и снизу, dp: обычные 14 + 12, у низкого виджета 10 + 8. */
         private const val PADS = 26f
+        private const val PADS_TIGHT = 18f
 
         /** Высота строки к размеру шрифта (includeFontPadding=false), с запасом. */
         private const val LH = 1.22f
 
         /**
-         * Высота карточки без сетки, dp. f — системный масштаб шрифта (растит только
-         * подписи в sp), s — наш масштаб под размер виджета, rooms — строк аудиторий.
+         * Насколько подробна карточка. FULL — всё; NO_META — без «тип · преподаватель»;
+         * TIGHT — ещё без «до 15:30» и подписи «АУДИТОРИЯ», поля меньше: у виджета 4×2
+         * высотой ~120 dp иначе всё ужималось вдвое (владелец 7 окт 2026: «маленький шрифт»).
          */
-        private fun cardHeight(f: Float, s: Float, rooms: Int, meta: Boolean): Float {
+        private enum class Detail { FULL, NO_META, TIGHT }
+
+        private fun padsOf(d: Detail) = if (d == Detail.TIGHT) PADS_TIGHT else PADS
+
+        /**
+         * Высота карточки без сетки и без полей, dp. f — системный масштаб шрифта
+         * (растит только подписи в sp), s — наш масштаб, rooms — строк аудиторий.
+         */
+        private fun cardHeight(f: Float, s: Float, rooms: Int, d: Detail): Float {
             val top = max(PILL_SP * f * s * LH + 8f, TIMER_DP * s * LH)
-            val timeCol = TIME_DP * s * LH + 2f + UNTIL_SP * f * s * LH
-            val roomCol = ROOM_LABEL_SP * f * s * LH + 2f + ROOM_DP * s * LH * max(1, rooms)
+            val until = if (d == Detail.TIGHT) 0f else 2f + UNTIL_SP * f * s * LH
+            val label = if (d == Detail.TIGHT) 0f else ROOM_LABEL_SP * f * s * LH + 2f
+            val timeCol = TIME_DP * s * LH + until
+            val roomCol = label + ROOM_DP * s * LH * max(1, rooms)
             val subject = 6f + SUBJ_SP * f * s * LH
-            val metaH = if (meta) 4f + META_SP * f * s * LH else 0f
+            val metaH = if (d == Detail.FULL) 4f + META_SP * f * s * LH else 0f
             return top + 8f + max(timeCol, roomCol) + subject + metaH
         }
 
         /** Сетка следующих пар под карточкой: N рядов по rowH dp (как в ТЗ 2.3, ≤ 60 dp). */
         private fun gridFor(h: Float, f: Float, upcoming: Int, s: Float, rooms: Int): Grid {
-            val avail = h - PADS - cardHeight(f, s, rooms, true) - 10f - 1f
+            val avail = h - PADS - cardHeight(f, s, rooms, Detail.FULL) - 10f - 1f
             val minRow = max(44f * s, ceil(34f * f * s) + 10f)
             val n = minOf(6, floor(avail / minRow).toInt(), (upcoming + 1) / 2).coerceAtLeast(0)
             return if (n == 0) Grid(0, 0f) else Grid(n, min(60f * s, avail / n))
         }
 
-        private data class Plan(val s: Float, val grid: Grid, val meta: Boolean)
+        private data class Plan(val s: Float, val grid: Grid, val detail: Detail)
 
         /**
          * Раскладка под размер. Масштаб s растёт с шириной (280 dp → ×1, не больше
-         * ×1,25 — только Android 12+, где у каждого размера своя раскладка) и
-         * уменьшается, пока карточка не влезет по высоте (не меньше ×0,5). Ряды
+         * ×1,25 — только Android 12+, где у каждого размера своя раскладка). Ряды
          * следующих пар — сколько помещается без увеличения: пары важнее крупного
-         * шрифта. Не влезает и при ×0,8 — прячем строку «тип · преподаватель».
+         * шрифта. Без сетки сначала убираем второстепенное (Detail), и только потом
+         * уменьшаем шрифт: полная карточка — пока хватает ×0,95, без строки
+         * «тип · преподаватель» — ×0,9, плотная — дальше вниз до ×0,5.
          */
         private fun plan(w: Float, h: Float, f: Float, upcoming: Int, rooms: Int): Plan {
             val sMax = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) (w / BASE_WIDTH).coerceIn(1f, MAX_SCALE) else 1f
@@ -327,14 +340,14 @@ class ScheduleWidget : AppWidgetProvider() {
             if (rows > 0) {
                 var s = sMax
                 while (s > 1f && gridFor(h, f, upcoming, s, rooms).rows < rows) s = max(1f, s - 0.01f)
-                return Plan(s, gridFor(h, f, upcoming, s, rooms), true)
+                return Plan(s, gridFor(h, f, upcoming, s, rooms), Detail.FULL)
             }
-            var s = sMax
-            while (s > 0.8f && PADS + cardHeight(f, s, rooms, true) > h) s -= 0.01f
-            if (PADS + cardHeight(f, s, rooms, true) <= h) return Plan(s, Grid(0, 0f), true)
-            s = sMax
-            while (s > MIN_SCALE && PADS + cardHeight(f, s, rooms, false) > h) s -= 0.01f
-            return Plan(s, Grid(0, 0f), false)
+            for ((d, floorS) in listOf(Detail.FULL to 0.95f, Detail.NO_META to 0.9f, Detail.TIGHT to MIN_SCALE)) {
+                var s = sMax
+                while (s > floorS && padsOf(d) + cardHeight(f, s, rooms, d) > h) s -= 0.01f
+                if (padsOf(d) + cardHeight(f, s, rooms, d) <= h || d == Detail.TIGHT) return Plan(s, Grid(0, 0f), d)
+            }
+            return Plan(MIN_SCALE, Grid(0, 0f), Detail.TIGHT)
         }
 
         private fun scaleOf(w: Float) =
@@ -475,7 +488,13 @@ class ScheduleWidget : AppWidgetProvider() {
             views.setTextViewTextSize(R.id.widget_meta, sp, META_SP * s)
             paint.text(R.id.widget_subject, ink)
             paint.text(R.id.widget_meta, ink2)
-            views.setViewVisibility(R.id.widget_meta, if (p.meta && metaLine(hero).isNotEmpty()) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_meta, if (p.detail == Detail.FULL && metaLine(hero).isNotEmpty()) View.VISIBLE else View.GONE)
+            // Плотная карточка (низкий виджет): без «до 15:30» и «АУДИТОРИЯ», поля 10 + 8
+            val tight = p.detail == Detail.TIGHT
+            views.setViewVisibility(R.id.widget_until, if (tight) View.GONE else View.VISIBLE)
+            views.setViewVisibility(R.id.widget_room_label, if (tight) View.GONE else View.VISIBLE)
+            val px = { dp: Float -> (dp * density).toInt() }
+            views.setViewPadding(R.id.widget_content, px(16f), px(if (tight) 10f else 14f), px(16f), px(if (tight) 8f else 12f))
 
             // 5–6. Распорка и сетка следующих пар
             val grid = p.grid

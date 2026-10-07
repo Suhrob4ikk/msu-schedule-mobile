@@ -18,13 +18,16 @@ export const COL_ROOM = 56;
 export const COL_GAP = 12;
 export const ROW_PAD_X = 12;
 /** Столбец номера пары слева («III»), как в приложении msu.tj (владелец, 7 окт 2026). */
-export const COL_PAIR = 44;
+export const COL_PAIR = 50;
+/** Крупнее прежнего (владелец 7 окт 2026: «маленький шрифт»): предмет 17, серая строка 14. */
+export const ROW_SUBJ = { fontSize: 17, lineHeight: 22 } as const;
+export const ROW_LINE = { fontSize: 14, lineHeight: 19 } as const;
 
 /** Номер пары крупной римской цифрой на всю высоту строки. */
 export function PairNum({ pair, color, fontScale }: { pair: string; color: string; fontScale: number }) {
   return (
     <View style={{ width: scaledWidth(COL_PAIR, fontScale), justifyContent: 'center' }} importantForAccessibility="no-hide-descendants">
-      <Txt t="timeRow" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 32, lineHeight: 36, fontFamily: FONT[500] }}>{pair}</Txt>
+      <Txt t="timeRow" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 38, lineHeight: 42, fontFamily: FONT[500] }}>{pair}</Txt>
     </View>
   );
 }
@@ -34,7 +37,7 @@ export function TimeRange({ start, end, color, sub, past }: { start: string; end
   return (
     <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
       <Txt t="timeRow" color={color} numberOfLines={1} style={past ? { fontFamily: FONT[600] } : null}>{start}</Txt>
-      <Txt t="caption" color={sub} numberOfLines={1}>{end}</Txt>
+      <Txt t="small" color={sub} numberOfLines={1}>{end}</Txt>
     </View>
   );
 }
@@ -90,14 +93,14 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
   const parts: React.ReactNode[] = [];
   if (l.teacher) {
     parts.push(
-      <Txt key="t" t="caption" color={sub} onPress={() => openTeacher(l)} accessibilityRole="link"
+      <Txt key="t" t="caption" color={sub} style={ROW_LINE} onPress={() => openTeacher(l)} accessibilityRole="link"
         accessibilityLabel={`Расписание преподавателя ${l.teacher.name}`}>{l.teacher.name}</Txt>,
     );
   }
-  if (kind) parts.push(<Txt key="k" t="caption" color={sub}>{kind.label}</Txt>);
+  if (kind) parts.push(<Txt key="k" t="caption" color={sub} style={ROW_LINE}>{kind.label}</Txt>);
   if (l.room) {
     parts.push(
-      <Txt key="r" t="captionStrong" color={main} onPress={() => openRoom(l)} accessibilityRole="link"
+      <Txt key="r" t="captionStrong" color={main} style={ROW_LINE} onPress={() => openRoom(l)} accessibilityRole="link"
         accessibilityLabel={`Аудитория ${l.room.name}, открыть во вкладке «Ауд.»`}>ауд. {l.room.name}</Txt>,
     );
   }
@@ -116,8 +119,8 @@ function LessonRow({ block, k, past, hasNote, skipped, onPress }: Props) {
       <PairNum pair={block.pairs[0]} color={main} fontScale={fontScale} />
 
       <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
-        <Txt t="titleRow" color={main}>{l.subject}</Txt>
-        <Txt t="caption" color={sub} style={{ marginTop: 3 }}>
+        <Txt t="titleRow" color={main} style={ROW_SUBJ}>{l.subject}</Txt>
+        <Txt t="caption" color={sub} style={[{ marginTop: 3 }, ROW_LINE]}>
           {parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? ' · ' : ''}{p}</React.Fragment>)}
         </Txt>
         {(skipped || hasNote) && (
