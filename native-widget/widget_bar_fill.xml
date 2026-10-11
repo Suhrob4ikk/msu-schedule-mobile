@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Заполнение полоски пары: сколько прошло — уровень 0…10000 (setImageLevel). -->
+<clip xmlns:android="http://schemas.android.com/apk/res/android"
+    android:clipOrientation="horizontal"
+    android:gravity="left"
+    android:drawable="@drawable/widget_bar" />

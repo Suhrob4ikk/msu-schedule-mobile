@@ -4,30 +4,28 @@
 что должен жить внутри самого приложения. Папка `android/` в `.gitignore`
 (генерируется `expo prebuild`), поэтому исходники хранятся тут.
 
-## Виджет «Расписание» (карточка «идёт сейчас», с 2.0.3; до того вариант C «Аудитория»)
+## Виджеты «МГУ · Табло» и «МГУ · Циферблат» (с 2.0.5)
 
 Если `android/` пересоздавался или файлы здесь правились — скопируй в `android/app/src/main/`:
 
 | Файл здесь | Куда |
 |---|---|
-| `ScheduleWidget.kt` | `java/tj/msu/schedule/` |
-| `widget_full.xml`, `widget_preview.xml` | `res/layout/` |
-| `widget_bg.xml`, `widget_plate.xml` | `res/drawable/` |
+| `ScheduleWidget.kt` (оба виджета: `ScheduleWidget` = Табло, `DialWidget` = Циферблат) | `java/tj/msu/schedule/` |
+| `widget_tablo_{s,m,l}.xml`, `widget_dial_{s,m,l}.xml` | `res/layout/` |
+| `widget_bg.xml`, `widget_plate.xml`, `widget_bar.xml`, `widget_bar_fill.xml`, `widget_ring.xml`, `widget_ring_track.xml` | `res/drawable/` |
 | `widget_bg_v31.xml` | `res/drawable-v31/` **под именем `widget_bg.xml`** |
 | `widget_preview.png` | `res/drawable-nodpi/` |
-| `schedule_widget_info.xml` | `res/xml/` |
+| `fonts/onest_{medium,bold,extrabold}.ttf` | `res/font/` |
+| `widget_strings.xml` | `res/values/` |
+| `schedule_widget_info.xml`, `dial_widget_info.xml` | `res/xml/` |
 
-`widget_full.xml` не правится руками — его пишет `node native-widget/gen-layouts.js`.
-`gen-layouts.js` в `android/` не копируется. С 2.0.3 раскладка одна: `widget_compact.xml`
-удалён (если остался в `android/res/layout/` — удалить).
-
-Удалены в 1.9.48 (если остались в `android/` — удалить, иначе висят мёртвым грузом):
-`res/layout/widget_schedule.xml`, `res/layout/widget_schedule_large.xml`,
-`res/drawable/widget_card_bg.xml`, `res/drawable/widget_pill.xml`.
+Раскладки руками не правятся — их пишет `node native-widget/gen-layouts.js` (в `android/` не копируется).
+Удалены в 2.0.5 (если остались в `android/res/layout/` — удалить): `widget_full.xml`, `widget_preview.xml`,
+`widget_compact.xml`.
 
 И добавь в AndroidManifest.xml перед `</application>`:
 
-    <receiver android:name=".ScheduleWidget" android:exported="false" android:label="@string/app_name">
+    <receiver android:name=".ScheduleWidget" android:exported="false" android:label="@string/widget_tablo_name">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
         <action android:name="tj.msu.schedule.WIDGET_TICK"/>
@@ -35,6 +33,12 @@
         <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_widget_info"/>
+    </receiver>
+    <receiver android:name=".DialWidget" android:exported="false" android:label="@string/widget_dial_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/dial_widget_info"/>
     </receiver>
 
 ⚠️ Три последних действия обязательны, без них виджет отстаёт на часы.

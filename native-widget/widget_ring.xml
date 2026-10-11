@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Заполнение кольца «Циферблата»: уровень 0…10000 (setImageLevel) — доля пары. Поворот −90°:
+     заполнение идёт от верхней точки по часовой. rotate передаёт уровень кольцу внутри. -->
+<rotate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:fromDegrees="-90"
+    android:toDegrees="-90"
+    android:pivotX="50%"
+    android:pivotY="50%">
+    <shape
+        android:shape="ring"
+        android:innerRadiusRatio="2.4"
+        android:thicknessRatio="12"
+        android:useLevel="true">
+        <solid android:color="#FFFFFF" />
+        <size android:width="120dp" android:height="120dp" />
+    </shape>
+</rotate>

@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Виджет «Расписание» — карточка «идёт сейчас» (с 7 окт 2026; до того вариант C, ТЗ widget-C-TZ.md).
-     Один виджет, тянется по ширине и высоте; одна раскладка widget_full, размеры
-     подгоняет ScheduleWidget.kt под фактический размер. По умолчанию 4×2.
-     previewLayout — Android 12+, previewImage — для старых. -->
+<!-- «МГУ · Табло» (с 2.0.5; класс ScheduleWidget — прежнее имя, уже поставленные виджеты остаются).
+     Три размера: 2×2, 4×2 (по умолчанию), 4×4 — раскладку выбирает ScheduleWidget.kt по размеру. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
-    android:minHeight="100dp"
-    android:minResizeWidth="250dp"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
     android:minResizeHeight="100dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/widget_full"
-    android:previewLayout="@layout/widget_preview"
+    android:initialLayout="@layout/widget_tablo_m"
+    android:previewLayout="@layout/widget_tablo_m"
     android:previewImage="@drawable/widget_preview"
+    android:description="@string/widget_tablo_desc"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

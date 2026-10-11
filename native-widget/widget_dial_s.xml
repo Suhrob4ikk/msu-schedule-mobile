@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано native-widget/gen-layouts.js — руками не править. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent">
+  <ImageView android:id="@+id/w_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:scaleType="fitXY" android:src="@drawable/widget_bg" android:tint="#FFFFFF" android:importantForAccessibility="no" />
+  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:orientation="vertical" android:gravity="center_horizontal" android:padding="12dp">
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+    <ImageView android:id="@+id/w_ring_track" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="fitCenter" android:src="@drawable/widget_ring_track" android:tint="#E7E9F0" android:importantForAccessibility="no" />
+    <ImageView android:id="@+id/w_ring" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="fitCenter" android:src="@drawable/widget_ring" android:tint="#2F62EA" android:importantForAccessibility="no" />
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center"
+        android:orientation="vertical" android:gravity="center_horizontal">
+      <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="22dp" android:fontFamily="@font/onest_extrabold" android:textColor="#121521" android:includeFontPadding="false"
+    android:singleLine="true" android:letterSpacing="-0.03"  />
+      <TextView android:id="@+id/w_when" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="22dp" android:fontFamily="@font/onest_extrabold" android:textColor="#121521"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="08:00" android:visibility="gone" />
+      <TextView android:id="@+id/w_chrono_lbl" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="11dp" android:fontFamily="@font/onest_bold" android:textColor="#6A7186"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="до конца" android:layout_marginTop="3dp" />
+    </LinearLayout>
+  </FrameLayout>
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:gravity="center_vertical" android:layout_marginTop="6dp">
+      <TextView android:id="@+id/w_subj" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="13dp" android:fontFamily="@font/onest_bold" android:textColor="#121521"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="ООП" android:maxWidth="110dp" />
+      <TextView android:id="@+id/w_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="17dp" android:fontFamily="@font/onest_extrabold" android:textColor="#2856D6"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="104" android:layout_marginStart="6dp" />
+    </LinearLayout>
+  </LinearLayout>
+  <LinearLayout android:id="@+id/w_empty" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:padding="16dp" android:visibility="gone">
+    <TextView android:id="@+id/w_empty_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textSize="22dp" android:fontFamily="@font/onest_extrabold" android:textColor="#10131A" android:gravity="center"
+        android:includeFontPadding="false" android:text="Каникулы" />
+    <TextView android:id="@+id/w_empty_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:textSize="13dp" android:fontFamily="@font/onest_medium" android:textColor="#4B5262"
+        android:gravity="center" android:includeFontPadding="false" android:text="" />
+  </LinearLayout>
+</FrameLayout>

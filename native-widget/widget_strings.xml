@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Названия и описания виджетов в списке виджетов (с 2.0.5). Копируется в res/values/. -->
+<resources>
+    <string name="widget_tablo_name">МГУ · Табло</string>
+    <string name="widget_tablo_desc">Аудитория и отсчёт крупно, во время пары — цветом акцента</string>
+    <string name="widget_dial_name">МГУ · Циферблат</string>
+    <string name="widget_dial_desc">Сколько осталось — кольцом, аудитория и предмет рядом</string>
+</resources>

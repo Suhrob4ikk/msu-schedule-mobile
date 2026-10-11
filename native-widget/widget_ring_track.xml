@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Дорожка кольца «Циферблата» (с 2.0.5). size — чтобы ImageView (fitCenter) держал круг,
+     а не растягивал в овал. Толщина = ширина / 12, внутренний радиус = ширина / 2,4 — в сумме
+     ровно половина ширины. Белое, цвет — setColorFilter. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="ring"
+    android:innerRadiusRatio="2.4"
+    android:thicknessRatio="12"
+    android:useLevel="false">
+    <solid android:color="#FFFFFF" />
+    <size android:width="120dp" android:height="120dp" />
+</shape>

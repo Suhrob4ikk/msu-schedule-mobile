@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Полоска пары (с 2.0.5): белая скруглённая, цвет ставит ScheduleWidget.kt (setColorFilter).
+     Дорожка — эта же форма, заполнение — widget_bar_fill.xml (clip по уровню). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="3dp" />
+</shape>
