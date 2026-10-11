@@ -4,9 +4,14 @@
  * список сразу прыгает к букве, слева крупно всплывает сама буква, лёгкий отклик
  * вибрацией на каждой новой. Буква — по высоте пальца внутри полосы, поэтому палец
  * может уйти чуть в сторону. Так же на сайте (components/tablo/teachers/TeacherList.tsx).
+ *
+ * Высота пальца считается от верха всей полосы (pageY минус её pageY), а не по locationY:
+ * locationY отсчитывается от того элемента, на который попал палец, — в 2.0.4 буквы были
+ * отдельными кнопками, и при движении список дёргался между буквами (владелец, 11 окт 2026).
+ * Поэтому буквы — простые View без своих нажатий, касание целиком ловит полоса.
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, View, useWindowDimensions } from 'react-native';
+import { PanResponder, View, useWindowDimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Tokens } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
@@ -27,9 +32,15 @@ export default function LetterRail({ k, letters, onLetter }: {
   lettersRef.current = letters;
   const onLetterRef = useRef(onLetter);
   onLetterRef.current = onLetter;
+  const railRef = useRef<View>(null);
+  /** pageY верха полосы; уточняется при каждом касании. */
+  const topRef = useRef<number | null>(null);
+  const measure = () => railRef.current?.measure((_x, _y, _w, _h, _px, py) => { topRef.current = py; });
 
-  const pick = (y: number) => {
+  const pick = (pageY: number, locationY: number) => {
     const ls = lettersRef.current;
+    // пока замер не пришёл (первое касание) — locationY: палец ещё на самой полосе
+    const y = topRef.current != null ? pageY - topRef.current : locationY;
     const i = Math.min(ls.length - 1, Math.max(0, Math.floor((y / railH) * ls.length)));
     const l = ls[i];
     if (!l || l === activeRef.current) return;
@@ -42,10 +53,13 @@ export default function LetterRail({ k, letters, onLetter }: {
 
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => true,
     onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: () => true,
     onPanResponderTerminationRequest: () => false,
-    onPanResponderGrant: e => pick(e.nativeEvent.locationY),
-    onPanResponderMove: e => pick(e.nativeEvent.locationY),
+    onShouldBlockNativeResponder: () => true,
+    onPanResponderGrant: e => { measure(); pick(e.nativeEvent.pageY, e.nativeEvent.locationY); },
+    onPanResponderMove: e => pick(e.nativeEvent.pageY, e.nativeEvent.locationY),
     onPanResponderRelease: end,
     onPanResponderTerminate: end,
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,6 +80,8 @@ export default function LetterRail({ k, letters, onLetter }: {
         </View>
       )}
       <View
+        ref={railRef}
+        onLayout={measure}
         {...pan.panHandlers}
         accessibilityRole="adjustable"
         accessibilityLabel="Буквы"
@@ -75,18 +91,16 @@ export default function LetterRail({ k, letters, onLetter }: {
         }}
       >
         {letters.map(l => (
-          <Pressable
+          <View
             key={l}
-            accessibilityRole="button"
-            accessibilityLabel={`Буква ${l}`}
-            onPress={() => onLetter(l)}
+            pointerEvents="none"
             style={{
               height: cell, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2, borderRadius: 6,
               backgroundColor: active === l ? k.accent : 'transparent',
             }}
           >
             <Txt t="labelStrong" color={active === l ? k.onAccent : k.accentText} style={{ fontSize: Math.min(12.5, cell - 2), lineHeight: cell }}>{l}</Txt>
-          </Pressable>
+          </View>
         ))}
       </View>
     </View>

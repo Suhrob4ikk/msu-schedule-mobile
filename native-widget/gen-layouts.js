@@ -1,25 +1,33 @@
-// Генератор раскладок виджетов (с 2.0.5): «Табло» и «Циферблат», по три размера — S (2×2),
-// M (4×2), L (4×4). Запуск: node native-widget/gen-layouts.js → widget_{tablo,dial}_{s,m,l}.xml.
+// Генератор раскладок виджетов (с 2.0.5): «Табло» и «Циферблат» — S (2×2), M (4×2), L (4×4),
+// у «Табло» ещё T (4×3, высокий без списка). Запуск: node native-widget/gen-layouts.js →
+// widget_{tablo,dial}_{s,m,l}.xml и widget_tablo_t.xml.
 // Руками XML не правится. Общие id у всех шести — ScheduleWidget.kt заполняет их одинаково.
 //
 // Правила, на которые уже наступали:
 // - только классы RemoteViews (FrameLayout, LinearLayout, TextView, ImageView, Chronometer):
 //   простой <View> лаунчер не покажет («Не удалось загрузить виджет»), линии — FrameLayout;
-// - шрифт — Onest из res/font (fontFamily): Android 8+ берёт его из ресурсов приложения;
-// - номер аудитории — autoSize: заполняет свободное место сам, поэтому при растягивании
-//   виджета нет пустой полосы (владелец 11 окт 2026 — на Xiaomi внизу пустовало); textSize
-//   рядом — запасной для Android 7, где autoSize нет;
+// - шрифты — системные (sans-serif-medium / sans-serif + bold / sans-serif-black). Onest через
+//   fontFamily="@font/…" лаунчер Xiaomi молча не взял (11 окт 2026): весь текст вышел тонким
+//   системным. Onest остался только у номера аудитории «Табло» — его рисует код картинкой
+//   (w_room_img, roomBitmap в ScheduleWidget.kt), картинка растягивается на всё свободное место;
+// - «Табло» 4×3 и 4×4 — номер отдельной строкой во всю ширину (widget_tablo_t, _l), в низком
+//   4×2 — справа от отсчёта (владелец 11 окт 2026: в высоких размерах пустовало);
 // - подложки и плашки — белые картинки, цвет ставит код (setColorFilter);
 // - значения по умолчанию (тексты, цвета) — для предпросмотра в списке виджетов.
 const fs = require('fs');
 const path = require('path');
 
 const NS = 'xmlns:android="http://schemas.android.com/apk/res/android"';
-const F = { m: '@font/onest_medium', b: '@font/onest_bold', x: '@font/onest_extrabold' };
+/** Начертания: системные семейства — они работают в любом лаунчере. */
+const F = {
+  m: 'android:fontFamily="sans-serif-medium"',
+  b: 'android:fontFamily="sans-serif" android:textStyle="bold"',
+  x: 'android:fontFamily="sans-serif-black"',
+};
 
 function tv(id, { size, font = 'b', color = '#FFFFFF', text = '', extra = '', w = 'wrap_content', h = 'wrap_content' }) {
   return `<TextView android:id="@+id/${id}" android:layout_width="${w}" android:layout_height="${h}"
-    android:textSize="${size}dp" android:fontFamily="${F[font]}" android:textColor="${color}"
+    android:textSize="${size}dp" ${F[font]} android:textColor="${color}"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
     android:text="${text}" ${extra} />`;
 }
@@ -34,15 +42,12 @@ const chip = (size, tint, color, text) => `<FrameLayout android:layout_width="wr
   </FrameLayout>`;
 
 const chrono = (size, color, extra = '') => `<Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
-    android:textSize="${size}dp" android:fontFamily="${F.x}" android:textColor="${color}" android:includeFontPadding="false"
-    android:singleLine="true" android:letterSpacing="-0.03" ${extra} />`;
+    android:textSize="${size}dp" ${F.x} android:textColor="${color}" android:includeFontPadding="false"
+    android:singleLine="true" android:letterSpacing="-0.02" ${extra} />`;
 
-/** Номер аудитории: autoSize в заданной коробке. */
-const room = (min, max, fallback, color, gravity, w, h, extra = '') => `<TextView android:id="@+id/w_room" android:layout_width="${w}" android:layout_height="${h}"
-    android:fontFamily="${F.x}" android:textColor="${color}" android:includeFontPadding="false" android:maxLines="1"
-    android:letterSpacing="-0.04" android:gravity="${gravity}" android:text="104"
-    android:textSize="${fallback}dp" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="${min}dp"
-    android:autoSizeMaxTextSize="${max}dp" android:autoSizeStepGranularity="2dp" ${extra} />`;
+/** Номер аудитории «Табло» — картинка Onest (её рисует код), вписывается в коробку целиком. */
+const roomImg = (scale, w, h, extra = '') => `<ImageView android:id="@+id/w_room_img" android:layout_width="${w}" android:layout_height="${h}"
+    android:scaleType="${scale}" android:src="@drawable/widget_room_sample" android:tint="#FFFFFF" android:importantForAccessibility="no" ${extra} />`;
 
 /** Полоска пары: дорожка и заполнение (уровень). */
 const bar = (marginTop, track, fill) => `<FrameLayout android:id="@+id/w_bar_box" android:layout_width="match_parent" android:layout_height="5dp" android:layout_marginTop="${marginTop}dp">
@@ -53,7 +58,7 @@ const bar = (marginTop, track, fill) => `<FrameLayout android:id="@+id/w_bar_box
   </FrameLayout>`;
 
 /** Кольцо «Циферблата» с отсчётом в центре. */
-const ring = (w, h, chronoSize, lblSize, extra = '') => `<FrameLayout android:layout_width="${w}" android:layout_height="${h}" ${extra}>
+const ring = (w, h, chronoSize, lblSize, extra = '') => `<FrameLayout android:id="@+id/w_ring_box" android:layout_width="${w}" android:layout_height="${h}" ${extra}>
     <ImageView android:id="@+id/w_ring_track" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitCenter" android:src="@drawable/widget_ring_track" android:tint="#E7E9F0" android:importantForAccessibility="no" />
     <ImageView android:id="@+id/w_ring" android:layout_width="match_parent" android:layout_height="match_parent"
@@ -69,10 +74,10 @@ const ring = (w, h, chronoSize, lblSize, extra = '') => `<FrameLayout android:la
 const empty = `<LinearLayout android:id="@+id/w_empty" android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:gravity="center" android:padding="16dp" android:visibility="gone">
     <TextView android:id="@+id/w_empty_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textSize="22dp" android:fontFamily="${F.x}" android:textColor="#10131A" android:gravity="center"
+        android:textSize="22dp" ${F.x} android:textColor="#10131A" android:gravity="center"
         android:includeFontPadding="false" android:text="Каникулы" />
     <TextView android:id="@+id/w_empty_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_marginTop="6dp" android:textSize="13dp" android:fontFamily="${F.m}" android:textColor="#4B5262"
+        android:layout_marginTop="6dp" android:textSize="13dp" ${F.m} android:textColor="#4B5262"
         android:gravity="center" android:includeFontPadding="false" android:text="" />
   </LinearLayout>`;
 
@@ -114,7 +119,7 @@ const tabloS = root(`${bg(T.bg)}
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
       android:orientation="vertical" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="13dp" android:paddingBottom="13dp">
     ${chip(12, T.line, T.ink, 'Идёт · I')}
-    ${room(28, 84, 56, T.ink, 'start|center_vertical', 'match_parent', '0dp', 'android:layout_weight="1"')}
+    ${roomImg('fitStart', 'match_parent', '0dp', 'android:layout_weight="1" android:layout_marginTop="8dp" android:layout_marginBottom="8dp"')}
     ${tv('w_subj', { size: 14, font: 'b', color: T.ink, text: 'Объектно-ориентированное программирование', w: 'match_parent' })}
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
         android:gravity="center_vertical" android:layout_marginTop="5dp">
@@ -133,11 +138,31 @@ const tabloHero = `<LinearLayout android:id="@+id/w_hero" android:layout_width="
         ${tv('w_when', { size: 24, font: 'x', color: T.ink, text: 'Завтра · 08:00', extra: 'android:layout_marginTop="12dp" android:visibility="gone"' })}
         ${tv('w_chrono_lbl', { size: 13, font: 'm', color: T.ink2, text: 'до конца', extra: 'android:layout_marginTop="4dp"' })}
       </LinearLayout>
-      ${room(32, 120, 72, T.ink, 'end|bottom', '0dp', 'match_parent', 'android:layout_weight="1"')}
+      ${roomImg('fitEnd', '0dp', 'match_parent', 'android:layout_weight="1" android:layout_marginStart="10dp"')}
     </LinearLayout>
-    ${tv('w_subj', { size: 17, font: 'x', color: T.ink, text: 'Объектно-ориентированное программирование', w: 'match_parent', extra: 'android:layout_marginTop="8dp"' })}
+    ${tv('w_subj', { size: 17, font: 'b', color: T.ink, text: 'Объектно-ориентированное программирование', w: 'match_parent', extra: 'android:layout_marginTop="8dp"' })}
     ${tv('w_meta', { size: 13, font: 'm', color: T.ink2, text: '08:00–09:30 · Практика · Одилзода О.О.', w: 'match_parent', extra: 'android:layout_marginTop="3dp"' })}
     ${bar(9, T.line, T.ink)}`;
+
+/** Высокий «Табло»: отсчёт сверху, номер аудитории отдельной строкой во всю ширину. */
+const tabloStack = `${chip(13, T.line, T.ink, 'Идёт · I пара')}
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:gravity="bottom" android:layout_marginTop="9dp">
+      ${chrono(40, T.ink)}
+      ${tv('w_when', { size: 26, font: 'x', color: T.ink, text: 'Завтра · 08:00', extra: 'android:visibility="gone"' })}
+      ${tv('w_chrono_lbl', { size: 13, font: 'm', color: T.ink2, text: 'до конца', extra: 'android:layout_marginStart="8dp" android:layout_marginBottom="3dp"' })}
+    </LinearLayout>
+    ${roomImg('fitEnd', 'match_parent', '0dp', 'android:layout_weight="1" android:layout_marginTop="10dp"')}
+    ${tv('w_subj', { size: 18, font: 'b', color: T.ink, text: 'Объектно-ориентированное программирование', w: 'match_parent', extra: 'android:layout_marginTop="10dp"' })}
+    ${tv('w_meta', { size: 13, font: 'm', color: T.ink2, text: '08:00–09:30 · Практика · Одилзода О.О.', w: 'match_parent', extra: 'android:layout_marginTop="4dp"' })}
+    ${bar(10, T.line, T.ink)}`;
+
+const tabloT = root(`${bg(T.bg)}
+  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:orientation="vertical" android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="15dp" android:paddingBottom="15dp">
+    ${tabloStack}
+  </LinearLayout>
+  ${empty}`);
 
 const tabloM = root(`${bg(T.bg)}
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
@@ -149,7 +174,7 @@ const tabloM = root(`${bg(T.bg)}
 const tabloL = root(`${bg(T.bg)}
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
       android:orientation="vertical" android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="15dp" android:paddingBottom="12dp">
-    ${tabloHero}
+    ${tabloStack}
     ${list(T.ink, T.ink2, T.line, T.ink)}
   </LinearLayout>
   ${empty}`);
@@ -176,7 +201,7 @@ const dialHero = (ringSize, chronoSize) => `<LinearLayout android:id="@+id/w_her
           android:layout_marginStart="14dp">
         ${chip(13, D.soft, D.acc, 'Идёт · I пара')}
         <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="7dp" android:textSize="17dp" android:fontFamily="${F.x}" android:textColor="${D.ink}"
+            android:layout_marginTop="7dp" android:textSize="17dp" ${F.b} android:textColor="${D.ink}"
             android:includeFontPadding="false" android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp"
             android:text="Объектно-ориентированное программирование" />
         ${tv('w_meta', { size: 13, font: 'm', color: D.ink2, text: '08:00–09:30 · Практика', w: 'match_parent', extra: 'android:layout_marginTop="5dp"' })}
@@ -203,6 +228,6 @@ const dialL = root(`${bg(D.bg)}
   </LinearLayout>
   ${empty}`);
 
-const out = { widget_tablo_s: tabloS, widget_tablo_m: tabloM, widget_tablo_l: tabloL, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
+const out = { widget_tablo_s: tabloS, widget_tablo_m: tabloM, widget_tablo_t: tabloT, widget_tablo_l: tabloL, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
 for (const [name, xml] of Object.entries(out)) fs.writeFileSync(path.join(__dirname, `${name}.xml`), xml);
 console.log('ok:', Object.keys(out).join(', '));

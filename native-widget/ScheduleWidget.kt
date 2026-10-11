@@ -9,12 +9,18 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.database.sqlite.SQLiteDatabase
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
@@ -32,10 +38,13 @@ import kotlin.math.min
  * - «МГУ · Циферблат» (DialWidget): спокойный фон, отсчёт в кольце, которое заполняется по
  *   ходу пары; аудитория и предмет рядом.
  *
- * У каждого три размера — S (2×2), M (4×2), L (4×4, весь день списком). Раскладки пишет
- * native-widget/gen-layouts.js, id общие. Шрифт — Onest из res/font: Android 8+ берёт его
- * из ресурсов приложения (до 2.0.5 был системный). Номер аудитории — autoSize: сам
- * заполняет свободное место, поэтому при растягивании нет пустой полосы внизу.
+ * Размеры — S (2×2), M (4×2), L (4×4, весь день списком), у «Табло» ещё T (4×3: номер
+ * аудитории отдельной строкой). Раскладки пишет native-widget/gen-layouts.js, id общие.
+ * Текст — системными шрифтами: Onest через fontFamily="@font/…" лаунчер Xiaomi не взял
+ * (11 окт 2026, весь текст вышел тонким). Номер аудитории «Табло» — картинка, нарисованная
+ * здесь шрифтом Onest (roomBitmap): ImageView вписывает её в свободное место целиком, так
+ * что при растягивании виджета номер растёт сам. Кольцо «Циферблата» на Android 12+ тоже
+ * растёт с виджетом (setViewLayoutWidth), вместе с отсчётом и номером аудитории.
  *
  * Данные — ключ "widget_data" (src/widgetData.ts), цвета — "widget_theme"
  * (src/widgetThemeModel.ts), читаем базу AsyncStorage (RKStorage) напрямую.
@@ -188,10 +197,14 @@ internal object Widgets {
         val colors = readColors(context)
         val night = isNight(context)
         val sizes = widgetSizes(context, options)
+        // Одна картинка номера на все размеры: один и тот же Bitmap уходит в лаунчер один раз
+        val roomImg = if (kind == Kind.TABLO) heroOf(state)?.let {
+            roomBitmap(context, roomLines(it.room).ifEmpty { listOf("—") }.joinToString(" "), sizes.maxOf { s -> s.height })
+        } else null
         val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && sizes.size > 1) {
-            RemoteViews(sizes.associateWith { build(context, kind, it, state, data, colors, night, now) })
+            RemoteViews(sizes.associateWith { build(context, kind, it, state, data, colors, night, now, roomImg) })
         } else {
-            build(context, kind, sizes.first(), state, data, colors, night, now)
+            build(context, kind, sizes.first(), state, data, colors, night, now, roomImg)
         }
         manager.updateAppWidget(widgetId, views)
         scheduleNextUpdate(context, state, now)
@@ -237,18 +250,22 @@ internal object Widgets {
 
     // ── Размеры ──────────────────────────────────────────────────────────
 
-    private enum class Sz { S, M, L }
+    private enum class Sz { S, M, T, L }
 
-    /** 2×2 — уже 220 dp; 4×4 — от 280 dp высоты; остальное — 4×2. */
+    /** 2×2 — уже 220 dp; 4×4 — от 280 dp высоты; 4×3 — от 180; остальное — 4×2. */
     private fun sizeOf(w: Float, h: Float) = when {
         w < 220f -> Sz.S
         h >= 280f -> Sz.L
+        h >= 180f -> Sz.T
         else -> Sz.M
     }
 
     private fun layoutOf(kind: Kind, sz: Sz) = when (kind) {
-        Kind.TABLO -> when (sz) { Sz.S -> R.layout.widget_tablo_s; Sz.M -> R.layout.widget_tablo_m; Sz.L -> R.layout.widget_tablo_l }
-        Kind.DIAL -> when (sz) { Sz.S -> R.layout.widget_dial_s; Sz.M -> R.layout.widget_dial_m; Sz.L -> R.layout.widget_dial_l }
+        Kind.TABLO -> when (sz) {
+            Sz.S -> R.layout.widget_tablo_s; Sz.M -> R.layout.widget_tablo_m; Sz.T -> R.layout.widget_tablo_t; Sz.L -> R.layout.widget_tablo_l
+        }
+        // у «Циферблата» 4×3 — та же раскладка, что 4×2: кольцо растёт само (sizeDial)
+        Kind.DIAL -> when (sz) { Sz.S -> R.layout.widget_dial_s; Sz.M, Sz.T -> R.layout.widget_dial_m; Sz.L -> R.layout.widget_dial_l }
     }
 
     /**
@@ -306,7 +323,7 @@ internal object Widgets {
 
     private fun build(
         context: Context, kind: Kind, size: SizeF, state: WState, data: WidgetData?,
-        colors: WidgetColors, night: Boolean, now: Long,
+        colors: WidgetColors, night: Boolean, now: Long, roomImg: Bitmap?,
     ): RemoteViews {
         val sz = sizeOf(size.width, size.height)
         val v = RemoteViews(context.packageName, layoutOf(kind, sz))
@@ -359,12 +376,17 @@ internal object Widgets {
         p.text(R.id.w_when, r.ink)
         p.text(R.id.w_chrono_lbl, r.ink2)
 
-        // Аудитория: несколько — через пробел (autoSize ужмёт), нет — «—»
-        v.setTextViewText(R.id.w_room, roomLines(hero.room).ifEmpty { listOf("—") }.joinToString(" "))
-        p.text(R.id.w_room, r.room)
+        // Аудитория: несколько — через пробел, нет — «—». У «Табло» — картинка (roomBitmap)
+        if (kind == Kind.TABLO) {
+            if (roomImg != null) v.setImageViewBitmap(R.id.w_room_img, roomImg)
+            p.fill(R.id.w_room_img, r.room)
+        } else {
+            v.setTextViewText(R.id.w_room, roomLines(hero.room).ifEmpty { listOf("—") }.joinToString(" "))
+            p.text(R.id.w_room, r.room)
+        }
 
         // Предмет и строка «время · тип · преподаватель»
-        v.setTextViewText(R.id.w_subj, hero.subject)
+        v.setTextViewText(R.id.w_subj, tidySubject(hero.subject))
         p.text(R.id.w_subj, r.ink)
         if (sz != Sz.S) {
             val parts = if (kind == Kind.TABLO) listOf("${hhmm(hero.start)}–${hhmm(hero.end)}", hero.type, hero.teacher)
@@ -396,10 +418,62 @@ internal object Widgets {
             p.fill(R.id.w_ring, r.bar)
         }
 
-        if (sz == Sz.L && data != null) fillList(v, p, r, listItems(state, hero, data, now), hero, kind)
+        val rows = if (sz == Sz.L && data != null) listItems(state, hero, data, now) else emptyList()
+        if (sz == Sz.L) fillList(v, p, r, rows, hero, kind)
+        if (kind == Kind.DIAL && sz != Sz.S) sizeDial(v, size, sz, rows.size)
         v.setContentDescription(R.id.w_root, describe(state, hero, now))
         return v
     }
+
+    /**
+     * «Циферблат» 4×2 / 4×3 / 4×4 на Android 12+: кольцо — по высоте свободного места (но не
+     * шире половины виджета), отсчёт и номер аудитории — в пропорции к нему. Иначе в высоком
+     * виджете кольцо 128 dp висело посередине пустоты (владелец, 11 окт 2026). Высоты — из
+     * раскладки в gen-layouts.js: поля 14 + 14, строка списка ≈ 50 dp, отступ списка 10.
+     */
+    private fun sizeDial(v: RemoteViews, size: SizeF, sz: Sz, rows: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val list = if (sz == Sz.L && rows > 0) 10f + rows * 50f else 0f
+        val heroH = size.height - (if (sz == Sz.L) 26f else 28f) - list
+        val d = minOf(heroH, size.width * 0.46f, 230f).coerceAtLeast(96f)
+        val dip = TypedValue.COMPLEX_UNIT_DIP
+        v.setViewLayoutWidth(R.id.w_ring_box, d, dip)
+        v.setTextViewTextSize(R.id.w_chrono, dip, d * 0.2f)
+        v.setTextViewTextSize(R.id.w_when, dip, d * 0.2f)
+        v.setTextViewTextSize(R.id.w_chrono_lbl, dip, (d * 0.09f).coerceIn(11f, 16f))
+        v.setTextViewTextSize(R.id.w_room, dip, (heroH * 0.3f).coerceIn(32f, 64f))
+        v.setTextViewTextSize(R.id.w_subj, dip, if (heroH >= 200f) 20f else 17f)
+    }
+
+    /**
+     * Номер аудитории картинкой, шрифтом Onest ExtraBold, белым (цвет даёт setColorFilter —
+     * так работает и «как в системе» с двумя цветами). Обрезана впритык по высоте цифры «0»
+     * (а не по самому тексту: «—» иначе растянулся бы на весь виджет). Размер шрифта — от
+     * высоты самого большого размера виджета, не больше 260 px: картинка уходит в лаунчер
+     * по Binder, а он не любит больших (≈ 0,35 МБ на «104» — с запасом).
+     */
+    private fun roomBitmap(context: Context, text: String, maxHeightDp: Float): Bitmap {
+        val tf = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.resources.getFont(R.font.onest_extrabold) else null
+        } catch (_: Exception) { null } ?: Typeface.DEFAULT_BOLD
+        val px = (maxHeightDp * context.resources.displayMetrics.density * 0.8f).coerceIn(96f, 260f)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = tf; textSize = px; color = Color.WHITE }
+        val b = Rect().also { paint.getTextBounds(text, 0, text.length, it) }
+        val zero = Rect().also { paint.getTextBounds("0", 0, 1, it) }
+        val top = min(b.top, zero.top)
+        val bottom = maxOf(b.bottom, zero.bottom)
+        val pad = (px * 0.03f).toInt() + 1
+        val w = (maxOf(b.width(), zero.width()) + pad * 2).coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(w, bottom - top + pad * 2, Bitmap.Config.ARGB_8888)
+        Canvas(bmp).drawText(text, (pad - b.left).toFloat(), (pad - top).toFloat(), paint)
+        return bmp
+    }
+
+    /**
+     * «ДВ:Объектно-ориентир.» → «ДВ: Объектно-ориентир.»: без пробела после двоеточия первому
+     * слову негде переноситься, и Android рвал его посередине («Объектн / о-…», 11 окт 2026).
+     */
+    private fun tidySubject(s: String) = s.replace(Regex(":(?=\\S)"), ": ")
 
     /** Уровень 0…10000 для полоски и кольца. */
     private fun level(done: Long, total: Long): Int =
@@ -434,7 +508,7 @@ internal object Widgets {
                 l.pair.isNotEmpty() -> "${l.pair} пара"
                 else -> ""
             })
-            v.setTextViewText(ROW_SUBJ[i], l.subject)
+            v.setTextViewText(ROW_SUBJ[i], tidySubject(l.subject))
             v.setTextViewText(ROW_TYPE[i], (if (kind == Kind.DIAL) listOf(l.type, l.teacher) else listOf(l.type)).filter { s -> s.isNotEmpty() }.joinToString(" · "))
             v.setTextViewText(ROW_ROOM[i], roomLines(l.room).firstOrNull() ?: "—")
             p.background(ROW_LINE[i], r.line)
