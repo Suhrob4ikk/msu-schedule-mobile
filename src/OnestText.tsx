@@ -13,6 +13,7 @@ import {
   type TextProps, type TextInputProps, type TextStyle,
 } from 'react-native';
 import { FONT, type Weight } from './schedule/tokens';
+import { fontFamily, useCondensed, withFont } from './fontChoice';
 
 const ParentWeight = createContext<Weight | null>(null);
 
@@ -29,17 +30,18 @@ function toWeight(w: TextStyle['fontWeight'] | undefined, inherited: Weight | nu
   return 400;
 }
 
-function onest(style: TextProps['style'], inherited: Weight | null): { style: TextProps['style']; weight: Weight | null } {
+function onest(style: TextProps['style'], inherited: Weight | null, condensed: boolean): { style: TextProps['style']; weight: Weight | null } {
   const flat = StyleSheet.flatten(style) as TextStyle | undefined;
-  // Своё семейство (иконки, «Табло» через Txt) — не трогаем
-  if (flat?.fontFamily) return { style, weight: inherited };
+  // Своё семейство (иконки, «Табло» через Txt) — не трогаем; Onest — с учётом узкого на выбор
+  if (flat?.fontFamily) return { style: withFont(style, condensed) as TextProps['style'], weight: inherited };
   const weight = toWeight(flat?.fontWeight, inherited);
-  return { style: [style, { fontFamily: FONT[weight], fontWeight: 'normal' }], weight };
+  return { style: [style, { fontFamily: fontFamily(FONT[weight], condensed), fontWeight: 'normal' }], weight };
 }
 
 export function Text(props: TextProps & { ref?: React.Ref<RNText> }) {
   const inherited = useContext(ParentWeight);
-  const { style, weight } = onest(props.style, inherited);
+  const condensed = useCondensed();
+  const { style, weight } = onest(props.style, inherited, condensed);
   return (
     <ParentWeight.Provider value={weight}>
       <RNText {...props} style={style} />
@@ -48,6 +50,7 @@ export function Text(props: TextProps & { ref?: React.Ref<RNText> }) {
 }
 
 export function TextInput(props: TextInputProps & { ref?: React.Ref<RNTextInput> }) {
-  const { style } = onest(props.style, null);
+  const condensed = useCondensed();
+  const { style } = onest(props.style, null, condensed);
   return <RNTextInput {...props} style={style} />;
 }

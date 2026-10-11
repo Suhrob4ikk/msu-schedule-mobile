@@ -6,7 +6,9 @@
  * Формат хранения не меняется — ключи из src/studyData.ts, общие с сайтом.
  */
 import React, { useEffect, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+// поле ввода — общее: понимает узкий шрифт на выбор (src/fontChoice.ts)
+import { TextInput } from '../OnestText';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,9 +19,14 @@ import { Block, attendanceApplies, dayTitle, pairsLabel } from './state';
 import { Txt, KindBadge, Divider } from './ui';
 import BottomSheet from './BottomSheet';
 import { openRoom, openTeacher } from './LessonRow';
+import { useFullNames } from '../fullNames';
+import TeacherName from '../names/TeacherName';
 
-function InfoRow({ k, icon, label, value, onPress }: {
-  k: Tokens; icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string; onPress?: () => void;
+function InfoRow({ k, icon, label, value, valueNode, onPress }: {
+  k: Tokens; icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string;
+  /** вместо простого текста — например, имя со стрелкой «полное имя» */
+  valueNode?: React.ReactNode;
+  onPress?: () => void;
 }) {
   return (
     <Pressable
@@ -36,7 +43,7 @@ function InfoRow({ k, icon, label, value, onPress }: {
       <Ionicons name={icon} size={20} color={k.textSecondary} />
       <View style={{ flex: 1 }}>
         <Txt t="caption" color={k.textSecondary}>{label}</Txt>
-        <Txt t="body" color={k.text}>{value}</Txt>
+        {valueNode ?? <Txt t="body" color={k.text}>{value}</Txt>}
       </View>
       {onPress && <Ionicons name="chevron-forward" size={18} color={k.textSecondary} />}
     </Pressable>
@@ -148,6 +155,7 @@ export default function LessonSheet({ block, onClose, k, showAttendance, showNot
   showNotes: boolean;
   onChanged: () => void;
 }) {
+  const fullNames = useFullNames();
   // Держим последнюю пару, чтобы лист не опустел во время закрытия
   const [shown, setShown] = useState<Block | null>(block);
   useEffect(() => { if (block) setShown(block); }, [block]);
@@ -171,6 +179,7 @@ export default function LessonSheet({ block, onClose, k, showAttendance, showNot
             />
             {l.teacher && (
               <InfoRow k={k} icon="person-outline" label="Преподаватель" value={l.teacher.name}
+                valueNode={<TeacherName name={l.teacher.name} data={fullNames} k={k} t="body" color={k.text} />}
                 onPress={() => { onClose(); openTeacher(l); }} />
             )}
             <InfoRow k={k} icon="location-outline" label="Аудитория" value={l.room?.name ?? '—'}

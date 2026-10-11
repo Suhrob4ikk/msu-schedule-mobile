@@ -7,6 +7,7 @@ import {
   ACCENT_PRESETS, TYPE_SHADES, DEFAULT_TYPES, normalizeHex, contrast, pickOnAccent,
   type AccentPresetId, type ShadeId, type Density, type BaseMode, type TypeShades, type LessonTypeKey,
 } from './schedule/colors';
+import type { FontChoice } from './fontChoice';
 
 export type Background = 'system' | 'light' | 'dark' | 'black';
 
@@ -19,6 +20,8 @@ export interface Appearance {
   typesCustom: Partial<Record<LessonTypeKey, string>>;
   background: Background;
   density: Density;
+  /** Шрифт: обычный Onest или узкий Roboto Condensed (с 2.0.5, src/fontChoice.ts). */
+  font: FontChoice;
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
@@ -28,6 +31,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   typesCustom: {},
   background: 'system',
   density: 'regular',
+  font: 'regular',
 };
 
 const PRESET_IDS = ACCENT_PRESETS.map(p => p.id) as string[];
@@ -78,6 +82,7 @@ export function parseAppearance(raw: string | null): Appearance | null {
       .filter(([, v]) => v)) as Partial<Record<LessonTypeKey, string>>,
     background: oneOf<Background>(o.background, BACKGROUNDS, d.background),
     density: oneOf<Density>(o.density, ['regular', 'compact'], d.density),
+    font: oneOf<FontChoice>(o.font, ['regular', 'condensed'], d.font),
   };
 }
 

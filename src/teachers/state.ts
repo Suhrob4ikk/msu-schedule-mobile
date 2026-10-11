@@ -51,23 +51,33 @@ export const normKey = (s: string) => normalize(s).text;
 
 export interface Match {
   teacher: Teacher;
-  /** Совпавший кусок в исходном ФИО: [начало, конец). */
-  range: [number, number];
+  /** Совпавший кусок в исходном ФИО: [начало, конец). null — нашли по полному имени. */
+  range: [number, number] | null;
+  /** Полное имя, если нашли по имени и отчеству — показывается под ФИО. */
+  full?: string;
 }
 
 /** Совпадение с начала любого слова записи. null — запрос пустой. */
-export function searchTeachers(list: Teacher[], query: string): Match[] | null {
+export function searchTeachers(list: Teacher[], query: string, fullNames?: Record<string, string>): Match[] | null {
   const q = normKey(query);
   if (!q) return null;
+  const startAt = (text: string) => {
+    for (let i = 0; i <= text.length - q.length; i++) {
+      if ((i === 0 || text[i - 1] === ' ') && text.startsWith(q, i)) return i;
+    }
+    return -1;
+  };
   const out: Match[] = [];
   for (const t of list) {
     const n = normalize(t.name);
-    let at = -1;
-    for (let i = 0; i <= n.text.length - q.length; i++) {
-      if ((i === 0 || n.text[i - 1] === ' ') && n.text.startsWith(q, i)) { at = i; break; }
+    const at = startAt(n.text);
+    if (at >= 0) {
+      out.push({ teacher: t, range: [n.map[at], n.map[at + q.length - 1] + 1] });
+      continue;
     }
-    if (at < 0) continue;
-    out.push({ teacher: t, range: [n.map[at], n.map[at + q.length - 1] + 1] });
+    // По имени и отчеству, если полное имя известно (src/fullNames.ts; с 2.0.5, как на сайте)
+    const full = fullNames?.[t.name];
+    if (full && startAt(normalize(full).text) >= 0) out.push({ teacher: t, range: null, full });
   }
   return out;
 }

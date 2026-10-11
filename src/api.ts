@@ -469,6 +469,24 @@ const APP_VERSION_QS = Constants.expoConfig?.version
   ? `&app_version=${encodeURIComponent(Constants.expoConfig.version)}`
   : '';
 
+/** Полные имена преподавателей (с 2.0.5; сервер — backend/app/services/full_names.py). */
+export interface FullNamesData {
+  /** «Джумаев Э.Х.» → «Джумаев Эраж Хакназарович» — утверждённые владельцем */
+  names: Record<string, string>;
+  /** варианты опроса для тех, у кого имя ещё не утверждено */
+  variants: Record<string, Array<{ id: number; name: string }>>;
+}
+
+export interface NameResults {
+  teacher: string;
+  answered: boolean;
+  mine: number | null;
+  /** свой вариант, который ещё не проверил владелец */
+  pending: string | null;
+  final: string | null;
+  variants: Array<{ id: number; name: string; votes?: number }>;
+}
+
 export const api = {
   getGroups: async () => {
     const gs = await get<Group[]>('/schedule/groups');
@@ -512,6 +530,23 @@ export const api = {
   // 5 минут — совпадает с кэшем на бэкенде, чтобы уведомление о новой
   // версии доходило быстро, а не через час после релиза.
   // installed — своя версия: бэкенд вернёт, что нового именно с неё.
+  // минута, как на сайте: владелец утверждает имя в панели и ждёт увидеть его сразу
+  getFullNames: () => get<FullNamesData>('/schedule/full-names', 60_000),
+  /** Ответ в опросе «полное имя преподавателя». Ошибка — Error с текстом для человека. */
+  voteName: (body: { device_id: string; teacher: string; variant_id?: number; proposal?: string }) =>
+    fetch(`${API_BASE}/names/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(async r => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : 'Не получилось отправить ответ');
+      return data as NameResults;
+    }),
+  /** Свой ответ и голоса других (голоса — только если сам уже ответил). */
+  nameResults: (deviceId: string, teacher: string) =>
+    fetch(`${API_BASE}/names/results?device_id=${encodeURIComponent(deviceId)}&teacher=${encodeURIComponent(teacher)}`)
+      .then(r => (r.ok ? (r.json() as Promise<NameResults>) : null)),
   getLatestVersion: (installed?: string) =>
     get<AppVersionInfo>(
       `/app/version${installed ? `?installed=${encodeURIComponent(installed)}` : ''}`,

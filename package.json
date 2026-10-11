@@ -1,9 +1,10 @@
 {
   "name": "msu-schedule-mobile",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/onest": "^0.4.2",
+    "@expo-google-fonts/roboto-condensed": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "12.0.1",

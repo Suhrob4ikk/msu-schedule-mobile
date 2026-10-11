@@ -8,7 +8,9 @@
  * для которых у направления есть группа.
  */
 import React, { useMemo, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+// поле ввода — общее: понимает узкий шрифт на выбор (src/fontChoice.ts)
+import { TextInput } from '../OnestText';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Group, shortGroupName } from '../api';

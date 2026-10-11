@@ -27,6 +27,7 @@ import { mondayOf } from '../src/teachers/state';
 import UpdateBanner from '../src/UpdateBanner';
 import { useAppearance } from '../src/appearance';
 import { FONT } from '../src/schedule/tokens';
+import { CONDENSED_FONTS } from '../src/fontChoice';
 import {
   useFonts, Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
 } from '@expo-google-fonts/onest';
@@ -388,6 +389,8 @@ export default function Layout() {
   const appearance = useAppearance();
   const [fontsLoaded, fontError] = useFonts({
     Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+    // узкий на выбор (src/fontChoice.ts) — грузим сразу, чтобы переключение было мгновенным
+    ...CONDENSED_FONTS,
   });
   if (!appearance || (!fontsLoaded && !fontError)) return null;
 

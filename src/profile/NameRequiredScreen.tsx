@@ -4,7 +4,9 @@
  * дальше не пускаем. Показывается при запуске (app/_layout.tsx).
  */
 import React, { useState } from 'react';
-import { ScrollView, StatusBar, TextInput, View } from 'react-native';
+import { ScrollView, StatusBar, View } from 'react-native';
+// поле ввода — общее: понимает узкий шрифт на выбор (src/fontChoice.ts)
+import { TextInput } from '../OnestText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeMode } from '../theme';
 import { useTokens, RADIUS, TOUCH_MIN, type as typeStyle } from '../schedule/tokens';

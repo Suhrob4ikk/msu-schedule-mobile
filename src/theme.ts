@@ -5,6 +5,7 @@ import ThemeReveal from './ThemeReveal';
 import { buildTokens, type Tokens, type BaseMode } from './schedule/colors';
 import { useAppearance, setAppearance } from './appearance';
 import { Appearance, Background, DEFAULT_APPEARANCE, accentHex, resolveMode, resolveTypes } from './appearanceModel';
+import { CondensedFont } from './fontChoice';
 
 /**
  * Палитра прежних вкладок (Педагоги, Изменения, Уведомления, Сравнение,
@@ -182,7 +183,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     { value },
     // Корень, который фотографируется при смене фона. collapsable={false} —
     // иначе Android может «схлопнуть» обёртку, и снимать будет нечего.
-    React.createElement(View, { ref: rootRef, style: { flex: 1, backgroundColor: tokens.bg }, collapsable: false }, children),
+    React.createElement(View, { ref: rootRef, style: { flex: 1, backgroundColor: tokens.bg }, collapsable: false },
+      // Узкий шрифт на выбор (src/fontChoice.ts): текстовые компоненты читают его отсюда
+      React.createElement(CondensedFont.Provider, { value: appearance.font === 'condensed' }, children)),
     snapshot
       ? React.createElement(ThemeReveal, {
         key: snapshot, uri: snapshot, onShown: onSnapshotShown, onDone: onSnapshotDone,

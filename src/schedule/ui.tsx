@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Text, TextProps, View } from 'react-native';
 import { TYPE, Tokens, RADIUS } from './tokens';
+import { useCondensed, withFont } from '../fontChoice';
 import { KindPalette, lessonKind } from './state';
 
 type TypeName = keyof typeof TYPE;
@@ -15,12 +16,14 @@ export const FixedFontScale = createContext(false);
 export function Txt({ t, color, style, ...rest }: TextProps & { t: TypeName; color: string; ref?: React.Ref<Text> }) {
   const spec = TYPE[t];
   const fixed = useContext(FixedFontScale);
+  // узкий шрифт на выбор — то же начертание Roboto Condensed (src/fontChoice.ts)
+  const condensed = useCondensed();
   return (
     <Text
       maxFontSizeMultiplier={spec.max}
       {...rest}
       {...(fixed ? { allowFontScaling: false, adjustsFontSizeToFit: false } : null)}
-      style={[spec.style, { color }, style]}
+      style={withFont([spec.style, { color }, style], condensed)}
     />
   );
 }

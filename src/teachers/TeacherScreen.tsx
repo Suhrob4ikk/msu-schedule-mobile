@@ -26,6 +26,10 @@ import {
 import { cachedTeacherWeek, fetchTeacherWeek, statusStore } from './data';
 import TDaySection from './TDaySection';
 import { EmptyState } from './ui';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isHidden, answerOf, personsOf, useFullNames } from '../fullNames';
+import TeacherName from '../names/TeacherName';
+import NamePoll from '../names/NamePoll';
 
 const TICK_MS = 30_000;
 type Which = 'this' | 'next';
@@ -197,6 +201,25 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   // Имя в шапке: проступает, пока крупное (≈ 30 dp + отступ) уезжает за край
   const titleOpacity = scrollY.interpolate({ inputRange: [24, 52], outputRange: [0, 1], extrapolate: 'clamp' });
   const displayName = teacher.name || thisLs?.[0]?.teacher?.name || 'Педагог';
+
+  // ─── Полные имена и опрос (с 2.0.5, как на сайте) ─────────────────────
+  // Опрос — про каждого из записи без полного имени, если выбрана группа, у педагога есть
+  // пары и опрос не скрыт крестиком (или уже отвечал — тогда «что ответили другие»).
+  const fullNames = useFullNames();
+  const [myGroup, setMyGroup] = useState<number | null>(null);
+  useEffect(() => { AsyncStorage.getItem('selected_group_id').then(v => setMyGroup(Number(v) || null)).catch(() => {}); }, []);
+  const [pollFor, setPollFor] = useState<string[]>([]);
+  const [pollTick, setPollTick] = useState(0);
+  const hasLessons = !!(thisLs?.length || nextLs?.length);
+  useEffect(() => {
+    let alive = true;
+    if (!fullNames || !myGroup || !hasLessons) { setPollFor([]); return; }
+    const persons = personsOf(displayName).filter(p => !fullNames.names[p]);
+    Promise.all(persons.map(async p => ((await answerOf(p)) || !(await isHidden(p)) ? p : null)))
+      .then(list => { if (alive) setPollFor(list.filter((p): p is string => !!p)); });
+    return () => { alive = false; };
+  }, [fullNames, myGroup, hasLessons, displayName, pollTick]);
+  const ownGroup = !!myGroup && !![...(thisLs ?? []), ...(nextLs ?? [])].some(l => l.group?.id === myGroup);
   const dayY = useRef<(number | undefined)[]>([]);
   const focusBox = useRef<{ day: number; y: number; h: number } | null>(null);
   const viewportH = useRef(0);
@@ -395,15 +418,9 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
         }
       >
         <View style={{ paddingHorizontal: 4, paddingBottom: 10 }}>
-          <Txt
-            t="teacherTitle"
-            color={k.text}
-            accessibilityRole="header"
-            android_hyphenationFrequency="full"
-            textBreakStrategy="highQuality"
-          >
-            {displayName}
-          </Txt>
+          <View accessibilityRole="header">
+            <TeacherName name={displayName} data={fullNames} k={k} t="teacherTitle" color={k.text} iconSize={24} />
+          </View>
           <Txt t="small" color={k.textSecondary} style={{ marginTop: 4, fontFamily: FONT[400] }}>
             {summary ? (
               <>
@@ -413,6 +430,12 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
             ) : ' '}
           </Txt>
         </View>
+
+        {pollFor.map(p => (
+          <NamePoll key={p} teacher={p} variants={fullNames?.variants[p] ?? []} k={k}
+            named={pollFor.length > 1 || personsOf(displayName).length > 1} ownGroup={ownGroup}
+            onHide={() => setPollTick(t => t + 1)} />
+        ))}
 
         <WeekSegment k={k} which={shown} thisWs={thisWs} nextWs={nextWs} onPick={pickWeek} />
 

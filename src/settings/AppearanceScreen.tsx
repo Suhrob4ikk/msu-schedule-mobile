@@ -11,9 +11,11 @@
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  BackHandler, Pressable, ScrollView, StatusBar, TextInput, View, useWindowDimensions,
+  BackHandler, Pressable, ScrollView, StatusBar, Text as RNText, View, useWindowDimensions,
   type GestureResponderEvent,
 } from 'react-native';
+// поле ввода — общее: понимает узкий шрифт на выбор (src/fontChoice.ts)
+import { TextInput } from '../OnestText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,11 +24,12 @@ import { useThemeMode } from '../theme';
 import { setAppearance, resetAppearance, useSelectedAppearance } from '../appearance';
 import { accentHex, onAccentLine, type Appearance, type Background } from '../appearanceModel';
 import {
-  useTokens, Tokens, RADIUS, TOUCH_MIN, TYPE,
+  useTokens, Tokens, RADIUS, TOUCH_MIN, TYPE, FONT,
   ACCENT_PRESETS, TYPE_SHADES, BASE_THEMES, normalizeHex, pickOnAccent, accentTokens, shadePair,
   type BaseMode, type Density, type LessonTypeKey, type ShadeId,
 } from '../schedule/tokens';
 import { Txt, Divider, FixedFontScale } from '../schedule/ui';
+import type { FontChoice } from '../fontChoice';
 import FocusCard from '../schedule/FocusCard';
 import LessonRow from '../schedule/LessonRow';
 import RoomRow from '../rooms/RoomRow';
@@ -585,6 +588,34 @@ function DensityTiles({ k }: { k: Tokens }) {
   );
 }
 
+/** Шрифт (с 2.0.5, как на сайте): образец «Аа» каждым шрифтом — напрямую, мимо подмены в Txt. */
+function FontTiles({ k }: { k: Tokens }) {
+  const a = useSelectedAppearance();
+  const tiles: { id: FontChoice; label: string; family: string; small: string }[] = [
+    { id: 'regular', label: 'Обычный', family: FONT[800], small: FONT[500] },
+    { id: 'condensed', label: 'Узкий', family: 'RobotoCondensed_800ExtraBold', small: 'RobotoCondensed_500Medium' },
+  ];
+  return (
+    <View style={{ flexDirection: 'row', columnGap: 8 }}>
+      {tiles.map(t => (
+        <Tile
+          key={t.id}
+          k={k}
+          selected={a.font === t.id}
+          label={t.label}
+          a11y={`Шрифт: ${t.label.toLowerCase()}`}
+          onPress={() => { Haptics.selectionAsync(); setAppearance(prev => ({ ...prev, font: t.id })); }}
+        >
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', rowGap: 2 }}>
+            <RNText allowFontScaling={false} style={{ fontFamily: t.family, fontSize: 30, lineHeight: 34, color: k.text }}>Аа</RNText>
+            <RNText allowFontScaling={false} numberOfLines={1} style={{ fontFamily: t.small, fontSize: 12, lineHeight: 15, color: k.textSecondary }}>Численные методы</RNText>
+          </View>
+        </Tile>
+      ))}
+    </View>
+  );
+}
+
 // ─── Экран ───────────────────────────────────────────────────────────────────
 
 export default function AppearanceScreen() {
@@ -660,6 +691,9 @@ export default function AppearanceScreen() {
         </Panel>
         <Panel k={k} title="Плотность карточек">
           <DensityTiles k={k} />
+        </Panel>
+        <Panel k={k} title="Шрифт">
+          <FontTiles k={k} />
         </Panel>
 
         <Pressable

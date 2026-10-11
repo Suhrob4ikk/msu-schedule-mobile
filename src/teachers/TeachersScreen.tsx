@@ -1,15 +1,15 @@
 /**
  * Вкладка «Педагоги» в стиле «Табло» (ТЗ от 4 окт 2026): поиск по фамилии,
- * алфавитные секции со статусом «есть ли пара сейчас», недавние, переход по
- * букве. Экран педагога открывается поверх списка (список под ним не
- * выгружается — прокрутка сохраняется).
+ * алфавитные секции со статусом «есть ли пара сейчас», недавние, полоса букв у
+ * правого края (LetterRail, с 2.0.5 вместо кнопки «А–Я» с листом). Экран педагога
+ * открывается поверх списка (список под ним не выгружается — прокрутка сохраняется).
  *
  * Данные — сначала кэш (общий с полной синхронизацией), потом сеть. Статусы
  * строк считаются на телефоне из кэша расписаний педагогов (data.ts).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, AppState, BackHandler, Easing, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet,
+  Animated, AppState, BackHandler, Easing, RefreshControl, ScrollView, StatusBar, StyleSheet,
   TextInput, View, useWindowDimensions,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { invalidateApiCache, Teacher, WeekOption } from '../api';
 import { useThemeMode } from '../theme';
 import { useOnlineAgain, useSyncStatus } from '../SyncContext';
-import { useTokens, GUTTER, RADIUS, TOUCH_MIN, HEADER_H, Tokens } from '../schedule/tokens';
+import { useTokens, GUTTER, TOUCH_MIN, HEADER_H, Tokens } from '../schedule/tokens';
 import { Txt, Divider, useReduceMotion } from '../schedule/ui';
 import { isoOf } from '../schedule/state';
 import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
@@ -31,9 +31,10 @@ import {
   readUpdatedAt, statusStore, writeRecent, writeUpdatedAt,
 } from './data';
 import { TeacherCard } from './TeacherRow';
-import LetterSheet from './LetterSheet';
+import LetterRail from './LetterRail';
 import { EmptyState, SearchField } from './ui';
 import TeacherScreen from './TeacherScreen';
+import { useFullNames } from '../fullNames';
 
 const TICK_MS = 60_000;
 
@@ -161,12 +162,14 @@ export default function TeachersScreen() {
   // ─── Поиск ────────────────────────────────────────────────────────────
   const [query, setQuery] = useState('');
   const inputRef = useRef<TextInput>(null);
-  const matches = useMemo(() => searchTeachers(teachers, query), [teachers, query]);
+  const fullNames = useFullNames();
+  const matches = useMemo(() => searchTeachers(teachers, query, fullNames?.names), [teachers, query, fullNames]);
   const similar = useMemo(
     () => (matches && matches.length === 0 ? similarTeachers(teachers, query) : []),
     [matches, teachers, query],
   );
-  const ranges = useMemo(() => new Map((matches ?? []).map(m => [m.teacher.id, m.range])), [matches]);
+  const ranges = useMemo(() => new Map((matches ?? []).filter(m => m.range).map(m => [m.teacher.id, m.range as [number, number]])), [matches]);
+  const fulls = useMemo(() => new Map((matches ?? []).filter(m => m.full).map(m => [m.teacher.id, m.full as string])), [matches]);
 
   // ─── Открыть педагога (экран выезжает справа поверх списка) ─────────────
   const { width } = useWindowDimensions();
@@ -242,30 +245,16 @@ export default function TeachersScreen() {
   const letterY = useRef(new Map<string, number>());
   const scrollY = useRef(0);
   const viewportH = useRef(0);
-  const [letterOpen, setLetterOpen] = useState(false);
-  const [currentLetter, setCurrentLetter] = useState<string | null>(null);
 
   const onScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
     scrollY.current = e.nativeEvent.contentOffset.y;
     statusStore.setViewport(scrollY.current, viewportH.current);
   }, []);
 
-  const openLetters = useCallback(() => {
-    Haptics.selectionAsync();
-    // Текущая буква — секция, заголовок которой уже прилип к верху
-    let cur: string | null = null;
-    for (const s of sections) {
-      const y = letterY.current.get(s.letter);
-      if (y != null && y <= scrollY.current + 4) cur = s.letter;
-    }
-    setCurrentLetter(cur ?? sections[0]?.letter ?? null);
-    setLetterOpen(true);
-  }, [sections]);
-
-  const pickLetter = useCallback((l: string) => {
-    setLetterOpen(false);
+  // Полоса букв: палец ведут быстро — прокрутка без анимации
+  const goLetter = useCallback((l: string) => {
     const y = letterY.current.get(l);
-    if (y != null) scrollRef.current?.scrollTo({ y, animated: true });
+    if (y != null) scrollRef.current?.scrollTo({ y, animated: false });
   }, []);
 
   // ─── Статус связи ─────────────────────────────────────────────────────
@@ -276,6 +265,7 @@ export default function TeachersScreen() {
     now: new Date(),
   });
   const noData = !teachers.length && !loading;
+  const showRail = !!teachers.length && !matches && sections.length > 1;
 
   // ─── Содержимое ленты (плоский список — для липких заголовков букв) ──
   const children: React.ReactElement[] = [];
@@ -283,20 +273,8 @@ export default function TeachersScreen() {
 
   if (teachers.length && !matches) {
     children.push(
-      <View key="summary" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 4, paddingLeft: 4, paddingTop: 4 }}>
+      <View key="summary" style={{ minHeight: TOUCH_MIN, flexDirection: 'row', alignItems: 'center', paddingLeft: 4, paddingTop: 4 }}>
         <Txt t="teacherStatus" color={k.textSecondary} style={{ flexShrink: 1 }}>{listSummary(teachers.length, new Date())}</Txt>
-        <Pressable
-          onPress={openLetters}
-          accessibilityRole="button"
-          accessibilityLabel="Перейти к букве"
-          style={({ pressed }) => ({
-            minHeight: TOUCH_MIN, minWidth: TOUCH_MIN, paddingHorizontal: 16, borderRadius: RADIUS.pill,
-            alignItems: 'center', justifyContent: 'center', backgroundColor: k.accentSoft, opacity: pressed ? 0.85 : 1,
-            marginLeft: 'auto',
-          })}
-        >
-          <Txt t="labelStrong" color={k.onAccentSoft}>А–Я</Txt>
-        </Pressable>
       </View>,
     );
     if (recent.length) {
@@ -325,7 +303,7 @@ export default function TeachersScreen() {
         </View>,
       );
       children.push(
-        <TeacherCard key="found" k={k} group="found" teachers={matches.map(m => m.teacher)} ranges={ranges} onPress={onRowPress} />,
+        <TeacherCard key="found" k={k} group="found" teachers={matches.map(m => m.teacher)} ranges={ranges} fulls={fulls} onPress={onRowPress} />,
       );
     } else {
       children.push(
@@ -401,10 +379,11 @@ export default function TeachersScreen() {
           </View>
         </View>
 
+        <View style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: GUTTER, paddingTop: 4, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingLeft: GUTTER, paddingRight: showRail ? GUTTER + 16 : GUTTER, paddingTop: 4, paddingBottom: 24 }}
           stickyHeaderIndices={sticky}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -417,17 +396,9 @@ export default function TeachersScreen() {
         >
           {children}
         </ScrollView>
+        {showRail && <LetterRail k={k} letters={sections.map(s => s.letter)} onLetter={goLetter} />}
+        </View>
       </View>
-
-      <LetterSheet
-        visible={letterOpen}
-        onClose={() => setLetterOpen(false)}
-        k={k}
-        letters={sections.map(s => s.letter)}
-        current={currentLetter}
-        total={teachers.length}
-        onPick={pickLetter}
-      />
 
       {open && (
         <Animated.View

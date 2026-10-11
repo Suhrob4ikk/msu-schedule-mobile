@@ -1,6 +1,9 @@
 /** Мелкие части вкладки «Педагоги»: поле поиска в шапке, пустое состояние, переходы. */
 import React, { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+// поле ввода — общее: понимает узкий шрифт на выбор (src/fontChoice.ts)
+import { TextInput } from '../OnestText';
+import type { TextInput as RNTextInput } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -37,7 +40,7 @@ export function SearchField({ k, value, onChange, disabled, inputRef }: {
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
-  inputRef?: React.Ref<TextInput>;
+  inputRef?: React.Ref<RNTextInput>;
 }) {
   const [focused, setFocused] = useState(false);
   const active = focused && value.length > 0;

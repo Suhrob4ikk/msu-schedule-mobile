@@ -25,12 +25,14 @@ function Name({ name, range, k }: { name: string; range?: [number, number] | nul
   );
 }
 
-function TeacherRow({ t, k, group, range, onPress }: {
+function TeacherRow({ t, k, group, range, full, onPress }: {
   t: Teacher;
   k: Tokens;
   /** Блок, в котором стоит строка (недавние, буква, поиск) — для окна прокрутки. */
   group: string;
   range?: [number, number] | null;
+  /** нашли по имени и отчеству — полное имя под ФИО */
+  full?: string | null;
   onPress: (t: Teacher) => void;
 }) {
   const rowKey = `${group}:${t.id}`;
@@ -52,6 +54,7 @@ function TeacherRow({ t, k, group, range, onPress }: {
     >
       <View style={{ flex: 1, minWidth: 0, rowGap: 2 }}>
         <Name name={t.name} range={range} k={k} />
+        {full ? <Txt t="teacherStatus" color={k.accentText}>{full}</Txt> : null}
         {st && now ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: k.accentText }} />
@@ -84,11 +87,12 @@ const Row = memo(TeacherRow);
 export default Row;
 
 /** Карточка строк (радиус 18) с разделителями; сообщает своё место в ленте. */
-export function TeacherCard({ k, group, teachers, ranges, onPress }: {
+export function TeacherCard({ k, group, teachers, ranges, fulls, onPress }: {
   k: Tokens;
   group: string;
   teachers: Teacher[];
   ranges?: Map<number, [number, number]>;
+  fulls?: Map<number, string>;
   onPress: (t: Teacher) => void;
 }) {
   return (
@@ -99,7 +103,7 @@ export function TeacherCard({ k, group, teachers, ranges, onPress }: {
       {teachers.map((t, i) => (
         <React.Fragment key={t.id}>
           {i > 0 && <Divider k={k} />}
-          <Row t={t} k={k} group={group} range={ranges?.get(t.id) ?? null} onPress={onPress} />
+          <Row t={t} k={k} group={group} range={ranges?.get(t.id) ?? null} full={fulls?.get(t.id) ?? null} onPress={onPress} />
         </React.Fragment>
       ))}
     </View>

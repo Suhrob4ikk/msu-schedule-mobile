@@ -1,6 +1,8 @@
 /** Поле «Номер аудитории»: 48 dp, радиус 14; при фокусе и непустом значении — обводка accent-text. */
 import React, { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+// поле ввода — общее: понимает узкий шрифт на выбор (src/fontChoice.ts)
+import { TextInput } from '../OnestText';
 import { Ionicons } from '@expo/vector-icons';
 import { Tokens, TOUCH_MIN, type as typeStyle } from '../schedule/tokens';
 
