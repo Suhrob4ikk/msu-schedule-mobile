@@ -43,6 +43,7 @@ import DayBar from './DayBar';
 import WeekSheet from './WeekSheet';
 import DayPager from './DayPager';
 import LessonSheet from './LessonSheet';
+import HolidayBanner from '../holiday/HolidayBanner';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -742,6 +743,7 @@ export default function ScheduleScreenNew() {
       />
 
       {/* Приветствие — своя группа, эта неделя (там статистики нет, они не встречаются) */}
+      <HolidayBanner />
       {selectedWeek && rel === 'current' && isMyGroup && <Greeting k={k} now={now} days={days} />}
 
       {/* Статистика — только когда открыта другая неделя. Отступ до первого

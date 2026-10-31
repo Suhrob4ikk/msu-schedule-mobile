@@ -12,6 +12,7 @@ import { Tokens, RADIUS } from './tokens';
 import { Focus, blockA11y, leftParts, leftSpoken, roomLines, slotsLabel } from './state';
 import { Txt, KindBadge, PillDot } from './ui';
 import { openRoom, openTeacher } from './LessonRow';
+import HolidayCardDeco from '../holiday/HolidayCardDeco';
 
 const TICK_MS = 30_000;
 
@@ -118,6 +119,7 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
         overflow: 'hidden',
       }}
     >
+      <HolidayCardDeco place="focus" radius={RADIUS.lg} />
       {/* 1. Пилюля и отсчёт */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 6 }}>
         <View

@@ -14,6 +14,7 @@ import DayHeading, { dayPaddingTop } from './DayHeading';
 import LessonRow, { PairNum, ROW_GAP, ROW_PAD_X, TimeRange } from './LessonRow';
 import { PAIR_NUMBERS, PAIR_TIMES } from '../api';
 import FocusCard from './FocusCard';
+import HolidayCardDeco from '../holiday/HolidayCardDeco';
 
 export type Marks = { notes: Set<string>; skips: Set<string> };
 
@@ -40,6 +41,7 @@ function Segment({ items, k, now, rel, marks, onRowPress }: {
   if (!items.length) return null;
   return (
     <View style={{ backgroundColor: k.card, borderRadius: RADIUS.card, overflow: 'hidden' }}>
+      <HolidayCardDeco place="list" radius={RADIUS.card} />
       {items.map((it, i) => (
         <React.Fragment key={it.kind === 'row' ? it.block.key : it.key}>
           {i > 0 && <Divider k={k} />}

@@ -25,6 +25,10 @@ import { markExamReadById } from '../src/notifications/data';
 import { badgeText } from '../src/notifications/state';
 import { mondayOf } from '../src/teachers/state';
 import UpdateBanner from '../src/UpdateBanner';
+import HolidayParticles from '../src/holiday/HolidayParticles';
+import { refreshHoliday } from '../src/holiday/holidays';
+import { noteStreakVisit } from '../src/streak/streak';
+import StreakHint from '../src/streak/StreakHint';
 import { useAppearance } from '../src/appearance';
 import { FONT } from '../src/schedule/tokens';
 import { CONDENSED_FONTS } from '../src/fontChoice';
@@ -290,6 +294,17 @@ function AppTabs() {
     return () => sub.remove();
   }, []);
 
+  // Праздник (src/holiday/holidays.ts) и огонёк серии (src/streak/streak.ts): при запуске и возврате —
+  // праздник мог начаться, а сегодняшний заход засчитывается в серию.
+  useEffect(() => {
+    void refreshHoliday();
+    void noteStreakVisit();
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') { void refreshHoliday(); void noteStreakVisit(); }
+    });
+    return () => sub.remove();
+  }, []);
+
   if (!ready) return null;
 
   if (needsOnboarding) {
@@ -375,6 +390,8 @@ function AppTabs() {
       </Tabs>
       {/* Плавающая карточка обновления — поверх вкладок, поэтому после <Tabs> */}
       <UpdateBanner />
+      <StreakHint />
+      <HolidayParticles />
     </View>
   );
 }

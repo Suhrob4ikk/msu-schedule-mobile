@@ -36,6 +36,7 @@ import {
 import {
   skipRows, skipsSpoken, totalLabel, profileLine, offlineNote, avatarLetter, pluralPairs,
 } from './state';
+import TestModeSheet from '../TestModeSheet';
 
 // Источник — app.json → expo.extra.webUrl (та же логика, что и API_BASE в src/api.ts)
 const WEB_URL =
@@ -221,6 +222,7 @@ export default function ProfileScreen() {
   const unread = useUnreadNotifCount();
 
   const [groups, setGroups] = useState<Group[]>([]);
+  const [testOpen, setTestOpen] = useState(false);
   const [name, setName] = useState('');
   const [groupId, setGroupId] = useState<number | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -465,9 +467,15 @@ export default function ProfileScreen() {
           </Pressable>
           <Txt t="smallSemi" color={k.text}>МГУ Душанбе · Расписание</Txt>
           <Txt t="small" color={k.textSecondary}>Данные с msu.tj</Txt>
-          {VERSION ? <Txt t="small" color={k.textSecondary} numberOfLines={1}>v{VERSION}</Txt> : null}
+          {/* Долгое нажатие на версию — «Тестовый режим» (праздники и огонёк, src/TestModeSheet.tsx) */}
+          {VERSION ? (
+            <Pressable onLongPress={() => setTestOpen(true)} delayLongPress={800} accessibilityRole="text">
+              <Txt t="small" color={k.textSecondary} numberOfLines={1}>v{VERSION}</Txt>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
+      <TestModeSheet visible={testOpen} onClose={() => setTestOpen(false)} k={k} />
 
       <ProfileSheet
         k={k}
