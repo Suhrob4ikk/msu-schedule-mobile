@@ -10,16 +10,18 @@ import { SvgXml } from 'react-native-svg';
 import { askBurst, dushanbeNow, isoOf, setTestHoliday, useHoliday } from './holidays';
 import { garlandSvg, sceneSvg, SCENE_BG } from './scenes';
 import { FONT } from '../schedule/tokens';
+import { TJ_EMBLEM, TJ_FLAG_H, TJ_FLAG_W } from './tjEmblem';
 
 const HIDDEN_KEY = 'holiday_hidden';
 const H = 172;
 
-/** Флаг Таджикистана на флагштоке сцены «indep» — на сайте он колышется (canvas), здесь — с изгибом ткани. */
-const FLAG = '<g transform="translate(73 40)"><path d="M0 0 C40 -6 90 8 150 0 L150 26 C90 34 40 20 0 26Z" fill="#cc0000"/>' +
-  '<path d="M0 26 C40 20 90 34 150 26 L150 64 C90 72 40 58 0 64Z" fill="#ffffff"/><path d="M0 64 C40 58 90 72 150 64 L150 90 C90 98 40 84 0 90Z" fill="#006600"/>' +
-  '<path d="M61 53 L65 43 L70 49 L75 39 L80 49 L85 43 L89 53Z M61 53 h28 v3 h-28Z" fill="#f8c300"/>' +
-  [0, 1, 2, 3, 4, 5, 6].map(i => { const a = Math.PI + (i / 6) * Math.PI; return `<circle cx="${(75 + Math.cos(a) * 21).toFixed(1)}" cy="${(47 + Math.sin(a) * 13).toFixed(1)}" r="1.9" fill="#f8c300"/>`; }).join('') +
-  '<path d="M0 0 C40 -6 90 8 150 0 L150 90 C90 98 40 84 0 90Z" fill="#000" opacity=".08"/></g>';
+/** Флаг Таджикистана на флагштоке сцены «indep» — на сайте он колышется (canvas), здесь — с изгибом ткани.
+ *  Пропорции 1 : 2, полосы 2 : 3 : 2, герб — точные контуры (tjEmblem.ts, как на сайте). */
+const FLAG = '<g transform="translate(73 40)"><path d="M0 0 C40 -5 90 7 150 0 L150 21.4 C90 28.4 40 16.4 0 21.4Z" fill="#DC161D"/>' +
+  '<path d="M0 21.4 C40 16.4 90 28.4 150 21.4 L150 53.6 C90 60.6 40 48.6 0 53.6Z" fill="#FFFFFF"/><path d="M0 53.6 C40 48.6 90 60.6 150 53.6 L150 75 C90 82 40 70 0 75Z" fill="#197B30"/>' +
+  `<g transform="translate(0 1.5) scale(${(150 / TJ_FLAG_W).toFixed(6)} ${(75 / TJ_FLAG_H).toFixed(6)})">` +
+  TJ_EMBLEM.map(([fill, d]) => `<path d="${d}" fill="${fill}"/>`).join('') + '</g>' +
+  '<path d="M0 0 C40 -5 90 7 150 0 L150 75 C90 82 40 70 0 75Z" fill="#000" opacity=".08"/></g>';
 
 function secondsToMidnight(): number {
   const d = dushanbeNow();
