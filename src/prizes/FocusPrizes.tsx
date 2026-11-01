@@ -50,7 +50,8 @@ export function LiveFrame({ progress, rainbow, radius, k }: { progress: number; 
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** «осталось 46:59» цифрами-табло; сам тикает раз в секунду. Светлая тема — белые карточки, тёмная — чёрные. */
+/** «осталось 46:59» цифрами-табло; сам тикает раз в секунду. Светлая тема — белые карточки, тёмная — чёрные.
+ *  Компактно — в одну строку с плашкой, чтобы карточка не росла (владелец, 1 ноя 2026). */
 export function FlipCountdown({ targetAt, label, color, k }: { targetAt: number; label: string; color: string; k: Tokens }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
@@ -58,11 +59,11 @@ export function FlipCountdown({ targetAt, label, color, k }: { targetAt: number;
   const h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60), s = left % 60;
   const text = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   return (
-    <View accessible accessibilityLabel={`${label} ${leftSpoken(targetAt - now)}`} style={{ flexDirection: 'row', alignItems: 'center', columnGap: 8, marginLeft: 'auto' }}>
-      <Text style={{ fontFamily: FONT[500], fontSize: 15, color }}>{label}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 3 }}>
+    <View accessible accessibilityLabel={`${label} ${leftSpoken(targetAt - now)}`} style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6, marginLeft: 'auto' }}>
+      <Text style={{ fontFamily: FONT[500], fontSize: 13.5, color }}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 2 }}>
         {[...text].map((ch, i) => ch === ':'
-          ? <Text key={i} style={{ fontFamily: FONT[800], fontSize: 20, color }}>:</Text>
+          ? <Text key={i} style={{ fontFamily: FONT[800], fontSize: 16, color }}>:</Text>
           : <FlipDigit key={i} d={ch} k={k} />)}
       </View>
     </View>
@@ -80,10 +81,10 @@ function FlipDigit({ d, k }: { d: string; k: Tokens }) {
   }, [d, flip]);
   const dark = k.mode !== 'light';
   return (
-    <View style={{ width: 22, height: 32, borderRadius: 6, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    <View style={{ width: 18, height: 25, borderRadius: 5, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
       backgroundColor: dark ? '#15161b' : '#ffffff', elevation: 2, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }}>
-      <Animated.Text style={{ fontFamily: FONT[800], fontSize: 22, color: dark ? '#ffffff' : k.accentText, transform: [{ scaleY: flip }], opacity: flip }}>{d}</Animated.Text>
-      <View style={{ position: 'absolute', left: 0, right: 0, top: 16, height: StyleSheet.hairlineWidth, backgroundColor: dark ? 'rgba(0,0,0,.6)' : 'rgba(0,0,0,.1)' }} />
+      <Animated.Text style={{ fontFamily: FONT[800], fontSize: 17, color: dark ? '#ffffff' : k.accentText, transform: [{ scaleY: flip }], opacity: flip }}>{d}</Animated.Text>
+      <View style={{ position: 'absolute', left: 0, right: 0, top: 12.5, height: StyleSheet.hairlineWidth, backgroundColor: dark ? 'rgba(0,0,0,.6)' : 'rgba(0,0,0,.1)' }} />
     </View>
   );
 }
