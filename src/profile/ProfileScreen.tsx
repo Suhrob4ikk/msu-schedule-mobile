@@ -467,9 +467,9 @@ export default function ProfileScreen() {
           </Pressable>
           <Txt t="smallSemi" color={k.text}>МГУ Душанбе · Расписание</Txt>
           <Txt t="small" color={k.textSecondary}>Данные с msu.tj</Txt>
-          {/* Долгое нажатие на версию — «Тестовый режим» (праздники и огонёк, src/TestModeSheet.tsx) */}
+          {/* Долгое нажатие на версию (15 с, чтобы студент не открыл случайно) — «Тестовый режим» (праздники и огонёк, src/TestModeSheet.tsx) */}
           {VERSION ? (
-            <Pressable onLongPress={() => setTestOpen(true)} delayLongPress={800} accessibilityRole="text">
+            <Pressable onLongPress={() => setTestOpen(true)} delayLongPress={15000} accessibilityRole="text">
               <Txt t="small" color={k.textSecondary} numberOfLines={1}>v{VERSION}</Txt>
             </Pressable>
           ) : null}
