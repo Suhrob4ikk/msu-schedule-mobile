@@ -1,5 +1,5 @@
 /**
- * Подсказка снизу на 15, 25, 29 и 30 днях серии — один раз на каждую (как на сайте). На 30 — «Открыть»
+ * Подсказка снизу на 7, 14, 20 и 21 днях серии — один раз на каждую (как на сайте). На 30 — «Открыть»
  * открывает лист огонька. Над нижними вкладками, поверх экрана.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,10 +11,10 @@ import Flame from './Flame';
 import { STREAK_HINTS_KEY, STREAK_HINT_DAYS, openStreakSheet, useStreak } from './streak';
 
 const TEXT: Record<number, [string, string]> = {
-  15: ['15 дней подряд', 'Через 15 дней здесь откроется кое-что новое.'],
-  25: ['25 дней подряд', 'Осталось 5 дней — не прерывайте серию.'],
-  29: ['29 дней подряд', 'Завтра здесь откроется кое-что новое.'],
-  30: ['30 дней подряд', 'Вам открылись достижения.'],
+  7: ['7 дней подряд', 'Через 14 дней здесь откроется кое-что новое.'],
+  14: ['14 дней подряд', 'Осталось 7 дней — не прерывайте серию.'],
+  20: ['20 дней подряд', 'Завтра здесь откроется кое-что новое.'],
+  21: ['21 день подряд', 'Вам открылись достижения.'],
 };
 
 export default function StreakHint() {
@@ -45,7 +45,7 @@ export default function StreakHint() {
         <Text style={{ fontFamily: FONT[700], fontSize: 14, color: k.text }}>{title}</Text>
         <Text style={{ fontFamily: FONT[500], fontSize: 13, color: k.textSecondary }}>{text}</Text>
       </View>
-      {hint === 30 && (
+      {hint === 21 && (
         <Pressable onPress={() => { setHint(null); router.navigate('/profile'); openStreakSheet(); }} style={{ height: 36, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center', backgroundColor: k.accent }}>
           <Text style={{ fontFamily: FONT[700], fontSize: 14, color: k.onAccent }}>Открыть</Text>
         </Pressable>

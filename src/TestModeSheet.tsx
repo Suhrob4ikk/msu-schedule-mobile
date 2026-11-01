@@ -25,7 +25,7 @@ export default function TestModeSheet({ visible, onClose, k }: { visible: boolea
   const st = useStreak();
   const pz = usePrizes();
   const cur: HolidayId | null = test && holiday ? holiday.id : null;
-  const streakOpts: [string, null | 'on' | number][] = [['Выкл', null], ['Настоящий счёт', 'on'], ['1', 1], ['7', 7], ['15', 15], ['25', 25], ['29', 29], ['30', 30], ['60', 60]];
+  const streakOpts: [string, null | 'on' | number][] = [['Выкл', null], ['Настоящий счёт', 'on'], ['1', 1], ['7', 7], ['14', 14], ['20', 20], ['21', 21], ['60', 60]];
   return (
     <BottomSheet visible={visible} onClose={onClose} k={k} label="Тестовый режим">
       <View style={{ paddingHorizontal: 20, paddingBottom: 28, rowGap: 10 }}>

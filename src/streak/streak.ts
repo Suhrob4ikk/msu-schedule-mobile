@@ -12,8 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { dushanbeNow, isoOf } from '../holiday/holidays';
 
-export const STREAK_GOAL = 30;
-export const STREAK_HINT_DAYS = [15, 25, 29, 30];
+export const STREAK_GOAL = 21;   // владелец: «для достижений достаточно 21 дня» (1 ноя 2026)
+export const STREAK_HINT_DAYS = [7, 14, 20, 21];
 const ON = 'streak_on', TEST = 'streak_test', DAYS = 'streak_days', BEST = 'streak_best';
 export const STREAK_HINTS_KEY = 'streak_hints';
 

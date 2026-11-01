@@ -10,7 +10,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 
-export type HolidayId = 'ny' | 'nye' | 'navruz' | 'mar8' | 'sep1' | 'indep' | 'session' | 'eid_ramazon' | 'eid_qurbon';
+export type HolidayId = 'ny' | 'nye' | 'ny2' | 'navruz' | 'mar8' | 'sep1' | 'indep' | 'session' | 'eid_ramazon' | 'eid_qurbon';
 export type HolidayFx = 'snow' | 'petals' | 'glow' | 'none';
 export type Burst = 'fireworks' | 'confetti' | 'both';
 
@@ -28,8 +28,10 @@ export interface Holiday {
 }
 
 export const HOLIDAYS: Holiday[] = [
-  { id: 'ny', label: 'Новый год', title: 'С наступающим Новым годом!', sub: 'Хороших праздников и лёгкой сессии', scene: 'ny', fx: 'snow', garland: true },
-  { id: 'nye', label: '31 декабря', title: 'До Нового года', sub: '', scene: 'ny', fx: 'snow', garland: true, burst: 'both' },
+  // Новый год — даты от владельца (1 ноя 2026): с 15 декабря по 7 января; 31-го — отсчёт до полуночи
+  { id: 'ny', label: 'Новый год', title: 'С наступающим Новым годом!', sub: 'Хороших праздников и лёгкой сессии', scene: 'ny', fx: 'snow', garland: true, days: [['12-15', '12-30']] },
+  { id: 'nye', label: '31 декабря', title: 'До Нового года', sub: '', scene: 'ny', fx: 'snow', garland: true, burst: 'both', days: [['12-31', '12-31']] },
+  { id: 'ny2', label: '1–7 января', title: 'С Новым годом!', sub: 'Хороших праздников и лёгкой сессии', scene: 'ny', fx: 'snow', garland: true, days: [['01-01', '01-07']] },
   { id: 'navruz', label: 'Навруз', title: 'Навруз муборак!', sub: 'С праздником весны и нового года', scene: 'navruz', fx: 'petals' },
   { id: 'mar8', label: '8 Марта', title: 'С 8 Марта!', sub: 'Поздравляем с Международным женским днём', scene: 'mar8', fx: 'glow' },
   { id: 'sep1', label: 'День знаний', title: 'С началом учебного года!', sub: 'Удачного семестра', scene: 'sep1', fx: 'none', burst: 'confetti' },
