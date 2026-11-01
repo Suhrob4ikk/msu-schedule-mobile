@@ -12,7 +12,6 @@ import { openNotifications } from '../notifications/nav';
 import { badgeText, unreadSpoken } from '../notifications/state';
 import { Txt } from './ui';
 import { stampLabel } from './state';
-import FlameChip from '../streak/FlameChip';
 
 export type LinkState = { kind: 'online' | 'sync' | 'offline'; text: string };
 
@@ -141,7 +140,6 @@ function ScheduleHeader({ k, topInset, subtitle, subtitleLead, title, link, onOp
         </Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }}>
           <StatusPill s={link} k={k} />
-          <FlameChip k={k} />
           <Bell k={k} />
         </View>
       </View>

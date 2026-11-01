@@ -1,9 +1,12 @@
 /**
- * Огонёк с числом серии в шапке Расписания, рядом с колокольчиком (как на сайте). Нажатие — лист:
+ * Огонёк серии — строка в Кабинете под профилем (как на сайте). Из шапки убран (владелец, 1 ноя 2026: «выглядит
+ * забитым», в шапке остаётся время обновления). Нажатие — лист:
  * серия, рекорд, заморозка, неделя кружками, «До нового: N из 30», правила. Только в тестовом режиме.
  */
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Card } from '../profile/rows';
 import BottomSheet from '../schedule/BottomSheet';
 import { RADIUS, type Tokens } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
@@ -13,19 +16,28 @@ import { STREAK_GOAL, daysWord, onOpenStreakSheet, useStreak, type DayMark, type
 const DOW = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 const FROST = '#4AA3D8';
 
-export default function FlameChip({ k }: { k: Tokens }) {
+export default function StreakRow({ k }: { k: Tokens }) {
   const st = useStreak();
   const [open, setOpen] = useState(false);
   useEffect(() => onOpenStreakSheet(() => setOpen(true)), []);
   if (!st) return null;
+  const left = Math.max(0, STREAK_GOAL - st.streak);
   return (
     <>
-      <Pressable onPress={() => setOpen(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Серия: ${st.streak} ${daysWord(st.streak)}`}
-        style={{ flexDirection: 'row', alignItems: 'center', columnGap: 3, height: 32, paddingLeft: 6, paddingRight: 10, marginLeft: 6,
-          borderRadius: RADIUS.pill, borderWidth: 1, borderColor: k.border, backgroundColor: k.surface }}>
-        <Flame n={st.streak} size={20} />
-        <Txt t="countNum" color={st.streak ? k.text : k.textSecondary}>{st.streak}</Txt>
-      </Pressable>
+      <Card k={k} style={{ marginTop: 12 }}>
+        <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={`Серия: ${st.streak} ${daysWord(st.streak)} подряд`}
+          style={({ pressed }) => ({ minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', columnGap: 12,
+            backgroundColor: pressed ? k.surface2 : 'transparent' })}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: k.surface2, alignItems: 'center', justifyContent: 'center' }}>
+            <Flame n={Math.max(st.streak, 1)} size={24} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt t="rowTitle" color={k.text}>{st.streak} {daysWord(st.streak)} подряд</Txt>
+            <Txt t="caption" color={k.textSecondary}>{st.streak >= STREAK_GOAL ? 'Достижения открыты' : `До нового — ${left} ${daysWord(left)}`}</Txt>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={k.textSecondary} />
+        </Pressable>
+      </Card>
       <BottomSheet visible={open} onClose={() => setOpen(false)} k={k} label="Серия">
         <StreakPanel st={st} k={k} />
       </BottomSheet>

@@ -108,5 +108,11 @@ export function daysWord(n: number): string {
 
 // Открыть шторку огонька из подсказки «30 дней подряд»
 const openListeners = new Set<() => void>();
-export function openStreakSheet(): void { openListeners.forEach(f => f()); }
-export function onOpenStreakSheet(f: () => void): () => void { openListeners.add(f); return () => { openListeners.delete(f); }; }
+// Огонёк живёт в Кабинете: если Кабинет ещё не открывали, запрос ждёт, пока строка появится
+let pendingOpen = false;
+export function openStreakSheet(): void { if (openListeners.size) openListeners.forEach(f => f()); else pendingOpen = true; }
+export function onOpenStreakSheet(f: () => void): () => void {
+  openListeners.add(f);
+  if (pendingOpen) { pendingOpen = false; f(); }
+  return () => { openListeners.delete(f); };
+}

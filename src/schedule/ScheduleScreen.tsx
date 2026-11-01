@@ -37,7 +37,6 @@ import {
 } from './state';
 import { Txt } from './ui';
 import ScheduleHeader, { linkState } from './ScheduleHeader';
-import Greeting from './Greeting';
 import DaySection, { Marks } from './DaySection';
 import DayBar from './DayBar';
 import WeekSheet from './WeekSheet';
@@ -744,7 +743,7 @@ export default function ScheduleScreenNew() {
 
       {/* Приветствие — своя группа, эта неделя (там статистики нет, они не встречаются) */}
       <HolidayBanner />
-      {selectedWeek && rel === 'current' && isMyGroup && <Greeting k={k} now={now} days={days} />}
+      {/* Строку «Доброе утро · сегодня 3 пары» убрали (владелец, 1 ноя 2026: «место занимают»), Greeting.tsx не используется */}
 
       {/* Статистика — только когда открыта другая неделя. Отступ до первого
           заголовка дня (8 dp, «между блоками ленты» по ТЗ) даёт сам день. */}

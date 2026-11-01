@@ -37,6 +37,7 @@ import {
   skipRows, skipsSpoken, totalLabel, profileLine, offlineNote, avatarLetter, pluralPairs,
 } from './state';
 import TestModeSheet from '../TestModeSheet';
+import StreakRow from '../streak/FlameChip';
 
 // Источник — app.json → expo.extra.webUrl (та же логика, что и API_BASE в src/api.ts)
 const WEB_URL =
@@ -354,6 +355,7 @@ export default function ProfileScreen() {
           ? <SetupCard k={k} onChoose={() => setSheetOpen(true)} />
           : <ProfileCard k={k} name={name} group={group} onEdit={() => setSheetOpen(true)} />}
         {offlineOk === false && !noGroup ? <OfflineCard k={k} busy={isSyncing} offline={!isOnline} onPress={sync} /> : null}
+        {!noGroup && <StreakRow k={k} />}
 
         {/* Оформление */}
         <SectionTitle k={k}>Оформление</SectionTitle>

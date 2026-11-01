@@ -5,6 +5,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useTokens, FONT } from '../schedule/tokens';
 import Flame from './Flame';
 import { STREAK_HINTS_KEY, STREAK_HINT_DAYS, openStreakSheet, useStreak } from './streak';
@@ -45,7 +46,7 @@ export default function StreakHint() {
         <Text style={{ fontFamily: FONT[500], fontSize: 13, color: k.textSecondary }}>{text}</Text>
       </View>
       {hint === 30 && (
-        <Pressable onPress={() => { setHint(null); openStreakSheet(); }} style={{ height: 36, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center', backgroundColor: k.accent }}>
+        <Pressable onPress={() => { setHint(null); router.navigate('/profile'); openStreakSheet(); }} style={{ height: 36, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center', backgroundColor: k.accent }}>
           <Text style={{ fontFamily: FONT[700], fontSize: 14, color: k.onAccent }}>Открыть</Text>
         </Pressable>
       )}
