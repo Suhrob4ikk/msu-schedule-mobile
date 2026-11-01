@@ -52,22 +52,27 @@ const mmdd = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}-${String
 const inRange = (md: string, [from, to]: [string, string]) => (from <= to ? md >= from && md <= to : md >= from || md <= to);
 
 // ── Состояние на всё приложение ────────────────────────────────────
-let state: { holiday: Holiday | null; test: boolean } = { holiday: null, test: false };
+let state: { holiday: Holiday | null; test: boolean; off: boolean; testId: HolidayId | null } = { holiday: null, test: false, off: false, testId: null };
 const listeners = new Set<() => void>();
 const burstListeners = new Set<(b: Burst) => void>();
 
 export async function refreshHoliday(): Promise<void> {
   let test: string | null = null, off = false;
   try { [test, off] = [await AsyncStorage.getItem(HOLIDAY_TEST_KEY), (await AsyncStorage.getItem(HOLIDAY_OFF_KEY)) === '1']; } catch { /* нет хранилища */ }
+  // выключатель во «Внешнем виде» сильнее всего, и тестового праздника тоже (как на сайте)
   let holiday: Holiday | null = null;
-  if (test) holiday = HOLIDAYS.find(h => h.id === test) ?? null;
-  else if (!off) { const md = mmdd(dushanbeNow()); holiday = HOLIDAYS.find(h => h.days?.some(r => inRange(md, r))) ?? null; }
-  state = { holiday, test: !!test && !!holiday };
+  if (off) holiday = null;
+  else if (test) holiday = HOLIDAYS.find(h => h.id === test) ?? null;
+  else { const md = mmdd(dushanbeNow()); holiday = HOLIDAYS.find(h => h.days?.some(r => inRange(md, r))) ?? null; }
+  state = { holiday, test: !!test && !!holiday, off, testId: (test as HolidayId | null) ?? null };
   listeners.forEach(f => f());
 }
 
 export async function setTestHoliday(id: HolidayId | null): Promise<void> {
-  try { if (id) await AsyncStorage.setItem(HOLIDAY_TEST_KEY, id); else await AsyncStorage.removeItem(HOLIDAY_TEST_KEY); } catch { /* нет хранилища */ }
+  try {
+    if (id) { await AsyncStorage.setItem(HOLIDAY_TEST_KEY, id); await AsyncStorage.removeItem(HOLIDAY_OFF_KEY); }
+    else await AsyncStorage.removeItem(HOLIDAY_TEST_KEY);
+  } catch { /* нет хранилища */ }
   await refreshHoliday();
 }
 
@@ -76,7 +81,7 @@ export async function setHolidayOff(off: boolean): Promise<void> {
   await refreshHoliday();
 }
 
-export function useHoliday(): { holiday: Holiday | null; test: boolean } {
+export function useHoliday(): { holiday: Holiday | null; test: boolean; off: boolean; testId: HolidayId | null } {
   const [s, setS] = useState(state);
   useEffect(() => {
     const f = () => setS(state);

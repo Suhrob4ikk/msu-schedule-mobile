@@ -1,43 +1,42 @@
 /**
- * Огонёк серии — строка в Кабинете под профилем (как на сайте). Из шапки убран (владелец, 1 ноя 2026: «выглядит
- * забитым», в шапке остаётся время обновления). Нажатие — лист:
+ * Огонёк серии — строка внутри карточки профиля в Кабинете (как на сайте). Из шапки убран (владелец, 1 ноя 2026:
+ * «выглядит забитым»), отдельной большой карточки тоже нет (владелец: «лишнее»). Пламя — FlameArt, вид — приз
+ * «Другой огонёк». Нажатие — лист:
  * серия, рекорд, заморозка, неделя кружками, «До нового: N из 30», правила. Только в тестовом режиме.
  */
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card } from '../profile/rows';
 import BottomSheet from '../schedule/BottomSheet';
 import { RADIUS, type Tokens } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
-import Flame from './Flame';
+import FlameArt from '../prizes/FlameArt';
+import { FLAME_NAMES, usePrizes } from '../prizes/prizes';
 import { STREAK_GOAL, daysWord, onOpenStreakSheet, useStreak, type DayMark, type StreakState } from './streak';
 
 const DOW = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 const FROST = '#4AA3D8';
 
+/** Строка для карточки профиля: показывать, только когда огонёк включён (useStreak() не null) — иначе у Card лишний разделитель. */
 export default function StreakRow({ k }: { k: Tokens }) {
   const st = useStreak();
+  const prizes = usePrizes();
   const [open, setOpen] = useState(false);
   useEffect(() => onOpenStreakSheet(() => setOpen(true)), []);
   if (!st) return null;
   const left = Math.max(0, STREAK_GOAL - st.streak);
   return (
     <>
-      <Card k={k} style={{ marginTop: 12 }}>
         <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={`Серия: ${st.streak} ${daysWord(st.streak)} подряд`}
-          style={({ pressed }) => ({ minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', columnGap: 12,
+          style={({ pressed }) => ({ minHeight: 64, paddingVertical: 6, paddingLeft: 10, paddingRight: 14, flexDirection: 'row', alignItems: 'center', columnGap: 10,
             backgroundColor: pressed ? k.surface2 : 'transparent' })}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: k.surface2, alignItems: 'center', justifyContent: 'center' }}>
-            <Flame n={Math.max(st.streak, 1)} size={24} />
-          </View>
+          <FlameArt kind={prizes.flame} size={44} dark={k.mode !== 'light'} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Txt t="rowTitle" color={k.text}>{st.streak} {daysWord(st.streak)} подряд</Txt>
-            <Txt t="caption" color={k.textSecondary}>{st.streak >= STREAK_GOAL ? 'Достижения открыты' : `До нового — ${left} ${daysWord(left)}`}</Txt>
+            <Txt t="captionStrong" color={k.accentText}>{prizes.flame !== 'base' ? FLAME_NAMES[prizes.flame] : st.streak >= STREAK_GOAL ? 'Достижения открыты' : `До нового — ${left} ${daysWord(left)}`}</Txt>
           </View>
           <Ionicons name="chevron-forward" size={18} color={k.textSecondary} />
         </Pressable>
-      </Card>
       <BottomSheet visible={open} onClose={() => setOpen(false)} k={k} label="Серия">
         <StreakPanel st={st} k={k} />
       </BottomSheet>
@@ -57,11 +56,12 @@ function dotStyle(mark: DayMark, k: Tokens) {
 }
 
 function StreakPanel({ st, k }: { st: StreakState; k: Tokens }) {
+  const flameKind = usePrizes().flame;
   const left = Math.max(0, STREAK_GOAL - st.streak);
   return (
     <View style={{ paddingHorizontal: 20, paddingBottom: 24 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 12 }}>
-        <View style={{ width: 64, alignItems: 'center' }}><Flame n={Math.max(st.streak, 1)} size={56} /></View>
+        <FlameArt kind={flameKind} size={72} dark={k.mode !== 'light'} />
         <View>
           <Txt t="bigCount" color={k.text}>{st.streak}</Txt>
           <Txt t="small" color={k.textSecondary}>{daysWord(st.streak)} подряд</Txt>

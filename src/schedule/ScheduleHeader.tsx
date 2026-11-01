@@ -12,6 +12,7 @@ import { openNotifications } from '../notifications/nav';
 import { badgeText, unreadSpoken } from '../notifications/state';
 import { Txt } from './ui';
 import { stampLabel } from './state';
+import SkyBand, { useSky } from '../prizes/SkyBand';
 
 export type LinkState = { kind: 'online' | 'sync' | 'offline'; text: string };
 
@@ -107,8 +108,12 @@ function ScheduleHeader({ k, topInset, subtitle, subtitleLead, title, link, onOp
   link: LinkState;
   onOpen: () => void;
 }) {
+  // приз «Живое небо» (src/prizes/SkyBand.tsx): небо фоном, надписи — по светлоте неба
+  const sky = useSky();
+  const subColor = sky.on ? (sky.night ? '#ffffff' : '#1a2440') : k.textSecondary;
   return (
     <View style={{ paddingTop: topInset, backgroundColor: k.bg }}>
+      {sky.on && <SkyBand now={sky.now} dark={k.mode !== 'light'} bg={k.bg} />}
       <View
         style={{
           minHeight: HEADER_H, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
@@ -121,7 +126,7 @@ function ScheduleHeader({ k, topInset, subtitle, subtitleLead, title, link, onOp
           accessibilityLabel={`${subtitleLead ?? ''}${subtitle}. ${title}. ${openLabel}`}
           style={{ flexGrow: 1, flexShrink: 1, minHeight: TOUCH_MIN, justifyContent: 'center', paddingVertical: 4 }}
         >
-          <Txt t={smallSize === 13 ? 'small' : 'caption'} color={k.textSecondary}>
+          <Txt t={smallSize === 13 ? 'small' : 'caption'} color={subColor}>
             {subtitleLead ? <Txt t={smallSize === 13 ? 'smallStrong' : 'captionStrong'} color={k.accentText}>{subtitleLead}</Txt> : null}
             {subtitle}
           </Txt>
@@ -138,7 +143,7 @@ function ScheduleHeader({ k, topInset, subtitle, subtitleLead, title, link, onOp
             <Ionicons name="chevron-down" size={18} color={k.onAccentSoft} />
           </View>
         </Pressable>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }}>
+        <View style={[{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }, sky.on && { backgroundColor: k.surface, borderRadius: RADIUS.pill, paddingLeft: 4 }]}>
           <StatusPill s={link} k={k} />
           <Bell k={k} />
         </View>

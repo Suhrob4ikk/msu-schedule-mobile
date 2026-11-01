@@ -13,6 +13,8 @@ import { Focus, blockA11y, leftParts, leftSpoken, roomLines, slotsLabel } from '
 import { Txt, KindBadge, PillDot } from './ui';
 import { openRoom, openTeacher } from './LessonRow';
 import HolidayCardDeco from '../holiday/HolidayCardDeco';
+import { usePrizes } from '../prizes/prizes';
+import { FlipCountdown, LiveFrame } from '../prizes/FocusPrizes';
 
 const TICK_MS = 30_000;
 
@@ -40,6 +42,7 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
   stillAt?: number;
 }) {
   const { block, slot, filled } = focus;
+  const prizes = usePrizes();   // призы за достижения: «Живая рамка» и «Табло» (src/prizes)
   const still = stillAt != null;
   const clock = useClock(focus.targetAt != null && !still);
   const now = stillAt ?? clock;
@@ -134,7 +137,9 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
             {focus.pill}
           </Txt>
         </View>
-        {parts && (
+        {parts && prizes.flip && !still && focus.targetAt != null ? (
+          <FlipCountdown targetAt={focus.targetAt} label={focus.countdownLabel ?? ''} color={fg} k={k} />
+        ) : parts && (
           <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 4, marginLeft: 'auto' }}>
             <Txt t="label" color={fg}>{focus.countdownLabel}</Txt>
             {parts.lessThanMinute ? (
@@ -179,6 +184,9 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
         <View style={{ height: 4, marginTop: 14, marginHorizontal: -16, backgroundColor: k.accentChip }}>
           <View style={{ height: 4, width: `${progress * 100}%`, backgroundColor: k.onAccent }} />
         </View>
+      )}
+      {progress != null && filled && prizes.frame !== 'off' && !still && (
+        <LiveFrame progress={progress} rainbow={prizes.frame === 'rainbow'} radius={RADIUS.lg} k={k} />
       )}
     </Pressable>
   );

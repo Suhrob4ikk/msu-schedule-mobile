@@ -28,6 +28,7 @@ import UpdateBanner from '../src/UpdateBanner';
 import HolidayParticles from '../src/holiday/HolidayParticles';
 import { refreshHoliday } from '../src/holiday/holidays';
 import { noteStreakVisit } from '../src/streak/streak';
+import { refreshPrizes } from '../src/prizes/prizes';
 import StreakHint from '../src/streak/StreakHint';
 import { useAppearance } from '../src/appearance';
 import { FONT } from '../src/schedule/tokens';
@@ -299,6 +300,7 @@ function AppTabs() {
   useEffect(() => {
     void refreshHoliday();
     void noteStreakVisit();
+    void refreshPrizes();
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active') { void refreshHoliday(); void noteStreakVisit(); }
     });

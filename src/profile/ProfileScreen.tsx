@@ -38,6 +38,7 @@ import {
 } from './state';
 import TestModeSheet from '../TestModeSheet';
 import StreakRow from '../streak/FlameChip';
+import { useStreak } from '../streak/streak';
 
 // Источник — app.json → expo.extra.webUrl (та же логика, что и API_BASE в src/api.ts)
 const WEB_URL =
@@ -85,6 +86,7 @@ function ProfileCard({ k, name, group, onEdit }: { k: Tokens; name: string; grou
   const line = group ? profileLine(shortGroupName(group.name), group.year) : '';
   const title = name.trim() || line || 'Профиль';
   const sub = name.trim() ? line : '';
+  const streakOn = useStreak() != null;   // огонёк серии — строкой в этой же карточке
   return (
     <Card k={k}>
       <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 12, paddingHorizontal: 16, paddingVertical: 14 }}>
@@ -94,6 +96,7 @@ function ProfileCard({ k, name, group, onEdit }: { k: Tokens; name: string; grou
           {sub ? <Txt t="rowValue" color={k.textSecondary}>{sub}</Txt> : null}
         </View>
       </View>
+      {streakOn && <StreakRow k={k} />}
       <ActionRow k={k} title="Изменить имя или группу" onPress={onEdit} />
     </Card>
   );
@@ -355,7 +358,6 @@ export default function ProfileScreen() {
           ? <SetupCard k={k} onChoose={() => setSheetOpen(true)} />
           : <ProfileCard k={k} name={name} group={group} onEdit={() => setSheetOpen(true)} />}
         {offlineOk === false && !noGroup ? <OfflineCard k={k} busy={isSyncing} offline={!isOnline} onPress={sync} /> : null}
-        {!noGroup && <StreakRow k={k} />}
 
         {/* Оформление */}
         <SectionTitle k={k}>Оформление</SectionTitle>

@@ -38,6 +38,7 @@ import type { Focus, Block } from '../schedule/state';
 import { parseOccupant, type RoomDay } from '../rooms/state';
 import { PAIR_TIMES, type Lesson } from '../api';
 import { SatValSquare, HueSlider, hexToHsv, hsvToHex, type Hsv } from './ColorPicker';
+import { HOLIDAYS, setHolidayOff, useHoliday } from '../holiday/holidays';
 
 const GUTTER = 16;
 const PANEL_PAD = 16;
@@ -616,10 +617,31 @@ function FontTiles({ k }: { k: Tokens }) {
   );
 }
 
+/** Праздничное оформление (src/holiday): виден, только когда у праздников есть даты или включён тестовый —
+ *  иначе студентам показывать нечего (как на сайте). Выключатель сильнее и тестового праздника. */
+function HolidaySwitch({ k }: { k: Tokens }) {
+  const { off } = useHoliday();
+  const opts: [boolean, string][] = [[false, 'Включено'], [true, 'Выключено']];
+  return (
+    <View style={{ rowGap: 8 }}>
+      <View style={{ flexDirection: 'row', columnGap: 8 }}>
+        {opts.map(([v, label]) => (
+          <Pressable key={label} onPress={() => { Haptics.selectionAsync(); void setHolidayOff(v); }} accessibilityRole="radio" accessibilityState={{ selected: off === v }}
+            style={{ flex: 1, minHeight: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', backgroundColor: off === v ? k.accent : k.surface2 }}>
+            <Txt t="labelStrong" color={off === v ? k.onAccent : k.text}>{label}</Txt>
+          </Pressable>
+        ))}
+      </View>
+      <Txt t="caption" color={k.textSecondary}>{off ? 'В праздники приложение выглядит как обычно' : 'В праздники — открытка сверху расписания, снег, салют'}</Txt>
+    </View>
+  );
+}
+
 // ─── Экран ───────────────────────────────────────────────────────────────────
 
 export default function AppearanceScreen() {
   const k = useTokens();
+  const holidayState = useHoliday();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
@@ -695,6 +717,11 @@ export default function AppearanceScreen() {
         <Panel k={k} title="Шрифт">
           <FontTiles k={k} />
         </Panel>
+        {(HOLIDAYS.some(h => h.days?.length) || holidayState.testId) && (
+          <Panel k={k} title="Праздничное оформление">
+            <HolidaySwitch k={k} />
+          </Panel>
+        )}
 
         <Pressable
           onPress={() => { Haptics.selectionAsync(); resetAppearance(); }}
