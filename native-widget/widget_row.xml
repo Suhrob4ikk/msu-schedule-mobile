@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Подложка строки «Списка пар» (с 2.0.7): белая, скругление 13 dp. Цвет — setColorFilter
-     (идущая пара — fill, следующая — soft). Заполнение по ходу пары — widget_row_fill.xml. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#FFFFFF" />
-    <corners android:radius="13dp" />
-</shape>

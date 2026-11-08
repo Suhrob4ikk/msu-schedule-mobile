@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Названия и описания виджетов в списке виджетов (с 2.0.5). Копируется в res/values/. -->
 <resources>
-    <!-- Имя ресурса прежнее (widget_tablo_*): на него ссылается манифест. С 2.0.7 это «Список пар». -->
+    <!-- Имя ресурса прежнее (widget_tablo_*): на него ссылается манифест. С 2.0.7 это «Шкала дня». -->
     <string name="widget_tablo_name">МГУ · Расписание</string>
-    <string name="widget_tablo_desc">Пары дня списком: идущая — цветом, сверху отсчёт</string>
+    <string name="widget_tablo_desc">Куда идти — крупно, весь день — шкалой</string>
     <string name="widget_dial_name">МГУ · Циферблат</string>
     <string name="widget_dial_desc">Сколько осталось — кольцом, аудитория и предмет рядом</string>
 </resources>

@@ -32,21 +32,22 @@ import kotlin.math.min
  * Виджеты «Расписание» (с 2.0.5, решение владельца 11 окт 2026: «виджет — главное отличие
  * от сайта, сделать на ином уровне»). Два стиля — два виджета в списке Android:
  *
- * - «МГУ · Расписание» — «Список пар» (с 2.0.7, вместо «Табло»; класс ScheduleWidget — прежнее
+ * - «МГУ · Расписание» — «Шкала дня» (с 2.0.7, вместо «Табло»; класс ScheduleWidget — прежнее
  *   имя, поэтому уже поставленные виджеты сменят вид сами). Владелец 8 ноя 2026: «Табло» на
- *   Samsung и в больших размерах — «большой и плохой», номер аудитории съедал весь виджет.
- *   Макет — docs/Виджеты - макет.html в репозитории сайта. Шапка: день и отсчёт (только там —
- *   «без дублей»); ниже пары дня строками: номер, точка типа (синяя — лекция, зелёная —
- *   практика, красная — зачёт и экзамен), предмет, «время · тип», аудитория. Идущая пара залита
- *   акцентом, прошедшая её часть светлее; следующая — на accent-soft; прошедшие бледные.
- *   Сколько строк и какого размера — по настоящему размеру виджета (planList), так что на любом
- *   телефоне виджет заполнен одинаково. 2×2 — номер аудитории крупно и строка «дальше».
+ *   Samsung и в больших размерах — «большой и плохой», номер аудитории съедал весь виджет;
+ *   «Список пар» оставлял пустоту, когда пар мало. Макет — docs/Виджеты - варианты 3.html в
+ *   репозитории сайта. Шапка: день и отсчёт (единственный на виджете; секунды — в последний час).
+ *   Ниже — номер аудитории следующей/идущей пары крупно, рядом пара, время, тип и предмет. Внизу —
+ *   весь день шкалой: пять мест I–V с настоящими промежутками (веса в раскладке, лишнее по краям
+ *   прячется), в блоке — номер аудитории (autoSize ужимает «Лаб. физики», «Стадион»), в высоком —
+ *   ещё время и точка типа (синяя — лекция, зелёная — практика, красная — зачёт и экзамен).
+ *   Блоки резиновые — растягиваются на ширину и высоту виджета, пустоты нет ни на каком телефоне.
  * - «МГУ · Циферблат» (DialWidget): спокойный фон, отсчёт в кольце, которое заполняется по
  *   ходу пары; аудитория и предмет рядом. Размеры — S (2×2), M (4×2), L (4×4, весь день списком).
  *
  * Раскладки пишет native-widget/gen-layouts.js. Текст — системными шрифтами: Onest через
  * fontFamily="@font/…" лаунчер Xiaomi не взял (11 окт 2026, весь текст вышел тонким). Номер
- * аудитории в «Списке» 2×2 — картинка, нарисованная здесь шрифтом Onest (roomBitmap). Кольцо
+ * аудитории «Шкалы» — картинка, нарисованная здесь шрифтом Onest (roomBitmap). Кольцо
  * «Циферблата» на Android 12+ растёт с виджетом (setViewLayoutWidth), вместе с отсчётом.
  *
  * Данные — ключ "widget_data" (src/widgetData.ts), цвета — "widget_theme"
@@ -55,6 +56,8 @@ import kotlin.math.min
  * Отсчёт — системный Chronometer: setChronometer() один раз сообщает цель, а тикает сам
  * лаунчер, посекундно. НЕ показывать обычный текст, похожий на живой отсчёт («осталось
  * N мин» строкой): он устаревает между обновлениями (v1.9.23: «Через 0 мин» посреди пары).
+ * Исключение — «Шкала» больше чем за час: «через 15 ч» / «через 2 ч 40 мин», для него свой
+ * будильник раз в 30 / 5 минут и ровно за час до цели (staticRefresh), дальше — Chronometer.
  * Полоска пары и кольцо обновляются раз в 5 минут, пока идёт пара или ждём её (неточный
  * будильник — батарею не жалко); границы пар и полночь — точный, как раньше.
  */
@@ -122,16 +125,16 @@ internal sealed class WState {
 
 internal enum class EmptyKind { NOT_LOADED, HOLIDAY, NO_NEXT_WEEK }
 
-internal enum class Kind { LIST, DIAL }
+internal enum class Kind { SCALE, DIAL }
 
-/** «МГУ · Расписание» — «Список пар» (до 2.0.7 здесь было «Табло»). */
+/** «МГУ · Расписание» — «Шкала дня» (до 2.0.7 здесь было «Табло»). */
 class ScheduleWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        for (id in appWidgetIds) Widgets.updateOne(context, appWidgetManager, id, Kind.LIST)
+        for (id in appWidgetIds) Widgets.updateOne(context, appWidgetManager, id, Kind.SCALE)
     }
 
     override fun onAppWidgetOptionsChanged(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, newOptions: Bundle) {
-        Widgets.updateOne(context, appWidgetManager, appWidgetId, Kind.LIST)
+        Widgets.updateOne(context, appWidgetManager, appWidgetId, Kind.SCALE)
     }
 
     /**
@@ -187,7 +190,7 @@ internal object Widgets {
 
     fun updateAll(context: Context) {
         val m = AppWidgetManager.getInstance(context) ?: return
-        for (id in m.getAppWidgetIds(ComponentName(context, ScheduleWidget::class.java))) updateOne(context, m, id, Kind.LIST)
+        for (id in m.getAppWidgetIds(ComponentName(context, ScheduleWidget::class.java))) updateOne(context, m, id, Kind.SCALE)
         for (id in m.getAppWidgetIds(ComponentName(context, DialWidget::class.java))) updateOne(context, m, id, Kind.DIAL)
     }
 
@@ -200,13 +203,12 @@ internal object Widgets {
         val colors = readColors(context)
         val night = isNight(context)
         val sizes = widgetSizes(context, options)
-        // Номер аудитории картинкой — только у «Списка» 2×2; один Bitmap на все такие размеры
-        val small = sizes.filter { it.width < LIST_S_MAX_W }
-        val roomImg = if (kind == Kind.LIST && small.isNotEmpty()) heroOf(state)?.let {
-            roomBitmap(context, roomLines(it.room).ifEmpty { listOf("—") }.joinToString(" "), small.maxOf { s -> s.height })
+        // Номер аудитории «Шкалы» — картинка Onest, один Bitmap на все размеры (уходит в лаунчер один раз)
+        val roomImg = if (kind == Kind.SCALE) heroOf(state)?.let {
+            roomBitmap(context, roomLines(it.room).ifEmpty { listOf("—") }.joinToString(" "), sizes.maxOf { s -> s.height })
         } else null
         val one = { s: SizeF ->
-            if (kind == Kind.LIST) buildList(context, s, state, data, colors, night, now, roomImg)
+            if (kind == Kind.SCALE) buildScale(context, s, state, data, colors, night, now, roomImg)
             else build(context, s, state, data, colors, night, now)
         }
         val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && sizes.size > 1) {
@@ -260,8 +262,9 @@ internal object Widgets {
 
     private enum class Sz { S, M, T, L }
 
-    /** «Список пар» уже этого — раскладка 2×2 (номер аудитории крупно). */
-    const val LIST_S_MAX_W = 220f
+    /** «Шкала дня»: уже этого — раскладка 2×2 (полоска без подписей), ниже второго — блоки 26 dp. */
+    const val SCALE_S_MAX_W = 220f
+    const val SCALE_L_MIN_H = 180f
 
     /** 2×2 — уже 220 dp; 4×4 — от 280 dp высоты; 4×3 — от 180; остальное — 4×2. */
     private fun sizeOf(w: Float, h: Float) = when {
@@ -399,80 +402,46 @@ internal object Widgets {
         return v
     }
 
-    // ── «Список пар» ─────────────────────────────────────────────────────
+    // ── «Шкала дня» ──────────────────────────────────────────────────────
 
-    private val L_ROW = intArrayOf(R.id.w_r1, R.id.w_r2, R.id.w_r3, R.id.w_r4, R.id.w_r5)
-    private val L_BG = intArrayOf(R.id.w_r1_bg, R.id.w_r2_bg, R.id.w_r3_bg, R.id.w_r4_bg, R.id.w_r5_bg)
-    private val L_PROG = intArrayOf(R.id.w_r1_prog, R.id.w_r2_prog, R.id.w_r3_prog, R.id.w_r4_prog, R.id.w_r5_prog)
-    private val L_BOX = intArrayOf(R.id.w_r1_box, R.id.w_r2_box, R.id.w_r3_box, R.id.w_r4_box, R.id.w_r5_box)
-    private val L_PAIR = intArrayOf(R.id.w_r1_pair, R.id.w_r2_pair, R.id.w_r3_pair, R.id.w_r4_pair, R.id.w_r5_pair)
-    private val L_RING = intArrayOf(R.id.w_r1_ring, R.id.w_r2_ring, R.id.w_r3_ring, R.id.w_r4_ring, R.id.w_r5_ring)
-    private val L_DOT = intArrayOf(R.id.w_r1_dot, R.id.w_r2_dot, R.id.w_r3_dot, R.id.w_r4_dot, R.id.w_r5_dot)
-    private val L_SUBJ = intArrayOf(R.id.w_r1_subj, R.id.w_r2_subj, R.id.w_r3_subj, R.id.w_r4_subj, R.id.w_r5_subj)
-    private val L_META = intArrayOf(R.id.w_r1_meta, R.id.w_r2_meta, R.id.w_r3_meta, R.id.w_r4_meta, R.id.w_r5_meta)
-    private val L_ROOM = intArrayOf(R.id.w_r1_room, R.id.w_r2_room, R.id.w_r3_room, R.id.w_r4_room, R.id.w_r5_room)
-    private val L_GAP = intArrayOf(R.id.w_g1, R.id.w_g2, R.id.w_g3, R.id.w_g4)
-    private val L_GAP_TEXT = intArrayOf(R.id.w_g1_text, R.id.w_g2_text, R.id.w_g3_text, R.id.w_g4_text)
-    private val L_GAP_LINE = intArrayOf(R.id.w_g1_line, R.id.w_g2_line, R.id.w_g3_line, R.id.w_g4_line)
+    private enum class ScaleSz { S, M, L }
+
+    private fun scaleSz(w: Float, h: Float) = when {
+        w < SCALE_S_MAX_W -> ScaleSz.S
+        h < SCALE_L_MIN_H -> ScaleSz.M
+        else -> ScaleSz.L
+    }
+
+    /** Начала пар I–V — запасной способ найти место пары, если номер не пришёл (данные до 1.9.47). */
+    private val SLOT_START = listOf("08:00", "09:45", "11:30", "14:00", "15:45")
+    private val SLOT_NAME = listOf("I", "II", "III", "IV", "V")
+
+    private val S_COL = intArrayOf(R.id.w_s1, R.id.w_s2, R.id.w_s3, R.id.w_s4, R.id.w_s5)
+    private val S_BG = intArrayOf(R.id.w_s1_bg, R.id.w_s2_bg, R.id.w_s3_bg, R.id.w_s4_bg, R.id.w_s5_bg)
+    private val S_PROG = intArrayOf(R.id.w_s1_prog, R.id.w_s2_prog, R.id.w_s3_prog, R.id.w_s4_prog, R.id.w_s5_prog)
+    private val S_ROOM = intArrayOf(R.id.w_s1_room, R.id.w_s2_room, R.id.w_s3_room, R.id.w_s4_room, R.id.w_s5_room)
+    private val S_TIME = intArrayOf(R.id.w_s1_time, R.id.w_s2_time, R.id.w_s3_time, R.id.w_s4_time, R.id.w_s5_time)
+    private val S_DOT = intArrayOf(R.id.w_s1_dot, R.id.w_s2_dot, R.id.w_s3_dot, R.id.w_s4_dot, R.id.w_s5_dot)
+    private val S_GAP = intArrayOf(R.id.w_gp1, R.id.w_gp2, R.id.w_gp3, R.id.w_gp4)
+    private val S_LB = intArrayOf(R.id.w_lb1, R.id.w_lb2, R.id.w_lb3, R.id.w_lb4, R.id.w_lb5)
+    private val S_LG = intArrayOf(R.id.w_lg1, R.id.w_lg2, R.id.w_lg3, R.id.w_lg4)
 
     private val DAY_FULL = listOf("воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота")
 
-    /** Перерыв между парами длиннее этого — тонкая черта «обед 60 мин» / «окно 1 ч 45 мин». */
-    private const val GAP_MIN_MS = 40 * 60_000L
-
-    private enum class Row { ON, NEXT, NORMAL, PAST }
-
-    /**
-     * Высоты при масштабе 1, dp (раскладка widget_list в gen-layouts.js, шрифт без верхних полей
-     * ≈ 1,17 кегля): поля 11 + 12, шапка ≈ 17, строки с отступом 3 сверху — идущая ≈ 56,
-     * следующая ≈ 50, обычная ≈ 44, черта перерыва ≈ 15. Это оценка по раскладке, не замер:
-     * если на телефоне нижняя строка обрезается или внизу пусто — поправить здесь (и запас 0,96).
-     */
-    private const val P_FRAME = 23f + 17f
-    private const val P_ON = 56f
-    private const val P_NEXT = 50f
-    private const val P_ROW = 44f
-    private const val P_GAP = 15f
-
-    private class ListPlan(val from: Int, val to: Int, val gaps: Boolean, val scale: Float)
-
-    /**
-     * Сколько пар показать и в каком масштабе. Окно — с героя и дальше (прошедшие отбрасываются
-     * первыми); строк — сколько влезает без сжатия текста ниже 0,92; черты перерывов — если
-     * влезают и они. Масштаб растягивает строки на свободную высоту, но не крупнее 1,3 и не
-     * крупнее, чем позволяет ширина (иначе предметы обрежутся многоточием раньше времени).
-     */
-    private fun planList(w: Float, h: Float, day: List<LessonItem>, heroIdx: Int, heroMode: Row): ListPlan {
-        val n = day.size
-        fun window(k: Int): Pair<Int, Int> {
-            val to = min(n, heroIdx + k)
-            return maxOf(0, to - k) to to
-        }
-        fun need(from: Int, to: Int, gaps: Boolean): Float {
-            var sum = P_FRAME
-            for (i in from until to) sum += if (i == heroIdx) (if (heroMode == Row.ON) P_ON else P_NEXT) else P_ROW
-            if (gaps) for (i in from until to - 1) if (day[i + 1].start - day[i].end >= GAP_MIN_MS) sum += P_GAP
-            return sum
-        }
-        val wCap = maxOf(1f, w / 300f).coerceAtMost(1.3f)
-        for (k in min(n, 5) downTo 1) {
-            val (from, to) = window(k)
-            for (gaps in listOf(true, false)) {
-                val s = h * 0.96f / need(from, to, gaps)   // запас 4 % на неточность оценки
-                if (s >= 0.92f || k == 1 && !gaps) {
-                    return ListPlan(from, to, gaps, minOf(s, wCap, 1.3f).coerceAtLeast(0.75f))
-                }
-            }
-        }
-        return ListPlan(heroIdx, heroIdx + 1, false, 1f)
+    /** Место пары на шкале 0…4 (I–V): по номеру, иначе по времени начала; не нашлось — null. */
+    private fun slotOf(l: LessonItem): Int? {
+        SLOT_NAME.indexOf(l.pair).takeIf { it >= 0 }?.let { return it }
+        return SLOT_START.indexOf(hhmm(l.start)).takeIf { it >= 0 }
     }
 
-    private fun buildList(
+    private fun buildScale(
         context: Context, size: SizeF, state: WState, data: WidgetData?,
         colors: WidgetColors, night: Boolean, now: Long, roomImg: Bitmap?,
     ): RemoteViews {
-        val small = size.width < LIST_S_MAX_W
-        val v = RemoteViews(context.packageName, if (small) R.layout.widget_list_s else R.layout.widget_list)
+        val sz = scaleSz(size.width, size.height)
+        val v = RemoteViews(context.packageName, when (sz) {
+            ScaleSz.S -> R.layout.widget_scale_s; ScaleSz.M -> R.layout.widget_scale_m; ScaleSz.L -> R.layout.widget_scale_l
+        })
         val p = Painter(v, colors, night)
         v.setOnClickPendingIntent(R.id.w_root, openScheduleIntent(context))
 
@@ -485,174 +454,216 @@ internal object Widgets {
         v.setViewVisibility(R.id.w_empty, View.GONE)
         p.fill(R.id.w_bg) { it.surface }
 
+        // Масштаб текста — по ширине: на крупных ячейках Samsung крупнее, на узких — не мельче 0,9
+        val k = if (sz == ScaleSz.S) 1f else (size.width / 300f).coerceIn(0.9f, 1.25f)
+        val dip = TypedValue.COMPLEX_UNIT_DIP
         val live = state is WState.Live
+
+        // ── Шапка: день и отсчёт ──
         v.setViewVisibility(R.id.w_live_dot, if (live) View.VISIBLE else View.GONE)
         p.fill(R.id.w_live_dot) { it.fill }
-        v.setTextViewText(R.id.w_head, listHead(state, hero, now, small))
+        v.setTextViewText(R.id.w_head, listHead(state, hero, now, sz == ScaleSz.S))
         p.text(R.id.w_head) { it.ink }
-        listCountdown(v, state, hero, now, small)
+        scaleCountdown(v, state, hero, now, sz == ScaleSz.S)
         p.text(R.id.w_chrono) { it.accentText }
         p.text(R.id.w_when) { it.accentText }
+        val headSize = if (sz == ScaleSz.S) 12.5f else 13f * k
+        for (id in intArrayOf(R.id.w_head, R.id.w_chrono, R.id.w_when)) v.setTextViewTextSize(id, dip, headSize)
 
+        // ── Главное: номер аудитории, строка пары, предмет, «дальше» ──
+        if (roomImg != null) v.setImageViewBitmap(R.id.w_room_img, roomImg)
+        p.fill(R.id.w_room_img) { it.accentText }
+        val time = "${hhmm(hero.start)}–${hhmm(hero.end)}"
+        val pairWord = if (hero.pair.isEmpty()) "" else "${hero.pair} пара · "
+        v.setTextViewText(R.id.w_meta, when (sz) {
+            ScaleSz.S -> pairWord + hhmm(hero.start)
+            ScaleSz.M -> pairWord + time
+            ScaleSz.L -> pairWord + time + (if (hero.type.isNotEmpty()) " · ${hero.type}" else "")
+        })
+        v.setTextViewText(R.id.w_subj, tidySubject(hero.subject))
+        p.text(R.id.w_meta) { it.ink2 }
+        p.text(R.id.w_subj) { it.ink }
         val day = data.items.filter { isSameDay(it.start, hero.start) }
-        if (small) fillListSmall(v, p, hero, day, roomImg)
-        else fillListRows(v, p, context, size, state, hero, day, now)
+        if (sz != ScaleSz.S) {
+            v.setTextViewTextSize(R.id.w_meta, dip, (if (sz == ScaleSz.L) 12f else 11.5f) * k)
+            v.setTextViewTextSize(R.id.w_subj, dip, (if (sz == ScaleSz.L) 16f else 14f) * k)
+        }
+        if (sz == ScaleSz.L) {
+            // «дальше IV · 14:00 · Физика» — только в высоком виджете, там для неё есть место
+            val next = day.firstOrNull { it.start > hero.start }
+            val show = next != null && size.height >= 240f
+            v.setViewVisibility(R.id.w_next, if (show) View.VISIBLE else View.GONE)
+            if (show && next != null) {
+                v.setTextViewText(R.id.w_next, listOf("дальше ${next.pair}".trim(), hhmm(next.start), tidySubject(next.subject)).joinToString(" · "))
+                v.setTextViewTextSize(R.id.w_next, dip, 12f * k)
+                p.text(R.id.w_next) { it.ink2 }
+            }
+        }
+
+        fillTrack(v, p, sz, state, hero, day, now)
         v.setContentDescription(R.id.w_root, describe(state, hero, now))
         return v
     }
 
-    /** Шапка: «Сегодня, суббота» / «Завтра, понедельник»; в 2×2 — «II пара», «Дальше II», «Завтра, пн». */
-    private fun listHead(s: WState, hero: LessonItem, now: Long, small: Boolean): String {
-        val pr = hero.pair
-        val tomorrow = isTomorrow(hero.start, now)
-        if (small) return when (s) {
-            is WState.Live -> if (pr.isEmpty()) "Идёт пара" else "$pr пара"
-            is WState.Break -> if (pr.isEmpty()) "Перемена" else "Дальше $pr"
-            is WState.Next -> "Сегодня"
-            else -> if (tomorrow) "Завтра, ${dayShort(hero.start).lowercase(RU)}" else "${dayShort(hero.start)}, ${dateLong(hero.start)}"
-        }
-        return when (s) {
-            is WState.Later -> if (tomorrow) "Завтра, ${dayFull(hero.start)}" else "${dayFull(hero.start).replaceFirstChar { it.titlecase(RU) }}, ${dateLong(hero.start)}"
-            else -> "Сегодня, ${dayFull(now)}"
+    /**
+     * Шапка справа — единственный отсчёт на виджете. Секунды — только в последний час (Chronometer
+     * тикает сам), раньше — «через 15 ч» / «через 2 ч 40 мин» текстом: обновляем его будильником
+     * (staticRefresh), а ровно за час до цели виджет переключается на Chronometer. До пары больше
+     * суток — справа пусто (день написан слева).
+     */
+    private fun scaleCountdown(v: RemoteViews, s: WState, hero: LessonItem, now: Long, small: Boolean) {
+        val liveNow = s is WState.Live
+        val target = if (liveNow) hero.end else hero.start
+        val left = target - now
+        val prefix = if (small) "" else if (liveNow) "до конца " else "через "
+        when {
+            left < 3_600_000L -> {
+                v.setChronometer(R.id.w_chrono, SystemClock.elapsedRealtime() + left, if (small) null else "$prefix%s", true)
+                v.setChronometerCountDown(R.id.w_chrono, true)
+                v.setViewVisibility(R.id.w_chrono, View.VISIBLE)
+                v.setViewVisibility(R.id.w_when, View.GONE)
+            }
+            left < DAY_MS -> {
+                v.setTextViewText(R.id.w_when, prefix + hoursText(left))
+                v.setViewVisibility(R.id.w_when, View.VISIBLE)
+                v.setViewVisibility(R.id.w_chrono, View.GONE)
+            }
+            else -> {
+                v.setViewVisibility(R.id.w_when, View.GONE)
+                v.setViewVisibility(R.id.w_chrono, View.GONE)
+            }
         }
     }
 
+    /** «15 ч» (от трёх часов), «2 ч 40 мин», «1 ч». */
+    private fun hoursText(ms: Long): String {
+        val totalMin = (ms / 60_000L).toInt()
+        val h = totalMin / 60
+        val m = totalMin % 60
+        return if (h >= 3 || m == 0) "$h ч" else "$h ч $m мин"
+    }
+
+    /** Когда обновить текст «через 2 ч 40 мин» (null — отсчёт тикает сам или его нет). */
+    private fun staticRefresh(state: WState, now: Long): Long? {
+        val hero = heroOf(state) ?: return null
+        val target = if (state is WState.Live) hero.end else hero.start
+        val left = target - now
+        if (left < 3_600_000L || left >= DAY_MS) return null
+        val step = if (left >= 3 * 3_600_000L) 30 * 60_000L else 5 * 60_000L
+        return min(now + step, target - 3_600_000L + 1_000L)
+    }
+
     /**
-     * Отсчёт справа в шапке — единственный на виджете: «до конца 34:10», «II через 9:40»,
-     * вечером «через 10:59:12» (меньше суток до пары; дальше — ничего). В 2×2 — только цифры,
-     * вечером там время начала (строки со временем в 2×2 нет — не дубль).
+     * Шкала: пять мест I–V с настоящими промежутками (веса в раскладке). Места раньше первой пары
+     * дня и позже последней — прячем, пустые внутри — «окно». Идущая или следующая пара — заливка
+     * акцентом, у идущей прошедшая часть светлее; прошедшие — бледные.
      */
-    private fun listCountdown(v: RemoteViews, s: WState, hero: LessonItem, now: Long, small: Boolean) {
-        val (target, fmt) = when (s) {
-            is WState.Live -> hero.end to (if (small) null else "до конца %s")
-            is WState.Break, is WState.Next -> hero.start to (if (small) null else if (hero.pair.isEmpty()) "через %s" else "${hero.pair} через %s")
-            else -> if (!small && hero.start - now < DAY_MS) hero.start to "через %s" else -1L to null
+    private fun fillTrack(v: RemoteViews, p: Painter, sz: ScaleSz, state: WState, hero: LessonItem, day: List<LessonItem>, now: Long) {
+        val bySlot = arrayOfNulls<LessonItem>(5)
+        for (l in day) {
+            val i = slotOf(l) ?: continue
+            if (bySlot[i] == null || l == hero) bySlot[i] = l
         }
-        if (target < 0) {
-            v.setViewVisibility(R.id.w_chrono, View.GONE)
-            v.setTextViewText(R.id.w_when, hhmm(hero.start))
-            v.setViewVisibility(R.id.w_when, if (small) View.VISIBLE else View.GONE)
+        val used = bySlot.indices.filter { bySlot[it] != null }
+        if (used.isEmpty()) {
+            v.setViewVisibility(R.id.w_track, View.GONE)
+            if (sz == ScaleSz.L) v.setViewVisibility(R.id.w_labels, View.GONE)
             return
         }
-        v.setChronometer(R.id.w_chrono, SystemClock.elapsedRealtime() + (target - now), fmt, true)
-        v.setChronometerCountDown(R.id.w_chrono, true)
-        v.setViewVisibility(R.id.w_chrono, View.VISIBLE)
-        v.setViewVisibility(R.id.w_when, View.GONE)
-    }
-
-    /** 2×2: номер аудитории картинкой, предмет, внизу — следующая пара того же дня. */
-    private fun fillListSmall(v: RemoteViews, p: Painter, hero: LessonItem, day: List<LessonItem>, roomImg: Bitmap?) {
-        if (roomImg != null) v.setImageViewBitmap(R.id.w_room_img, roomImg)
-        p.fill(R.id.w_room_img) { it.accentText }
-        v.setTextViewText(R.id.w_subj, tidySubject(hero.subject))
-        p.text(R.id.w_subj) { it.ink }
-        val next = day.firstOrNull { it.start > hero.start }
-        v.setViewVisibility(R.id.w_after_box, if (next == null) View.GONE else View.VISIBLE)
-        if (next == null) return
-        v.setTextViewText(R.id.w_after, if (next.pair.isEmpty()) hhmm(next.start) else "${next.pair} · ${hhmm(next.start)}")
-        v.setTextViewText(R.id.w_after_room, roomLines(next.room).firstOrNull() ?: "—")
-        p.text(R.id.w_after) { it.ink2 }
-        p.text(R.id.w_after_room) { it.ink }
-        p.background(R.id.w_after_line) { it.line }
-    }
-
-    private fun fillListRows(
-        v: RemoteViews, p: Painter, context: Context, size: SizeF, state: WState,
-        hero: LessonItem, day: List<LessonItem>, now: Long,
-    ) {
-        val heroIdx = day.indexOf(hero).coerceAtLeast(0)
-        val heroMode = if (state is WState.Live) Row.ON else Row.NEXT
-        val plan = planList(size.width, size.height, day, heroIdx, heroMode)
-        val s = plan.scale
+        v.setViewVisibility(R.id.w_track, View.VISIBLE)
+        val first = used.first()
+        val last = used.last()
+        val heroSlot = bySlot.indexOfFirst { it == hero }
+        var anyLabel = false
         val dip = TypedValue.COMPLEX_UNIT_DIP
-        val px = { dp: Float -> (dp * s * context.resources.displayMetrics.density).toInt() }
 
-        v.setTextViewTextSize(R.id.w_head, dip, 13f * s)
-        v.setTextViewTextSize(R.id.w_chrono, dip, 13f * s)
-        v.setTextViewTextSize(R.id.w_when, dip, 13f * s)
-
-        val shown = (plan.from until plan.to).toList()
-        for (slot in L_ROW.indices) {
-            val i = shown.getOrNull(slot)
-            v.setViewVisibility(L_ROW[slot], if (i == null) View.GONE else View.VISIBLE)
-            if (slot < L_GAP.size) v.setViewVisibility(L_GAP[slot], View.GONE)
-            if (i == null) continue
-            val l = day[i]
-            val mode = when {
-                i == heroIdx -> heroMode
-                state !is WState.Later && l.end <= now -> Row.PAST
-                else -> Row.NORMAL
+        for (i in 0 until 5) {
+            val inside = i in first..last
+            v.setViewVisibility(S_COL[i], if (inside) View.VISIBLE else View.GONE)
+            if (sz == ScaleSz.L) v.setViewVisibility(S_LB[i], if (inside) View.VISIBLE else View.GONE)
+            if (i < 4) {
+                val gapIn = i >= first && i + 1 <= last
+                v.setViewVisibility(S_GAP[i], if (gapIn) View.VISIBLE else View.GONE)
+                if (sz == ScaleSz.L) {
+                    v.setViewVisibility(S_LG[i], if (gapIn) View.VISIBLE else View.GONE)
+                    // перерыв после III пары — обед (60 минут); подпись — только если обе пары вокруг есть
+                    val lunch = gapIn && i == 2
+                    v.setTextViewText(S_LG[i], if (lunch) "обед" else "")
+                    if (lunch) { anyLabel = true; p.text(S_LG[i]) { it.ink3 } }
+                }
             }
-            fillListRow(v, p, slot, l, mode, now, s, px)
-            // Черта перерыва под строкой, если до следующей показанной пары больше 40 минут
-            val nxt = shown.getOrNull(slot + 1)?.let { day[it] }
-            if (plan.gaps && nxt != null && slot < L_GAP.size && nxt.start - l.end >= GAP_MIN_MS) {
-                v.setViewVisibility(L_GAP[slot], View.VISIBLE)
-                v.setTextViewText(L_GAP_TEXT[slot], gapText(l.end, nxt.start))
-                v.setTextViewTextSize(L_GAP_TEXT[slot], dip, 10.5f * s)
-                p.text(L_GAP_TEXT[slot]) { it.ink3 }
-                p.background(L_GAP_LINE[slot]) { it.line }
+            if (!inside) continue
+            val l = bySlot[i]
+            if (sz == ScaleSz.L) {
+                v.setTextViewText(S_LB[i], if (l == null) "окно" else "")
+                if (l == null) { anyLabel = true; p.text(S_LB[i]) { it.ink3 } }
             }
-        }
-    }
-
-    private fun fillListRow(v: RemoteViews, p: Painter, k: Int, l: LessonItem, mode: Row, now: Long, s: Float, px: (Float) -> Int) {
-        val dip = TypedValue.COMPLEX_UNIT_DIP
-        val on = mode == Row.ON
-        val pad = when (mode) { Row.ON -> 9f; Row.NEXT -> 8f; else -> 5f }
-        v.setViewPadding(L_BOX[k], px(10f), px(pad), px(10f), px(pad))
-
-        v.setTextViewText(L_PAIR[k], l.pair)
-        v.setTextViewText(L_SUBJ[k], tidySubject(l.subject))
-        v.setTextViewText(L_META[k], listOf("${hhmm(l.start)}–${hhmm(l.end)}", l.type).filter { it.isNotEmpty() }.joinToString(" · "))
-        v.setTextViewText(L_ROOM[k], roomLines(l.room).firstOrNull() ?: "—")
-        v.setTextViewTextSize(L_PAIR[k], dip, 12.5f * s)
-        v.setTextViewTextSize(L_SUBJ[k], dip, 13.5f * s)
-        v.setTextViewTextSize(L_META[k], dip, 11.5f * s)
-        v.setTextViewTextSize(L_ROOM[k], dip, s * when (mode) { Row.ON -> 30f; Row.NEXT -> 26f; else -> 21f })
-
-        // Подложка: идущая — заливка, прошедшая её часть светлее; следующая — accent-soft
-        v.setViewVisibility(L_BG[k], if (on || mode == Row.NEXT) View.VISIBLE else View.GONE)
-        v.setViewVisibility(L_PROG[k], if (on) View.VISIBLE else View.GONE)
-        if (on) {
-            p.fill(L_BG[k]) { it.fill }
-            p.fill(L_PROG[k]) { it.fillLine }
-            v.setInt(L_PROG[k], "setImageLevel", level(now - l.start, l.end - l.start))
-        } else if (mode == Row.NEXT) {
-            p.fill(L_BG[k]) { it.soft }
-        }
-
-        // Точка типа; на заливке — с белой обводкой, чтобы не терялась на акценте того же цвета
-        val tc = typeColor(l.type)
-        v.setViewVisibility(L_DOT[k], if (tc == null) View.INVISIBLE else View.VISIBLE)
-        if (tc != null) v.setInt(L_DOT[k], "setColorFilter", if (mode == Row.PAST) (tc and 0x00FFFFFF) or 0x73000000 else tc)
-        v.setViewVisibility(L_RING[k], if (on && tc != null) View.VISIBLE else View.GONE)
-        if (on) p.fill(L_RING[k]) { it.onFill }
-
-        when (mode) {
-            Row.ON -> {
-                p.text(L_PAIR[k]) { it.onFill2 }; p.text(L_SUBJ[k]) { it.onFill }
-                p.text(L_META[k]) { it.onFill2 }; p.text(L_ROOM[k]) { it.onFill }
+            if (l == null) {   // окно: место есть, блока нет
+                v.setViewVisibility(S_BG[i], View.INVISIBLE)
+                v.setViewVisibility(S_PROG[i], View.GONE)
+                if (sz != ScaleSz.S) v.setTextViewText(S_ROOM[i], "")
+                if (sz == ScaleSz.L) { v.setTextViewText(S_TIME[i], ""); v.setViewVisibility(S_DOT[i], View.GONE) }
+                continue
             }
-            Row.NEXT -> {
-                p.text(L_PAIR[k]) { it.ink3 }; p.text(L_SUBJ[k]) { it.ink }
-                p.text(L_META[k]) { it.ink2 }; p.text(L_ROOM[k]) { it.onSoft }
+            val isHero = i == heroSlot
+            val past = !isHero && state !is WState.Later && l.end <= now
+            v.setViewVisibility(S_BG[i], View.VISIBLE)
+            if (isHero) p.fill(S_BG[i]) { it.fill } else p.fill(S_BG[i]) { it.line }
+            val prog = isHero && state is WState.Live
+            v.setViewVisibility(S_PROG[i], if (prog) View.VISIBLE else View.GONE)
+            if (prog) {
+                p.fill(S_PROG[i]) { it.fillLine }
+                v.setInt(S_PROG[i], "setImageLevel", level(now - l.start, l.end - l.start))
             }
-            Row.NORMAL -> {
-                p.text(L_PAIR[k]) { it.ink3 }; p.text(L_SUBJ[k]) { it.ink }
-                p.text(L_META[k]) { it.ink2 }; p.text(L_ROOM[k]) { it.ink }
+            if (sz == ScaleSz.S) continue
+
+            v.setTextViewText(S_ROOM[i], blockRoom(l.room, sz == ScaleSz.L))
+            when {
+                isHero -> p.text(S_ROOM[i]) { it.onFill }
+                past -> p.text(S_ROOM[i]) { it.ink3 }
+                else -> p.text(S_ROOM[i]) { it.ink }
             }
-            Row.PAST -> {
-                p.text(L_PAIR[k]) { it.ink3 }; p.text(L_SUBJ[k]) { it.ink3 }
-                p.text(L_META[k]) { it.ink3 }; p.text(L_ROOM[k]) { it.ink3 }
+            // Android 7: autoSize не работает — размер ставим сами, длинным названиям мельче
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                val long = blockRoom(l.room, false).length > 4
+                v.setTextViewTextSize(S_ROOM[i], dip, if (sz == ScaleSz.L) (if (long) 10f else 18f) else (if (long) 8f else 12f))
+            }
+            if (sz == ScaleSz.L) {
+                v.setTextViewText(S_TIME[i], hhmm(l.start))
+                when {
+                    isHero -> p.text(S_TIME[i]) { it.onFill2 }
+                    past -> p.text(S_TIME[i]) { it.ink3 }
+                    else -> p.text(S_TIME[i]) { it.ink2 }
+                }
+                val tc = typeColor(l.type)
+                v.setViewVisibility(S_DOT[i], if (tc == null) View.GONE else View.VISIBLE)
+                when {
+                    tc == null -> {}
+                    isHero -> p.fill(S_DOT[i]) { it.onFill }
+                    else -> v.setInt(S_DOT[i], "setColorFilter", if (past) (tc and 0x00FFFFFF) or 0x73000000 else tc)
+                }
             }
         }
+        if (sz == ScaleSz.L) v.setViewVisibility(R.id.w_labels, if (anyLabel) View.VISIBLE else View.GONE)
     }
 
     /**
-     * Цвет точки типа (владелец 8 ноя 2026: зачёт и экзамены — красным). Названия — из
-     * lessonKind (src/schedule/state.ts): там же экзамен, зачёт, консультация и рейтинг — одна
-     * группа «exam». Неизвестный тип — без точки.
+     * Номер в блоке шкалы. Блок узкий (≈ 45 dp на 4×3), поэтому длинное — в две строки, а autoSize в
+     * раскладке сам уменьшит шрифт: «Лаб. физики» → «Лаб.» / «физики», «704 701» → столбиком.
+     * В низком виджете (одна строка) — как есть, autoSize ужмёт.
+     */
+    private fun blockRoom(room: String, twoLines: Boolean): String {
+        val parts = roomLines(room)
+        if (parts.isEmpty()) return "—"
+        if (!twoLines) return parts.joinToString(" ")
+        val joined = parts.joinToString(" ")
+        if (joined.startsWith("Лаб. ")) return "Лаб.\n" + joined.removePrefix("Лаб. ")
+        return if (parts.size > 1) parts.take(2).joinToString("\n") else joined
+    }
+
+    /**
+     * Цвет точки типа (владелец 8 ноя 2026: зачёт и экзамены — красным). Названия — из lessonKind
+     * (src/schedule/state.ts): экзамен, зачёт, консультация и рейтинг там — одна группа «exam».
      */
     private fun typeColor(type: String): Int? = when (type) {
         "Лекция" -> 0xFF5B8DEF.toInt()
@@ -662,14 +673,20 @@ internal object Widgets {
         else -> 0xFF9AA0AD.toInt()
     }
 
-    /** «обед 60 мин» — перерыв захватывает 13:00; иначе «окно 1 ч 45 мин». */
-    private fun gapText(from: Long, to: Long): String {
-        val min = ((to - from) / 60_000L).toInt()
-        val dur = if (min < 60) "$min мин" else if (min % 60 == 0) "${min / 60} ч" else "${min / 60} ч ${min % 60} мин"
-        val c = cal(from)
-        val fromMin = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
-        val lunch = fromMin <= 13 * 60 && fromMin + min >= 13 * 60 + 30 && min <= 90
-        return if (lunch) "обед $dur" else "окно $dur"
+    /** Шапка: «Сегодня, четверг» / «Завтра, понедельник»; в 2×2 — «III пара», «Дальше III», «Завтра, пн». */
+    private fun listHead(s: WState, hero: LessonItem, now: Long, small: Boolean): String {
+        val pr = hero.pair
+        val tomorrow = isTomorrow(hero.start, now)
+        if (small) return when (s) {
+            is WState.Live -> "Идёт пара"   // номер пары — строкой ниже, не дублируем
+            is WState.Break -> "Перемена"
+            is WState.Next -> "Сегодня"
+            else -> if (tomorrow) "Завтра, ${dayShort(hero.start).lowercase(RU)}" else "${dayShort(hero.start)}, ${dateLong(hero.start)}"
+        }
+        return when (s) {
+            is WState.Later -> if (tomorrow) "Завтра, ${dayFull(hero.start)}" else "${dayFull(hero.start).replaceFirstChar { it.titlecase(RU) }}, ${dateLong(hero.start)}"
+            else -> "Сегодня, ${dayFull(now)}"
+        }
     }
 
     private fun dayFull(ms: Long) = DAY_FULL[cal(ms).get(Calendar.DAY_OF_WEEK) - 1]
@@ -891,9 +908,12 @@ internal object Widgets {
         val boundary = nextBoundary(state, now) + 2_000L // уже после границы, иначе застанем ту же пару
         val ticking = state is WState.Live || state is WState.Break ||
             (state is WState.Next && state.hero.start - now <= WAIT_TICKS_MS)
-        val periodic = now + TICK_MS
+        // Текст «через 2 ч 40 мин» у «Шкалы» — свой шаг (staticRefresh). Считаем для любого вида:
+        // будильник один на оба виджета, и последний вызов (Циферблат) не должен его потерять.
+        val stat = staticRefresh(state, now)
+        val periodic = minOf(if (ticking) now + TICK_MS else Long.MAX_VALUE, stat ?: Long.MAX_VALUE)
         try {
-            if (ticking && periodic < boundary - 60_000L) {
+            if (periodic < boundary - 60_000L) {
                 am.setWindow(AlarmManager.RTC, periodic, 60_000L, pi)
             } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()) {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, boundary, pi)

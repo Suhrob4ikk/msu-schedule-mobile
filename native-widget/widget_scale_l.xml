@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано native-widget/gen-layouts.js — руками не править. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent">
+  <ImageView android:id="@+id/w_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:scaleType="fitXY" android:src="@drawable/widget_bg" android:tint="#FFFFFF" android:importantForAccessibility="no" />
+  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:orientation="vertical" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="12dp" android:paddingBottom="10dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical">
+      <ImageView android:id="@+id/w_live_dot" android:layout_width="7dp" android:layout_height="7dp"
+    android:src="@drawable/widget_dot" android:tint="#2F62EA" android:importantForAccessibility="no" android:layout_marginEnd="6dp" />
+      <TextView android:id="@+id/w_head" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="13dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#10131A"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Сегодня, четверг" android:layout_weight="1" />
+      <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
+          android:textSize="13dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#2856D6" android:includeFontPadding="false" android:singleLine="true"
+          android:layout_marginStart="8dp" android:visibility="gone" />
+      <TextView android:id="@+id/w_when" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="13dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#2856D6"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="до конца 54:44" android:layout_marginStart="8dp" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/w_main" android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="8dp">
+      <ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="wrap_content"
+          android:adjustViewBounds="true" android:maxHeight="64dp" android:maxWidth="150dp" android:scaleType="fitCenter"
+          android:src="@drawable/widget_room_sample" android:tint="#2856D6" android:importantForAccessibility="no" />
+      <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
+          android:layout_marginStart="11dp">
+        <TextView android:id="@+id/w_meta" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:textSize="12dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="III пара · 11:30–13:00 · Лекция"  />
+        <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="2dp" android:textSize="16dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#10131A" android:includeFontPadding="false"
+            android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="Физика" />
+        <TextView android:id="@+id/w_next" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:textSize="12dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="дальше IV · 14:00 · Физика" android:layout_marginTop="5dp" android:visibility="gone" />
+      </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/w_track" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="8dp" android:minHeight="34dp" android:orientation="horizontal">
+      <FrameLayout android:id="@+id/w_s1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="90">
+        <ImageView android:id="@+id/w_s1_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk" android:tint="#DDE2EA" android:importantForAccessibility="no" />
+        <ImageView android:id="@+id/w_s1_prog" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />
+          <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+              android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingTop="4dp" android:paddingBottom="5dp">
+            <TextView android:id="@+id/w_s1_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:gravity="center" android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false"
+                android:maxLines="2" android:lineSpacingExtra="0dp" android:text="602"
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="21sp" android:autoSizeStepGranularity="0.5sp" />
+            <TextView android:id="@+id/w_s1_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="10.5dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="08:00" android:layout_marginTop="2dp" />
+            <ImageView android:id="@+id/w_s1_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginTop="4dp" android:visibility="gone" />
+          </LinearLayout>
+      </FrameLayout>
+      <FrameLayout android:id="@+id/w_gp1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="15" />
+      <FrameLayout android:id="@+id/w_s2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="90">
+        <ImageView android:id="@+id/w_s2_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk" android:tint="#DDE2EA" android:importantForAccessibility="no" />
+        <ImageView android:id="@+id/w_s2_prog" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />
+          <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+              android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingTop="4dp" android:paddingBottom="5dp">
+            <TextView android:id="@+id/w_s2_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:gravity="center" android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false"
+                android:maxLines="2" android:lineSpacingExtra="0dp" android:text="305"
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="21sp" android:autoSizeStepGranularity="0.5sp" />
+            <TextView android:id="@+id/w_s2_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="10.5dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="09:45" android:layout_marginTop="2dp" />
+            <ImageView android:id="@+id/w_s2_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginTop="4dp" android:visibility="gone" />
+          </LinearLayout>
+      </FrameLayout>
+      <FrameLayout android:id="@+id/w_gp2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="15" />
+      <FrameLayout android:id="@+id/w_s3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="90">
+        <ImageView android:id="@+id/w_s3_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk" android:tint="#2F62EA" android:importantForAccessibility="no" />
+        <ImageView android:id="@+id/w_s3_prog" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />
+          <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+              android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingTop="4dp" android:paddingBottom="5dp">
+            <TextView android:id="@+id/w_s3_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:gravity="center" android:fontFamily="sans-serif-black" android:textColor="#FFFFFF" android:includeFontPadding="false"
+                android:maxLines="2" android:lineSpacingExtra="0dp" android:text="401"
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="21sp" android:autoSizeStepGranularity="0.5sp" />
+            <TextView android:id="@+id/w_s3_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="10.5dp" android:fontFamily="sans-serif-medium" android:textColor="#EAEFFD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="11:30" android:layout_marginTop="2dp" />
+            <ImageView android:id="@+id/w_s3_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#FFFFFF" android:importantForAccessibility="no" android:layout_marginTop="4dp" android:visibility="gone" />
+          </LinearLayout>
+      </FrameLayout>
+      <FrameLayout android:id="@+id/w_gp3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="60" />
+      <FrameLayout android:id="@+id/w_s4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="90">
+        <ImageView android:id="@+id/w_s4_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk" android:tint="#DDE2EA" android:importantForAccessibility="no" />
+        <ImageView android:id="@+id/w_s4_prog" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />
+          <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+              android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingTop="4dp" android:paddingBottom="5dp">
+            <TextView android:id="@+id/w_s4_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:gravity="center" android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false"
+                android:maxLines="2" android:lineSpacingExtra="0dp" android:text="Лаб. физики"
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="21sp" android:autoSizeStepGranularity="0.5sp" />
+            <TextView android:id="@+id/w_s4_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="10.5dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="14:00" android:layout_marginTop="2dp" />
+            <ImageView android:id="@+id/w_s4_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginTop="4dp" android:visibility="gone" />
+          </LinearLayout>
+      </FrameLayout>
+      <FrameLayout android:id="@+id/w_gp4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="15" />
+      <FrameLayout android:id="@+id/w_s5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="90">
+        <ImageView android:id="@+id/w_s5_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk" android:tint="#DDE2EA" android:importantForAccessibility="no" />
+        <ImageView android:id="@+id/w_s5_prog" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitXY" android:src="@drawable/widget_blk_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />
+          <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+              android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingTop="4dp" android:paddingBottom="5dp">
+            <TextView android:id="@+id/w_s5_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:gravity="center" android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false"
+                android:maxLines="2" android:lineSpacingExtra="0dp" android:text="210"
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="21sp" android:autoSizeStepGranularity="0.5sp" />
+            <TextView android:id="@+id/w_s5_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="10.5dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="15:45" android:layout_marginTop="2dp" />
+            <ImageView android:id="@+id/w_s5_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginTop="4dp" android:visibility="gone" />
+          </LinearLayout>
+      </FrameLayout>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/w_labels" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+      <TextView android:id="@+id/w_lb1" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="10dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="08:00" android:layout_weight="90" android:gravity="start" />
+      <TextView android:id="@+id/w_lg1" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="9.5dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="" android:layout_weight="15" android:gravity="center" />
+      <TextView android:id="@+id/w_lb2" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="10dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="" android:layout_weight="90" android:gravity="start" />
+      <TextView android:id="@+id/w_lg2" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="9.5dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="" android:layout_weight="15" android:gravity="center" />
+      <TextView android:id="@+id/w_lb3" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="10dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="" android:layout_weight="90" android:gravity="start" />
+      <TextView android:id="@+id/w_lg3" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="9.5dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="обед" android:layout_weight="60" android:gravity="center" />
+      <TextView android:id="@+id/w_lb4" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="10dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="" android:layout_weight="90" android:gravity="start" />
+      <TextView android:id="@+id/w_lg4" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="9.5dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="" android:layout_weight="15" android:gravity="center" />
+      <TextView android:id="@+id/w_lb5" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="10dp" android:fontFamily="sans-serif-medium" android:textColor="#9AA0AD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="17:15" android:layout_weight="90" android:gravity="end" />
+    </LinearLayout>
+  </LinearLayout>
+  <LinearLayout android:id="@+id/w_empty" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:padding="16dp" android:visibility="gone">
+    <TextView android:id="@+id/w_empty_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textSize="22dp" android:fontFamily="sans-serif-black" android:textColor="#10131A" android:gravity="center"
+        android:includeFontPadding="false" android:text="Каникулы" />
+    <TextView android:id="@+id/w_empty_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:textSize="13dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+        android:gravity="center" android:includeFontPadding="false" android:text="" />
+  </LinearLayout>
+</FrameLayout>
