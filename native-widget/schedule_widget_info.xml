@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- «МГУ · Расписание» — «Плитки» (с 2.0.7, вместо «Табло»; класс ScheduleWidget — прежнее имя,
-     уже поставленные виджеты сменят вид сами). Раскладки widget_tiles_{s,n,w} — по ширине
+     уже поставленные виджеты сменят вид сами). Раскладки widget_tiles_{s,w} — по ширине
      (ScheduleWidget.kt, tileSz). По умолчанию 4×2. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"

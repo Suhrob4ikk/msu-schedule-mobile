@@ -1,4 +1,4 @@
-// Генератор раскладок виджетов: «Плитки» (с 2.0.7, вместо «Табло») — widget_tiles_{s,n,w}.xml,
+// Генератор раскладок виджетов: «Плитки» (с 2.0.7, вместо «Табло») — widget_tiles_{s,w}.xml,
 // «Циферблат» (с 2.0.5) — widget_dial_{s,m,l}.xml. Запуск: node native-widget/gen-layouts.js.
 // Руками XML не правится.
 //
@@ -117,8 +117,8 @@ const root = inner => `<?xml version="1.0" encoding="utf-8"?>
 // номер аудитории крупно (картинка Onest, roomBitmap), пара, время, предмет. Остальные плитки — пары дня
 // (из прошедших — только одна, бледно): номер пары, время, номер аудитории (autoSize ужимает «Лаб. физики»,
 // «Стадион»), в высоком — предмет. Всё на весах LinearLayout — плитки сами занимают весь виджет.
-// Раскладки: s (уже 220 dp — одна главная плитка), n (уже 280 dp — главная слева, две справа),
-// w (шире — главная сверху во всю ширину, до четырёх плиток снизу).
+// Раскладки (владелец 8 ноя 2026: из вариантов понравился широкий — он теперь во всех размерах): s (уже 220 dp —
+// главная плитка и под ней одна пара), w (главная сверху во всю ширину, под ней до четырёх пар — по ширине).
 const TL = { bg: '#FFFFFF', ink: '#10131A', ink2: '#4B5262', ink3: '#9AA0AD', acc: '#2856D6', fill: '#2F62EA', line: '#E7EBF2', on: '#FFFFFF', on2: '#EAEFFD' };
 
 const tlDot = (id, size, tint, extra = '') => `<ImageView android:id="@+id/${id}" android:layout_width="${size}dp" android:layout_height="${size}dp"
@@ -145,111 +145,97 @@ const heroImg = (maxH, maxW) => `<ImageView android:id="@+id/w_room_img" android
           android:adjustViewBounds="true" android:maxHeight="${maxH}dp" android:maxWidth="${maxW}dp" android:scaleType="fitCenter"
           android:src="@drawable/widget_room_sample" android:tint="${TL.on}" android:importantForAccessibility="no" />`;
 
-/** Главная плитка, компактная (2×2 и узкий): номер и справа «I · 08:00» / «дальше 602», ниже предмет. */
-const heroCompact = (lp, maxH, maxW) => `<FrameLayout android:id="@+id/w_hero" ${lp}>
-      ${tlBg('w_hero', TL.fill, true)}
-      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
-          android:paddingStart="10dp" android:paddingEnd="9dp" android:paddingTop="8dp" android:paddingBottom="8dp">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-          ${heroImg(maxH, maxW)}
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
-              android:gravity="end" android:layout_marginStart="6dp">
-            ${tv('w_meta', { size: 11.5, font: 'm', color: TL.on2, text: 'I · 08:00' })}
-            ${tv('w_hnext', { size: 11.5, font: 'm', color: TL.on2, text: 'дальше 602', extra: 'android:layout_marginTop="2dp"' })}
-          </LinearLayout>
-        </LinearLayout>
-        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
-        <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textSize="12dp" ${F.b} android:textColor="${TL.on}" android:includeFontPadding="false"
-            android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="ДВ: Объектно-ориентир. программ" />
-      </LinearLayout>
-    </FrameLayout>`;
-
-/** Главная плитка, широкая: номер слева, справа «I пара · 08:00–09:30 · Практика» и предмет. */
-const heroWide = `<FrameLayout android:id="@+id/w_hero" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1.2">
+/** Главная плитка: номер слева, справа «I пара · 08:00–09:30 · Практика» и предмет (владелец 8 ноя 2026:
+ *  из всех вариантов понравился широкий — теперь он во всех размерах, в 2×2 номер и шрифты мельче). */
+const hero = (maxH, maxW, meta, subj, weight) => `<FrameLayout android:id="@+id/w_hero" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="${weight}">
       ${tlBg('w_hero', TL.fill, true)}
       <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal"
-          android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="6dp" android:paddingBottom="6dp">
-        ${heroImg(60, 150)}
+          android:gravity="center_vertical" android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="5dp" android:paddingBottom="5dp">
+        ${heroImg(maxH, maxW)}
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
-            android:layout_marginStart="12dp">
-          ${tv('w_meta', { size: 11.5, font: 'm', color: TL.on2, text: 'I пара · 08:00–09:30 · Практика', w: 'match_parent' })}
+            android:layout_marginStart="10dp">
+          ${tv('w_meta', { size: meta, font: 'm', color: TL.on2, text: 'I пара · 08:00–09:30 · Практика', w: 'match_parent' })}
           <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:layout_marginTop="3dp" android:textSize="15dp" ${F.b} android:textColor="${TL.on}" android:includeFontPadding="false"
+              android:layout_marginTop="3dp" android:textSize="${subj}dp" ${F.b} android:textColor="${TL.on}" android:includeFontPadding="false"
               android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="ДВ: Объектно-ориентир. программ" />
         </LinearLayout>
       </LinearLayout>
     </FrameLayout>`;
 
-/** Обычная плитка i: «III» и время сверху, номер аудитории (autoSize), предмет с точкой типа (по месту). */
-function tile(i, lp, compact) {
-  const demo = [['II', '09:45', '602', 'Численные методы'], ['III', '11:30', '305', 'Базы данных'], ['IV', '14:00', 'Лаб. физики', 'Физика'], ['V', '15:45', '210', 'Философия']][i - 1];
-  if (compact) return `<FrameLayout android:id="@+id/w_t${i}" ${lp}>
-      ${tlBg(`w_t${i}`, TL.line, false)}
-      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
-          android:gravity="center_vertical" android:paddingStart="9dp" android:paddingEnd="7dp" android:paddingTop="4dp" android:paddingBottom="4dp">
-        ${tv(`w_t${i}_top`, { size: 10.5, font: 'm', color: TL.ink2, text: `${demo[0]} · ${demo[1]}`, w: 'match_parent' })}
-        <TextView android:id="@+id/w_t${i}_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-            android:gravity="start|center_vertical" ${F.x} android:textColor="${TL.ink}" android:includeFontPadding="false" android:maxLines="1"
-            android:text="${demo[2]}" android:textSize="19dp"
-            android:autoSizeTextType="uniform" android:autoSizeMinTextSize="8sp" android:autoSizeMaxTextSize="19sp" android:autoSizeStepGranularity="0.5sp" />
-      </LinearLayout>
-    </FrameLayout>`;
+/** Плитка i: сверху номер пары и время, ниже номер аудитории и рядом предмет с точкой типа. Размер номера —
+ *  код (короткий — крупно, «Лаб.» / «физики» — мельче, в две строки). */
+function tile(i, lp, s) {
+  const demo = [['II', '09:45', '602', 'Численные методы'], ['III', '11:30', '305', 'Базы данных'], ['IV', '14:00', '210', 'Английский язык'], ['V', '15:45', '401', 'Философия']][i - 1];
   return `<FrameLayout android:id="@+id/w_t${i}" ${lp}>
       ${tlBg(`w_t${i}`, TL.line, false)}
       <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
-          android:paddingStart="9dp" android:paddingEnd="8dp" android:paddingTop="6dp" android:paddingBottom="6dp">
+          android:paddingStart="${s ? 9 : 11}dp" android:paddingEnd="${s ? 8 : 10}dp" android:paddingTop="5dp" android:paddingBottom="5dp">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-          ${tv(`w_t${i}_pair`, { size: 11, font: 'm', color: TL.ink2, text: demo[0], w: '0dp', extra: 'android:layout_weight="1"' })}
-          ${tv(`w_t${i}_time`, { size: 11, font: 'm', color: TL.ink2, text: demo[1] })}
+          ${tv(`w_t${i}_pair`, { size: s ? 10.5 : 11, font: 'm', color: TL.ink2, text: demo[0], w: '0dp', extra: 'android:layout_weight="1"' })}
+          ${tv(`w_t${i}_time`, { size: s ? 10.5 : 11, font: 'm', color: TL.ink2, text: demo[1] })}
         </LinearLayout>
-        <TextView android:id="@+id/w_t${i}_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-            android:gravity="start|center_vertical" ${F.x} android:textColor="${TL.ink}" android:includeFontPadding="false" android:maxLines="2"
-            android:text="${demo[2]}" android:textSize="24dp"
-            android:autoSizeTextType="uniform" android:autoSizeMinTextSize="8sp" android:autoSizeMaxTextSize="30sp" android:autoSizeStepGranularity="0.5sp" />
-        <LinearLayout android:id="@+id/w_t${i}_sub" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
-            android:gravity="center_vertical" android:visibility="gone">
-          ${tlDot(`w_t${i}_dot`, 6, '#2BB27F', 'android:layout_marginEnd="4dp"')}
-          ${tv(`w_t${i}_subj`, { size: 11, font: 'm', color: TL.ink, text: demo[3], w: '0dp', extra: 'android:layout_weight="1"' })}
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
+            android:gravity="center_vertical">
+          <TextView android:id="@+id/w_t${i}_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
+              ${F.x} android:textColor="${TL.ink}" android:includeFontPadding="false" android:maxLines="2" android:lineSpacingExtra="0dp"
+              android:textSize="${s ? 18 : 24}dp" android:text="${demo[2]}" />
+          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="horizontal"
+              android:gravity="center_vertical" android:layout_marginStart="${s ? 7 : 10}dp">
+            ${tlDot(`w_t${i}_dot`, 6, '#5B8DEF', 'android:layout_marginEnd="5dp"')}
+            <TextView android:id="@+id/w_t${i}_subj" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:textSize="${s ? 11 : 12.5}dp" ${F.m} android:textColor="${TL.ink}" android:includeFontPadding="false"
+                android:maxLines="2" android:ellipsize="end" android:text="${demo[3]}" />
+          </LinearLayout>
         </LinearLayout>
       </LinearLayout>
     </FrameLayout>`;
 }
 
+/** 2×2 (уже 220 dp): шапка, главная плитка, под ней одна следующая пара. */
 const tilesS = root(`${bg(TL.bg)}
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
-      android:orientation="vertical" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="10dp" android:paddingBottom="10dp">
+      android:orientation="vertical" android:paddingStart="9dp" android:paddingEnd="9dp" android:paddingTop="10dp" android:paddingBottom="9dp">
     ${tlHead(12.5)}
-    ${heroCompact('android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="6dp"', 36, 100)}
-  </LinearLayout>
-  ${empty}`);
-
-const tilesN = root(`${bg(TL.bg)}
-  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
-      android:orientation="vertical" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="10dp" android:paddingBottom="10dp">
-    ${tlHead(12.5)}
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical"
         android:layout_marginTop="6dp">
-      ${heroCompact('android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5"', 36, 90)}
-      <LinearLayout android:id="@+id/w_side" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
-          android:orientation="vertical" android:layout_marginStart="6dp">
-        ${tile(1, 'android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"', true)}
-        ${tile(2, 'android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="6dp"', true)}
+      ${hero(38, 78, 10.5, 12, 1.25)}
+      <LinearLayout android:id="@+id/w_row" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+          android:orientation="horizontal" android:layout_marginTop="5dp">
+        ${tile(1, 'android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"', true)}
       </LinearLayout>
     </LinearLayout>
   </LinearLayout>
   ${empty}`);
 
+/** Шире 220 dp: шапка, главная плитка во всю ширину, под ней до четырёх пар (сколько — решает код по ширине). */
 const tilesW = root(`${bg(TL.bg)}
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
       android:orientation="vertical" android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="11dp" android:paddingBottom="11dp">
     ${tlHead(13)}
     <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical"
         android:layout_marginTop="7dp">
-      ${heroWide}
+      ${hero(60, 150, 11.5, 15, 1.2)}
       <LinearLayout android:id="@+id/w_row" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
           android:orientation="horizontal" android:layout_marginTop="6dp">
         ${[1, 2, 3, 4].map(i => tile(i, `android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"${i > 1 ? ' android:layout_marginStart="6dp"' : ''}`, false)).join('\n        ')}
+      </LinearLayout>
+    </LinearLayout>
+  </LinearLayout>
+  ${empty}`);
+
+
+/** Высокий (от 220 dp): под главной — пары строками по 58 dp во всю ширину (как плитка под главной в 4×2),
+ *  главная занимает всё остальное: одна пара или три — пустоты нет. */
+const tilesT = root(`${bg(TL.bg)}
+  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:orientation="vertical" android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="11dp" android:paddingBottom="11dp">
+    ${tlHead(13)}
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical"
+        android:layout_marginTop="7dp">
+      ${hero(64, 160, 12, 16, 1)}
+      <LinearLayout android:id="@+id/w_row" android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:orientation="vertical">
+        ${[1, 2, 3, 4].map(i => tile(i, `android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="6dp"${i === 4 ? ' android:visibility="gone"' : ''}`, false)).join('\n        ')}
       </LinearLayout>
     </LinearLayout>
   </LinearLayout>
@@ -304,6 +290,6 @@ const dialL = root(`${bg(D.bg)}
   </LinearLayout>
   ${empty}`);
 
-const out = { widget_tiles_s: tilesS, widget_tiles_n: tilesN, widget_tiles_w: tilesW, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
+const out = { widget_tiles_s: tilesS, widget_tiles_w: tilesW, widget_tiles_t: tilesT, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
 for (const [name, xml] of Object.entries(out)) fs.writeFileSync(path.join(__dirname, `${name}.xml`), xml);
 console.log('ok:', Object.keys(out).join(', '));
