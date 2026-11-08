@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- «МГУ · Табло» (с 2.0.5; класс ScheduleWidget — прежнее имя, уже поставленные виджеты остаются).
-     Три размера: 2×2, 4×2 (по умолчанию), 4×4 — раскладку выбирает ScheduleWidget.kt по размеру. -->
+<!-- «МГУ · Расписание» — «Список пар» (с 2.0.7, вместо «Табло»; класс ScheduleWidget — прежнее имя,
+     уже поставленные виджеты сменят вид сами). 2×2 — своя раскладка, от 4×2 — строк столько,
+     сколько влезает (ScheduleWidget.kt, planList). По умолчанию 4×2. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="110dp"
@@ -9,9 +10,8 @@
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/widget_tablo_m"
-    android:previewLayout="@layout/widget_tablo_m"
-    android:previewImage="@drawable/widget_preview"
+    android:initialLayout="@layout/widget_list"
+    android:previewLayout="@layout/widget_list"
     android:description="@string/widget_tablo_desc"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

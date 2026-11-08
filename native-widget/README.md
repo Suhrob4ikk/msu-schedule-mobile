@@ -4,22 +4,24 @@
 что должен жить внутри самого приложения. Папка `android/` в `.gitignore`
 (генерируется `expo prebuild`), поэтому исходники хранятся тут.
 
-## Виджеты «МГУ · Табло» и «МГУ · Циферблат» (с 2.0.5)
+## Виджеты «МГУ · Расписание» («Список пар», с 2.0.7 вместо «Табло») и «МГУ · Циферблат» (с 2.0.5)
 
 Если `android/` пересоздавался или файлы здесь правились — скопируй в `android/app/src/main/`:
 
 | Файл здесь | Куда |
 |---|---|
-| `ScheduleWidget.kt` (оба виджета: `ScheduleWidget` = Табло, `DialWidget` = Циферблат) | `java/tj/msu/schedule/` |
-| `widget_tablo_{s,m,t,l}.xml`, `widget_dial_{s,m,l}.xml` | `res/layout/` |
-| `widget_bg.xml`, `widget_plate.xml`, `widget_bar.xml`, `widget_bar_fill.xml`, `widget_ring.xml`, `widget_ring_track.xml` | `res/drawable/` |
+| `ScheduleWidget.kt` (оба виджета: `ScheduleWidget` = «Список пар», `DialWidget` = Циферблат) | `java/tj/msu/schedule/` |
+| `widget_list.xml`, `widget_list_s.xml`, `widget_dial_{s,m,l}.xml` | `res/layout/` |
+| `widget_bg.xml`, `widget_plate.xml`, `widget_row.xml`, `widget_row_fill.xml`, `widget_dot.xml`, `widget_ring.xml`, `widget_ring_track.xml` | `res/drawable/` |
 | `widget_bg_v31.xml` | `res/drawable-v31/` **под именем `widget_bg.xml`** |
-| `widget_preview.png`, `widget_room_sample.png` (номер «104» для предпросмотра) | `res/drawable-nodpi/` |
-| `fonts/onest_extrabold.ttf` (номер аудитории «Табло» рисуется им картинкой) | `res/font/` |
+| `widget_room_sample.png` (номер «104» для предпросмотра 2×2) | `res/drawable-nodpi/` |
+| `fonts/onest_extrabold.ttf` (номер аудитории «Списка» 2×2 рисуется им картинкой) | `res/font/` |
 | `widget_strings.xml` | `res/values/` |
 | `schedule_widget_info.xml`, `dial_widget_info.xml` | `res/xml/` |
 
 Раскладки руками не правятся — их пишет `node native-widget/gen-layouts.js` (в `android/` не копируется).
+Удалены в 2.0.7 (если остались в `android/` — удалить): `res/layout/widget_tablo_{s,m,t,l}.xml`,
+`res/drawable/widget_bar.xml`, `widget_bar_fill.xml`, `res/drawable-nodpi/widget_preview.png`.
 Удалены в 2.0.5 (если остались в `android/res/layout/` — удалить): `widget_full.xml`, `widget_preview.xml`,
 `widget_compact.xml`; из `res/font/` — `onest_medium.ttf`, `onest_bold.ttf` (лаунчер Xiaomi шрифт из ресурсов
 не взял, текст теперь системным шрифтом).
