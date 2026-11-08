@@ -1,4 +1,4 @@
-// Генератор раскладок виджетов: «Шкала дня» (с 2.0.7, вместо «Табло») — widget_scale_{s,m,l}.xml,
+// Генератор раскладок виджетов: «Плитки» (с 2.0.7, вместо «Табло») — widget_tiles_{s,n,w}.xml,
 // «Циферблат» (с 2.0.5) — widget_dial_{s,m,l}.xml. Запуск: node native-widget/gen-layouts.js.
 // Руками XML не правится.
 //
@@ -111,135 +111,147 @@ const root = inner => `<?xml version="1.0" encoding="utf-8"?>
 </FrameLayout>
 `;
 
-// ── «Шкала дня» (с 2.0.7; макет — docs/Виджеты - варианты 3.html в репозитории сайта, выбор владельца 8 ноя 2026) ──
+// ── «Плитки» (с 2.0.7; макет — docs/Виджеты - варианты 3.html в репозитории сайта, выбор владельца 8 ноя 2026) ──
 // Вместо «Табло»: класс ScheduleWidget прежний, поэтому уже поставленные виджеты сменят вид сами.
-// Сверху: день и отсчёт (единственный). Ниже — главное: номер аудитории следующей/идущей пары крупно
-// (картинка Onest, roomBitmap), рядом «III пара · 11:30–13:00 · Лекция» и предмет. Внизу — весь день
-// шкалой: пять мест под пары I–V с настоящими промежутками между ними (15, 15, 60 обед, 15 мин — веса
-// в разметке), лишние по краям прячет код, пустое место внутри — «окно». В блоке — номер аудитории:
-// autoSize сам уменьшает «Лаб. физики», «Стадион», «704 701», чтобы влезли (Android 8+).
-// Раскладки: s (уже 220 dp — тонкая полоска без подписей), m (ниже 180 dp — блоки 26 dp с номером),
-// l (блоки растягиваются на всю оставшуюся высоту: номер, время, точка типа; под шкалой — 08:00, обед, 17:15).
-const SC = { bg: '#FFFFFF', ink: '#10131A', ink2: '#4B5262', ink3: '#9AA0AD', acc: '#2856D6', fill: '#2F62EA', line: '#DDE2EA' };
-const SLOT_W = 90;                 // пара — 90 минут
-const GAP_W = [15, 15, 60, 15];    // перерывы после I, II, III (обед), IV
+// Сверху: день и отсчёт (единственный). Главная плитка — следующая или идущая пара, залита акцентом:
+// номер аудитории крупно (картинка Onest, roomBitmap), пара, время, предмет. Остальные плитки — пары дня
+// (из прошедших — только одна, бледно): номер пары, время, номер аудитории (autoSize ужимает «Лаб. физики»,
+// «Стадион»), в высоком — предмет. Всё на весах LinearLayout — плитки сами занимают весь виджет.
+// Раскладки: s (уже 220 dp — одна главная плитка), n (уже 280 dp — главная слева, две справа),
+// w (шире — главная сверху во всю ширину, до четырёх плиток снизу).
+const TL = { bg: '#FFFFFF', ink: '#10131A', ink2: '#4B5262', ink3: '#9AA0AD', acc: '#2856D6', fill: '#2F62EA', line: '#E7EBF2', on: '#FFFFFF', on2: '#EAEFFD' };
 
-const scDot = (id, size, tint, extra = '') => `<ImageView android:id="@+id/${id}" android:layout_width="${size}dp" android:layout_height="${size}dp"
+const tlDot = (id, size, tint, extra = '') => `<ImageView android:id="@+id/${id}" android:layout_width="${size}dp" android:layout_height="${size}dp"
     android:src="@drawable/widget_dot" android:tint="${tint}" android:importantForAccessibility="no" ${extra} />`;
 
-/** Шапка: точка «идёт», день, отсчёт (Chronometer, последний час) или текст (w_when: «через 15 ч»). */
-const scHead = size => `<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:orientation="horizontal" android:gravity="center_vertical">
-      ${scDot('w_live_dot', 7, SC.fill, 'android:layout_marginEnd="6dp"')}
-      ${tv('w_head', { size, font: 'b', color: SC.ink, text: 'Сегодня, четверг', w: '0dp', extra: 'android:layout_weight="1"' })}
+/** Шапка: точка «идёт», день, отсчёт (Chronometer — последний час) или текст (w_when: «через 15 ч»). */
+const tlHead = size => `<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="3dp" android:paddingEnd="3dp">
+      ${tlDot('w_live_dot', 7, TL.fill, 'android:layout_marginEnd="6dp"')}
+      ${tv('w_head', { size, font: 'b', color: TL.ink, text: 'Завтра, пн', w: '0dp', extra: 'android:layout_weight="1"' })}
       <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
-          android:textSize="${size}dp" ${F.b} android:textColor="${SC.acc}" android:includeFontPadding="false" android:singleLine="true"
+          android:textSize="${size}dp" ${F.b} android:textColor="${TL.acc}" android:includeFontPadding="false" android:singleLine="true"
           android:layout_marginStart="8dp" android:visibility="gone" />
-      ${tv('w_when', { size, font: 'b', color: SC.acc, text: 'до конца 54:44', extra: 'android:layout_marginStart="8dp"' })}
+      ${tv('w_when', { size, font: 'b', color: TL.acc, text: 'через 15 ч', extra: 'android:layout_marginStart="8dp"' })}
     </LinearLayout>`;
 
-/** Главное: номер картинкой (не выше maxH, не шире maxW) и справа строка пары, предмет, «дальше». */
-const scMain = (maxH, maxW, k, subj, lines, extra, next) => `<LinearLayout android:id="@+id/w_main" android:layout_width="match_parent" android:layout_height="${extra.includes('layout_weight') ? '0dp' : 'wrap_content'}"
-      android:orientation="horizontal" android:gravity="center_vertical" ${extra}>
-      <ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="wrap_content"
+/** Подложка плитки и заполнение (прошедшая часть идущей пары — светлее). */
+const tlBg = (id, tint, prog) => `<ImageView android:id="@+id/${id}_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="${tint}" android:importantForAccessibility="no" />${prog ? `
+      <ImageView android:id="@+id/${id}_prog" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="fitXY" android:src="@drawable/widget_tile_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />` : ''}`;
+
+const heroImg = (maxH, maxW) => `<ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="wrap_content"
           android:adjustViewBounds="true" android:maxHeight="${maxH}dp" android:maxWidth="${maxW}dp" android:scaleType="fitCenter"
-          android:src="@drawable/widget_room_sample" android:tint="${SC.acc}" android:importantForAccessibility="no" />
-      <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
-          android:layout_marginStart="11dp">
-        ${tv('w_meta', { size: k, font: 'm', color: SC.ink2, text: 'III пара · 11:30–13:00 · Лекция', w: 'match_parent' })}
-        <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="2dp" android:textSize="${subj}dp" ${F.b} android:textColor="${SC.ink}" android:includeFontPadding="false"
-            android:maxLines="${lines}" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="Физика" />
-        ${next ? tv('w_next', { size: k, font: 'm', color: SC.ink2, text: 'дальше IV · 14:00 · Физика', w: 'match_parent', extra: 'android:layout_marginTop="5dp" android:visibility="gone"' }) : ''}
-      </LinearLayout>
-    </LinearLayout>`;
+          android:src="@drawable/widget_room_sample" android:tint="${TL.on}" android:importantForAccessibility="no" />`;
 
-/** Шкала: пять мест I–V и четыре промежутка с весами в минутах. mode: s / m / l. */
-function scTrack(mode) {
-  const blkH = mode === 's' ? '8dp' : mode === 'm' ? '26dp' : 'match_parent';
-  const radius = mode === 's' ? 'widget_blk_s' : 'widget_blk';
-  const demo = ['602', '305', '401', 'Лаб. физики', '210'];
-  let row = '';
-  for (let i = 1; i <= 5; i++) {
-    const hero = i === 3;
-    let inner = '';
-    if (mode === 'm') inner = `
-          <TextView android:id="@+id/w_s${i}_room" android:layout_width="match_parent" android:layout_height="match_parent"
-              android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp" ${F.x} android:textColor="${hero ? '#FFFFFF' : SC.ink}"
-              android:includeFontPadding="false" android:maxLines="1" android:text="${demo[i - 1]}"
-              android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="13sp" android:autoSizeStepGranularity="0.5sp" />`;
-    if (mode === 'l') inner = `
-          <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
-              android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp" android:paddingTop="4dp" android:paddingBottom="5dp">
-            <TextView android:id="@+id/w_s${i}_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                android:gravity="center" ${F.x} android:textColor="${hero ? '#FFFFFF' : SC.ink}" android:includeFontPadding="false"
-                android:maxLines="2" android:lineSpacingExtra="0dp" android:text="${demo[i - 1]}"
-                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="21sp" android:autoSizeStepGranularity="0.5sp" />
-            ${tv(`w_s${i}_time`, { size: 10.5, font: 'm', color: hero ? '#EAEFFD' : SC.ink2, text: ['08:00', '09:45', '11:30', '14:00', '15:45'][i - 1], extra: 'android:layout_marginTop="2dp"' })}
-            ${scDot(`w_s${i}_dot`, 6, hero ? '#FFFFFF' : '#5B8DEF', 'android:layout_marginTop="4dp" android:visibility="gone"')}
-          </LinearLayout>`;
-    row += `
-      <FrameLayout android:id="@+id/w_s${i}" android:layout_width="0dp" android:layout_height="${blkH}" android:layout_weight="${SLOT_W}">
-        <ImageView android:id="@+id/w_s${i}_bg" android:layout_width="match_parent" android:layout_height="match_parent"
-            android:scaleType="fitXY" android:src="@drawable/${radius}" android:tint="${hero ? SC.fill : SC.line}" android:importantForAccessibility="no" />
-        <ImageView android:id="@+id/w_s${i}_prog" android:layout_width="match_parent" android:layout_height="match_parent"
-            android:scaleType="fitXY" android:src="@drawable/${radius}_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />${inner}
-      </FrameLayout>`;
-    if (i < 5) row += `
-      <FrameLayout android:id="@+id/w_gp${i}" android:layout_width="0dp" android:layout_height="${blkH}" android:layout_weight="${GAP_W[i - 1]}" />`;
-  }
-  const trackLp = mode === 'l'
-    ? 'android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="8dp" android:minHeight="34dp"'
-    : `android:layout_height="wrap_content" android:layout_marginTop="${mode === 's' ? 8 : 7}dp"`;
-  let out = `<LinearLayout android:id="@+id/w_track" android:layout_width="match_parent" ${trackLp} android:orientation="horizontal">${row}
-    </LinearLayout>`;
-  if (mode === 'l') {
-    // подписи под шкалой — те же веса: «08:00» под первой парой, «обед» под перерывом, «17:15» под последней
-    let lab = '';
-    for (let i = 1; i <= 5; i++) {
-      lab += `
-      ${tv(`w_lb${i}`, { size: 10, font: 'm', color: SC.ink3, text: i === 1 ? '08:00' : i === 5 ? '17:15' : '', w: '0dp', extra: `android:layout_weight="${SLOT_W}" android:gravity="${i === 5 ? 'end' : 'start'}"` })}`;
-      if (i < 5) lab += `
-      ${tv(`w_lg${i}`, { size: 9.5, font: 'm', color: SC.ink3, text: i === 3 ? 'обед' : '', w: '0dp', extra: `android:layout_weight="${GAP_W[i - 1]}" android:gravity="center"` })}`;
-    }
-    out += `
-    <LinearLayout android:id="@+id/w_labels" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
-        android:layout_marginTop="3dp">${lab}
-    </LinearLayout>`;
-  }
-  return out;
+/** Главная плитка, компактная (2×2 и узкий): номер и справа «I · 08:00» / «дальше 602», ниже предмет. */
+const heroCompact = (lp, maxH, maxW) => `<FrameLayout android:id="@+id/w_hero" ${lp}>
+      ${tlBg('w_hero', TL.fill, true)}
+      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+          android:paddingStart="10dp" android:paddingEnd="9dp" android:paddingTop="8dp" android:paddingBottom="8dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+          ${heroImg(maxH, maxW)}
+          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
+              android:gravity="end" android:layout_marginStart="6dp">
+            ${tv('w_meta', { size: 11.5, font: 'm', color: TL.on2, text: 'I · 08:00' })}
+            ${tv('w_hnext', { size: 11.5, font: 'm', color: TL.on2, text: 'дальше 602', extra: 'android:layout_marginTop="2dp"' })}
+          </LinearLayout>
+        </LinearLayout>
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+        <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="12dp" ${F.b} android:textColor="${TL.on}" android:includeFontPadding="false"
+            android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="ДВ: Объектно-ориентир. программ" />
+      </LinearLayout>
+    </FrameLayout>`;
+
+/** Главная плитка, широкая: номер слева, справа «I пара · 08:00–09:30 · Практика» и предмет. */
+const heroWide = `<FrameLayout android:id="@+id/w_hero" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1.2">
+      ${tlBg('w_hero', TL.fill, true)}
+      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal"
+          android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="6dp" android:paddingBottom="6dp">
+        ${heroImg(60, 150)}
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
+            android:layout_marginStart="12dp">
+          ${tv('w_meta', { size: 11.5, font: 'm', color: TL.on2, text: 'I пара · 08:00–09:30 · Практика', w: 'match_parent' })}
+          <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:layout_marginTop="3dp" android:textSize="15dp" ${F.b} android:textColor="${TL.on}" android:includeFontPadding="false"
+              android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="ДВ: Объектно-ориентир. программ" />
+        </LinearLayout>
+      </LinearLayout>
+    </FrameLayout>`;
+
+/** Обычная плитка i: «III» и время сверху, номер аудитории (autoSize), предмет с точкой типа (по месту). */
+function tile(i, lp, compact) {
+  const demo = [['II', '09:45', '602', 'Численные методы'], ['III', '11:30', '305', 'Базы данных'], ['IV', '14:00', 'Лаб. физики', 'Физика'], ['V', '15:45', '210', 'Философия']][i - 1];
+  if (compact) return `<FrameLayout android:id="@+id/w_t${i}" ${lp}>
+      ${tlBg(`w_t${i}`, TL.line, false)}
+      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+          android:gravity="center_vertical" android:paddingStart="9dp" android:paddingEnd="7dp" android:paddingTop="4dp" android:paddingBottom="4dp">
+        ${tv(`w_t${i}_top`, { size: 10.5, font: 'm', color: TL.ink2, text: `${demo[0]} · ${demo[1]}`, w: 'match_parent' })}
+        <TextView android:id="@+id/w_t${i}_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:gravity="start|center_vertical" ${F.x} android:textColor="${TL.ink}" android:includeFontPadding="false" android:maxLines="1"
+            android:text="${demo[2]}" android:textSize="19dp"
+            android:autoSizeTextType="uniform" android:autoSizeMinTextSize="8sp" android:autoSizeMaxTextSize="19sp" android:autoSizeStepGranularity="0.5sp" />
+      </LinearLayout>
+    </FrameLayout>`;
+  return `<FrameLayout android:id="@+id/w_t${i}" ${lp}>
+      ${tlBg(`w_t${i}`, TL.line, false)}
+      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+          android:paddingStart="9dp" android:paddingEnd="8dp" android:paddingTop="6dp" android:paddingBottom="6dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+          ${tv(`w_t${i}_pair`, { size: 11, font: 'm', color: TL.ink2, text: demo[0], w: '0dp', extra: 'android:layout_weight="1"' })}
+          ${tv(`w_t${i}_time`, { size: 11, font: 'm', color: TL.ink2, text: demo[1] })}
+        </LinearLayout>
+        <TextView android:id="@+id/w_t${i}_room" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:gravity="start|center_vertical" ${F.x} android:textColor="${TL.ink}" android:includeFontPadding="false" android:maxLines="2"
+            android:text="${demo[2]}" android:textSize="24dp"
+            android:autoSizeTextType="uniform" android:autoSizeMinTextSize="8sp" android:autoSizeMaxTextSize="30sp" android:autoSizeStepGranularity="0.5sp" />
+        <LinearLayout android:id="@+id/w_t${i}_sub" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+            android:gravity="center_vertical" android:visibility="gone">
+          ${tlDot(`w_t${i}_dot`, 6, '#2BB27F', 'android:layout_marginEnd="4dp"')}
+          ${tv(`w_t${i}_subj`, { size: 11, font: 'm', color: TL.ink, text: demo[3], w: '0dp', extra: 'android:layout_weight="1"' })}
+        </LinearLayout>
+      </LinearLayout>
+    </FrameLayout>`;
 }
 
-const scaleS = root(`${bg(SC.bg)}
+const tilesS = root(`${bg(TL.bg)}
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
-      android:orientation="vertical" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="11dp" android:paddingBottom="11dp">
-    ${scHead(12.5)}
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical">
-      <ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="wrap_content"
-          android:adjustViewBounds="true" android:maxHeight="34dp" android:maxWidth="96dp" android:scaleType="fitCenter"
-          android:src="@drawable/widget_room_sample" android:tint="${SC.acc}" android:importantForAccessibility="no" />
-      ${tv('w_meta', { size: 11.5, font: 'm', color: SC.ink2, text: 'III пара · 11:30', w: '0dp', extra: 'android:layout_weight="1" android:layout_marginStart="8dp"' })}
+      android:orientation="vertical" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="10dp" android:paddingBottom="10dp">
+    ${tlHead(12.5)}
+    ${heroCompact('android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="6dp"', 36, 100)}
+  </LinearLayout>
+  ${empty}`);
+
+const tilesN = root(`${bg(TL.bg)}
+  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:orientation="vertical" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="10dp" android:paddingBottom="10dp">
+    ${tlHead(12.5)}
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
+        android:layout_marginTop="6dp">
+      ${heroCompact('android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5"', 36, 90)}
+      <LinearLayout android:id="@+id/w_side" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+          android:orientation="vertical" android:layout_marginStart="6dp">
+        ${tile(1, 'android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"', true)}
+        ${tile(2, 'android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="6dp"', true)}
+      </LinearLayout>
     </LinearLayout>
-    ${tv('w_subj', { size: 12.5, font: 'b', color: SC.ink, text: 'Физика', w: 'match_parent' })}
-    ${scTrack('s')}
   </LinearLayout>
   ${empty}`);
 
-const scaleM = root(`${bg(SC.bg)}
+const tilesW = root(`${bg(TL.bg)}
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
-      android:orientation="vertical" android:paddingStart="13dp" android:paddingEnd="13dp" android:paddingTop="12dp" android:paddingBottom="11dp">
-    ${scHead(13)}
-    ${scMain(46, 120, 11.5, 14, 2, 'android:layout_weight="1"', false)}
-    ${scTrack('m')}
-  </LinearLayout>
-  ${empty}`);
-
-const scaleL = root(`${bg(SC.bg)}
-  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
-      android:orientation="vertical" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="12dp" android:paddingBottom="10dp">
-    ${scHead(13)}
-    ${scMain(64, 150, 12, 16, 2, 'android:layout_marginTop="8dp"', true)}
-    ${scTrack('l')}
+      android:orientation="vertical" android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="11dp" android:paddingBottom="11dp">
+    ${tlHead(13)}
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical"
+        android:layout_marginTop="7dp">
+      ${heroWide}
+      <LinearLayout android:id="@+id/w_row" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+          android:orientation="horizontal" android:layout_marginTop="6dp">
+        ${[1, 2, 3, 4].map(i => tile(i, `android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"${i > 1 ? ' android:layout_marginStart="6dp"' : ''}`, false)).join('\n        ')}
+      </LinearLayout>
+    </LinearLayout>
   </LinearLayout>
   ${empty}`);
 
@@ -292,6 +304,6 @@ const dialL = root(`${bg(D.bg)}
   </LinearLayout>
   ${empty}`);
 
-const out = { widget_scale_s: scaleS, widget_scale_m: scaleM, widget_scale_l: scaleL, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
+const out = { widget_tiles_s: tilesS, widget_tiles_n: tilesN, widget_tiles_w: tilesW, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
 for (const [name, xml] of Object.entries(out)) fs.writeFileSync(path.join(__dirname, `${name}.xml`), xml);
 console.log('ok:', Object.keys(out).join(', '));
