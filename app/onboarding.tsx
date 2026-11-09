@@ -3,6 +3,7 @@
  * изумруд; выбрать другой можно тут же, а потом изменить в любое время:
  * Кабинет → «Внешний вид».
  */
+import LoaderIcon from '../src/offline/LoaderIcon';
 import React, { useState, useEffect, useCallback } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StatusBar, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -129,7 +130,7 @@ export default function OnboardingScreen({ onDone }: Props = {}) {
       {/* 2. Группа */}
       <View style={{ backgroundColor: k.surface, borderRadius: RADIUS.lg, padding: 16, marginTop: 12 }}>
         <Txt t="overline" color={k.textSecondary} style={{ marginBottom: 8 }}>Группа</Txt>
-        {loading && <ActivityIndicator color={k.accentText} style={{ marginVertical: 12 }} />}
+        {loading && <View style={{ marginVertical: 12 }}><LoaderIcon k={k} size={48} /></View>}   {/* единая загрузка */}
         {error && (
           <View style={{ alignItems: 'center', rowGap: 10, paddingVertical: 8 }}>
             <Txt t="body" color={k.statusOffline} style={{ textAlign: 'center' }}>{error}</Txt>

@@ -110,7 +110,8 @@ export default function OfflineSetupScreen({ mode: kind, onDone }: Props) {
     >
       <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
 
-      <LoaderIcon k={k} phase={phase} />
+      {/* Кольцо честное: доля пройденных этапов (из STEPS) */}
+      <LoaderIcon k={k} phase={phase} progress={Math.max(0.04, STEPS.findIndex(x => x.id === step) / STEPS.length)} />
       <Txt t="display" color={k.text} accessibilityRole="header" style={{ fontSize: 30, lineHeight: 36, letterSpacing: 0, marginTop: 20, textAlign: 'center' }}>
         {title}
       </Txt>

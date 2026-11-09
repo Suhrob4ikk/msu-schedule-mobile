@@ -12,8 +12,9 @@
  * cache_schedule_<группа>_<неделя>), потом сеть. week_id у каждой группы свой
  * (привязан к факультету) — неделю ищем по понедельнику отдельно для каждой.
  */
+import LoaderIcon from '../offline/LoaderIcon';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StatusBar, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StatusBar, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -300,7 +301,7 @@ export default function CompareScreen() {
 
   let body: React.ReactNode = null;
   if (!myLoaded) {
-    body = <ActivityIndicator color={k.accentText} style={{ marginTop: 32 }} />;
+    body = <View style={{ marginTop: 32 }}><LoaderIcon k={k} size={48} /></View>;   // единая загрузка (src/offline/LoaderIcon.tsx)
   } else if (!myGroup) {
     body = (
       <Card k={k}>
@@ -339,7 +340,7 @@ export default function CompareScreen() {
           <WeekSegment k={k} which={which} thisWs={thisWs} nextWs={nextWs} nextOk={nextOk} onPick={setWhich} />
         )}
 
-        {other && !grid && !failed && <ActivityIndicator color={k.accentText} style={{ marginTop: 32 }} />}
+        {other && !grid && !failed && <View style={{ marginTop: 32 }}><LoaderIcon k={k} size={48} /></View>}
         {other && failed && !grid && (
           <Card k={k}><Txt t="body" color={k.textSecondary}>Расписание загрузится, когда появится сеть.</Txt></Card>
         )}

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import UpdatingOverlay from '../src/UpdatingOverlay';
 import { useOtaUpdates } from '../src/otaUpdates';
 import { useOnlinePing } from '../src/onlinePing';
 import WhatsNew from '../src/WhatsNew';
@@ -433,6 +434,7 @@ function AppTabs() {
       <DevReplyToast />
       <NewFeatureSheet />
       <WhatsNew />
+      <UpdatingOverlay />
       <HolidayParticles />
     </View>
   );

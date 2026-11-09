@@ -11,9 +11,21 @@
  * Если новое обновление не запустится, модуль сам откатывается на предыдущее (встроенная защита expo-updates).
  * Что приходит по OTA: только JS и картинки. Виджеты, «идёт пара» в шторке, разрешения, версия Expo — только новым APK.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import * as Updates from 'expo-updates';
+
+// Экран «Обновляем приложение» (UpdatingOverlay): виден, пока включается скачанное обновление (владелец 9 ноя 2026:
+// «показать загрузку — иконка в центре, вокруг кольцо»), вместо непонятного мигания при перезапуске
+const APPLY_SHOW_MS = 1400;
+let applying = false;
+const applyListeners = new Set<(v: boolean) => void>();
+function setApplying(v: boolean) { applying = v; applyListeners.forEach(f => f(v)); }
+export function useOtaApplying(): boolean {
+  const [v, setV] = useState(applying);
+  useEffect(() => { applyListeners.add(setV); setV(applying); return () => { applyListeners.delete(setV); }; }, []);
+  return v;
+}
 
 const CHECK_EVERY_MS = 2 * 60_000;   // запрос маленький (только «есть ли новое»), скачивание — только если есть
 
@@ -43,7 +55,14 @@ export function useOtaUpdates(): void {
       const back = prev !== 'active' && next === 'active';
       prev = next;
       if (!back) return;
-      if (ready) { Updates.reloadAsync().catch(() => null); return; }
+      if (ready) {
+        ready = false;
+        setApplying(true);
+        setTimeout(() => {
+          Updates.reloadAsync().catch(() => { setApplying(false); });   // не вышло — приложение работает дальше как было
+        }, APPLY_SHOW_MS);
+        return;
+      }
       if (Date.now() - lastCheck >= CHECK_EVERY_MS) void check();
     });
     return () => sub.remove();
