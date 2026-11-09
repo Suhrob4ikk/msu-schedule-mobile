@@ -195,8 +195,8 @@ export default function WhatsNew() {
                 ) : null}
                 {s.rules ? (
                   <View style={{ marginTop: 18, rowGap: 8 }}>{s.rules.map(([a, b]) => (
-                    <View key={a} style={{ flexDirection: 'row', alignItems: 'center', columnGap: 10, backgroundColor: glass, borderRadius: 14, padding: 10 }}>
-                      <View style={{ minWidth: 52, height: 32, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 }}><Text style={T({ s: 13, w: 800 })}>{a}</Text></View>
+                    <View key={b} style={{ flexDirection: 'row', alignItems: 'center', columnGap: 10, backgroundColor: glass, borderRadius: 14, padding: 10 }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}><Text style={T({ s: 13, w: 800 })}>{a}</Text></View>
                       <Text style={T({ s: 15, w: 600, st: { flex: 1 } })}>{b}</Text>
                     </View>))}</View>
                 ) : null}
@@ -206,7 +206,6 @@ export default function WhatsNew() {
                     {s.how.map((h, j) => <Text key={j} style={T({ s: 15, st: { marginVertical: 3, lineHeight: 21 } })}>{s.how!.length > 1 ? `${j + 1}. ${h}` : h}</Text>)}
                   </View>
                 ) : null}
-                {i === 0 ? <Text style={T({ s: 14, o: 0.8, st: { marginTop: 12 } })}>Нажмите в середине — пауза, у правого края — дальше, у левого — назад.</Text> : null}
               </>
             ) : (
               <>

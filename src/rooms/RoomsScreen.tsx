@@ -7,6 +7,7 @@
  * собирается день каждой аудитории (state.ts). Сначала кэш (ключи
  * cache_rooms_<день>_<пара>_<неделя>, их же заполняет bulk-sync), потом сеть.
  */
+import { useLastFetchOk } from '../api';
 import { HolidayBackdrop, HolidayNavDeco } from '../holiday/HolidayDecor';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, RefreshControl, ScrollView, StatusBar, View } from 'react-native';
@@ -135,6 +136,7 @@ export default function RoomsScreenNew() {
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
+  const lastOk = useLastFetchOk();   // «обновлено» — и по последнему удачному ответу сервера
 
   // ─── Часы и режим «Сейчас» ────────────────────────────────────────────
   const [clock, setClock] = useState(() => new Date());
@@ -343,7 +345,7 @@ export default function RoomsScreenNew() {
   const link = linkState({
     syncing: isSyncing || refreshing || (loading && !days),
     offline: !isOnline || loadFailed,
-    stamps: [updatedAt, lastSyncTime],
+    stamps: [updatedAt, lastSyncTime, lastOk],
     now: clock,
   });
 

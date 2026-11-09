@@ -6,6 +6,7 @@
  * после последней пары педагога — сразу следующая, если она опубликована
  * (как в «Расписании», решение владельца). Данные — кэш, потом сеть.
  */
+import { useLastFetchOk } from '../api';
 import { REMINDER_LIFT, useNamesReminderShown } from '../names/NamesReminder';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -84,6 +85,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   const fnLift = useNamesReminderShown() ? REMINDER_LIFT : 0; // строка «Помогите узнать полные имена» над меню
   const insets = useSafeAreaInsets();
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
+  const lastOk = useLastFetchOk();   // «обновлено» — и по последнему удачному ответу сервера
 
   const [now, setNow] = useState(() => new Date());
   const today = isoOf(now);
@@ -329,7 +331,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   const link = linkState({
     syncing: isSyncing || refreshing || (netBusy && lessons === undefined),
     offline: !isOnline || wFailed,
-    stamps: [updatedAt, lastSyncTime],
+    stamps: [updatedAt, lastSyncTime, lastOk],
     now,
   });
 

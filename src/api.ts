@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Единственный источник URL бэкенда — app.json → expo.extra.apiUrl.
@@ -100,6 +101,17 @@ async function fetchWithRetry<T>(path: string, firstTimeout = FETCH_TIMEOUT_MS):
   }
 }
 
+// Время последнего удачного ответа сервера — для «обновлено 19:23» в шапке (9 ноя 2026: в Кабинете висело время
+// полной синхронизации, «16:05», хотя экраны получали свежие данные; на сайте так же — getNetStatus).
+let _lastOk: Date | null = null;
+const _okListeners = new Set<(d: Date) => void>();
+function markOk(): void { _lastOk = new Date(); _okListeners.forEach(f => f(_lastOk!)); }
+export function useLastFetchOk(): Date | null {
+  const [d, setD] = useState<Date | null>(_lastOk);
+  useEffect(() => { _okListeners.add(setD); setD(_lastOk); return () => { _okListeners.delete(setD); }; }, []);
+  return d;
+}
+
 async function get<T>(path: string, ttl = 180_000, firstTimeout = FETCH_TIMEOUT_MS): Promise<T> {
   const hit = _cache.get(path);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
@@ -109,6 +121,7 @@ async function get<T>(path: string, ttl = 180_000, firstTimeout = FETCH_TIMEOUT_
 
   const p = fetchWithRetry<T>(path, firstTimeout)
     .then(data => {
+      markOk();
       // ttl=0 — ответ, который никогда не переиспользуется (bulk-sync, несколько
       // мегабайт). Держать его в памяти всё время работы приложения незачем.
       if (ttl > 0) _cache.set(path, { data, ts: Date.now() });

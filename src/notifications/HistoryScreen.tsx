@@ -7,6 +7,7 @@
  * выбор группы или факультета и «порции по 2 недели» — на телефоне (сервер
  * ни порций, ни ?before= не умеет). Выбор сегмента и группы живёт до конца сеанса.
  */
+import { useLastFetchOk } from '../api';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, FlatList, Pressable, RefreshControl, StatusBar, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -118,6 +119,7 @@ export default function HistoryScreen() {
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
+  const lastOk = useLastFetchOk();   // «обновлено» — и по последнему удачному ответу сервера
   const inbox = useInbox();
 
   const [now, setNow] = useState(() => new Date());
@@ -245,7 +247,7 @@ export default function HistoryScreen() {
   const link = linkState({
     syncing: isSyncing || refreshing || loading,
     offline,
-    stamps: [scope === 'my' ? inbox.updatedAt : allState.at, lastSyncTime],
+    stamps: [scope === 'my' ? inbox.updatedAt : allState.at, lastSyncTime, lastOk],
     now,
   });
 

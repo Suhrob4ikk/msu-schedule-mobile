@@ -7,6 +7,7 @@
  * «Что идёт сейчас» считается на телефоне (state.ts) — без сети и без
  * запросов /schedule/now.
  */
+import { useLastFetchOk } from '../api';
 import { onNotesSynced } from '../cloudNotes';
 import { REMINDER_LIFT, useNamesReminderShown } from '../names/NamesReminder';
 import { HolidayBackdrop, HolidayNavDeco } from '../holiday/HolidayDecor';
@@ -96,6 +97,7 @@ export default function ScheduleScreenNew() {
   const insets = useSafeAreaInsets();
   const fnLift = useNamesReminderShown() ? REMINDER_LIFT : 0; // строка «Помогите узнать полные имена» над меню
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
+  const lastOk = useLastFetchOk();   // «обновлено» — и по последнему удачному ответу сервера
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
@@ -720,7 +722,7 @@ export default function ScheduleScreenNew() {
 
   // ─── Статус связи ─────────────────────────────────────────────────────
   const link = linkState({
-    syncing: isSyncing || refreshing, offline: !isOnline || loadFailed, stamps: [updatedAt, lastSyncTime], now,
+    syncing: isSyncing || refreshing, offline: !isOnline || loadFailed, stamps: [updatedAt, lastSyncTime, lastOk], now,
   });
 
   // ─── Отрисовка ────────────────────────────────────────────────────────

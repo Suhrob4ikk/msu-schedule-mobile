@@ -4,6 +4,7 @@
  * одногруппников, подвал. Прежний экран удалён; его последняя версия — в git
  * по метке before-cleanup.
  */
+import { useLastFetchOk } from '../api';
 import { otaLabel } from '../otaUpdates';
 import { openWhatsNew } from '../WhatsNew';
 import { useEarlyAccess } from '../newFeatures';
@@ -241,6 +242,7 @@ export default function ProfileScreen() {
   const { fontScale } = useWindowDimensions();
   const qrTextMin = Math.round(140 * Math.min(Math.max(fontScale, 1), 2));
   const { isSyncing, isOnline, lastSyncTime, triggerSync, syncErrorText } = useSyncStatus();
+  const lastOk = useLastFetchOk();   // «обновлено» — и по последнему удачному ответу сервера
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [testOpen, setTestOpen] = useState(false);
@@ -299,7 +301,7 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!isSyncing) isOfflineDataComplete().then(setOfflineOk);
-    }, [isSyncing, lastSyncTime]),
+    }, [isSyncing, lastSyncTime, lastOk]),
   );
 
   useFocusEffect(
@@ -345,7 +347,7 @@ export default function ProfileScreen() {
     router.navigate('/');
   };
 
-  const link = linkState({ syncing: isSyncing, offline: !isOnline, stamps: [lastSyncTime], now: new Date() });
+  const link = linkState({ syncing: isSyncing, offline: !isOnline, stamps: [lastSyncTime, lastOk], now: new Date() });
   const showShare = (ATTENDANCE_ON && attendance.on) || notes.on;
 
   return (

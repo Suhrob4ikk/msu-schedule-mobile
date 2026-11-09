@@ -7,6 +7,7 @@
  * Данные — сначала кэш (общий с полной синхронизацией), потом сеть. Статусы
  * строк считаются на телефоне из кэша расписаний педагогов (data.ts).
  */
+import { useLastFetchOk } from '../api';
 import { HolidayBackdrop, HolidayGarland, HolidayNavDeco, useDecor } from '../holiday/HolidayDecor';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -53,6 +54,7 @@ export default function TeachersScreen() {
   const insets = useSafeAreaInsets();
   const decor = useDecor();   // праздник: фон, шапка с гирляндой (src/holiday/HolidayDecor.tsx)
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
+  const lastOk = useLastFetchOk();   // «обновлено» — и по последнему удачному ответу сервера
 
   // ─── Часы: раз в минуту — статусы видимых строк; сам экран — только в полночь ──
   const [today, setToday] = useState(() => isoOf(new Date()));
@@ -151,7 +153,7 @@ export default function TeachersScreen() {
     syncSeenRef.current = lastSyncTime;
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey, thisWeek, lastSyncTime]);
+  }, [idsKey, thisWeek, lastSyncTime, lastOk]);
 
   // ─── Недавние ─────────────────────────────────────────────────────────
   const [recentIds, setRecentIds] = useState<number[]>([]);
@@ -263,7 +265,7 @@ export default function TeachersScreen() {
   const link = linkState({
     syncing: isSyncing || refreshing || (loading && !teachers.length),
     offline: !isOnline || loadFailed,
-    stamps: [updatedAt, lastSyncTime],
+    stamps: [updatedAt, lastSyncTime, lastOk],
     now: new Date(),
   });
   const noData = !teachers.length && !loading;

@@ -6,6 +6,7 @@
  * Открывается поверх текущей вкладки (скрытая вкладка, src/notifications/nav.ts).
  * Фильтр при каждом открытии — «Все»; при возврате из Расписания — тот же.
  */
+import { useLastFetchOk } from '../api';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo, AppState, BackHandler, Linking, RefreshControl, ScrollView, StatusBar, View,
@@ -46,6 +47,7 @@ export default function NotificationsScreen() {
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
+  const lastOk = useLastFetchOk();   // «обновлено» — и по последнему удачному ответу сервера
   const s = useInbox();
 
   const [now, setNow] = useState(() => new Date());
@@ -196,7 +198,7 @@ export default function NotificationsScreen() {
   };
 
   const link = linkState({
-    syncing: isSyncing || refreshing || s.loading, offline: !isOnline || s.failed, stamps: [s.updatedAt, lastSyncTime], now,
+    syncing: isSyncing || refreshing || s.loading, offline: !isOnline || s.failed, stamps: [s.updatedAt, lastSyncTime, lastOk], now,
   });
   const history = <View style={{ marginTop: 16 }}><HistoryButton k={k} onPress={() => openHistory('/notifications')} /></View>;
 
