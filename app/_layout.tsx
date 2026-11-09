@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useOtaUpdates } from '../src/otaUpdates';
 import { useOnlinePing } from '../src/onlinePing';
 import WhatsNew from '../src/WhatsNew';
 import { NewFeatureSheet } from '../src/newFeatures';
@@ -296,6 +297,7 @@ function AppTabs() {
   useRemotePushRefresh(pathRef);
   useCloudNotesSync();   // заметки в облаке (src/cloudNotes.ts)
   useOnlinePing();   // «в сети» для панели /dev (src/onlinePing.ts)
+  useOtaUpdates();   // OTA-обновления (src/otaUpdates.ts)
 
   useEffect(() => {
     AsyncStorage.getItem('selected_group_id').then(async id => {

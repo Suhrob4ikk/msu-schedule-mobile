@@ -4,6 +4,7 @@
  * одногруппников, подвал. Прежний экран удалён; его последняя версия — в git
  * по метке before-cleanup.
  */
+import { otaLabel } from '../otaUpdates';
 import { openWhatsNew } from '../WhatsNew';
 import { useEarlyAccess } from '../newFeatures';
 import VoteCard from './VoteCard';
@@ -475,7 +476,7 @@ export default function ProfileScreen() {
           {/* Долгое нажатие на версию (15 с, чтобы студент не открыл случайно) — «Тестовый режим» (праздники и огонёк, src/TestModeSheet.tsx) */}
           {VERSION ? (
             <Pressable onLongPress={() => setTestOpen(true)} delayLongPress={15000} accessibilityRole="text">
-              <Txt t="small" color={k.textSecondary} numberOfLines={1}>v{VERSION}</Txt>
+              <Txt t="small" color={k.textSecondary} numberOfLines={1}>v{VERSION}{otaLabel() ? ` · ${otaLabel()}` : ''}</Txt>
             </Pressable>
           ) : null}
         </View>

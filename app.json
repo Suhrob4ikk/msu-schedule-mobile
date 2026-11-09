@@ -44,6 +44,17 @@
         "projectId": "5f760efa-bfd9-46cb-ad95-827a7ed60dba"
       }
     },
-    "owner": "suhrob4ikk"
+    "owner": "suhrob4ikk",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5f760efa-bfd9-46cb-ad95-827a7ed60dba",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    }
   }
 }
