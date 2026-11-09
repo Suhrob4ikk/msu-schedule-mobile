@@ -92,7 +92,7 @@ const Glow = memo(function Glow({ w, h, i }: { w: number; h: number; i: number }
 
 // ── Конфетти и салют ───────────────────────────────────────────────
 const CONF_COLORS = ['#FF5F6D', '#FFC371', '#7BED9F', '#70A1FF', '#A55EEA', '#FFFFFF', '#FFD54F'];
-function ConfettiPiece({ w, h, i }: { w: number; h: number; i: number }) {
+export function ConfettiPiece({ w, h, i }: { w: number; h: number; i: number }) {
   const p = useRef(new Animated.Value(0)).current, flip = useRef(new Animated.Value(0)).current;
   const cfg = useMemo(() => ({ x0: rnd(w * 0.2, w * 0.8), dx: rnd(-140, 140), up: rnd(40, 140), dur: rnd(2200, 3400), c: CONF_COLORS[i % CONF_COLORS.length], s: rnd(7, 11), rot: rnd(360, 900) }), [w, h, i]);
   useEffect(() => {

@@ -4,9 +4,15 @@
  * одногруппников, подвал. Прежний экран удалён; его последняя версия — в git
  * по метке before-cleanup.
  */
+import { openWhatsNew } from '../WhatsNew';
+import { useEarlyAccess } from '../newFeatures';
+import VoteCard from './VoteCard';
+import { syncNotes, useNotesCloud } from '../cloudNotes';
+import { HolidayBackdrop, HolidayGarland, HolidayNavDeco, useDecor } from '../holiday/HolidayDecor';
+import { usePrizeUnlocked } from '../prizes/prizes';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Linking, Pressable, ScrollView, Share, StatusBar, View, useWindowDimensions,
+  ActivityIndicator, Pressable, ScrollView, Share, StatusBar, View, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -20,25 +26,23 @@ import { appearanceSummary } from '../appearanceModel';
 import { useSyncStatus } from '../SyncContext';
 import { isOfflineDataComplete } from '../offline/state';
 import { setUserName } from '../userName';
-import { formatSyncTime } from '../syncService';
 import { markGroupChosen } from '../features';
-import { collectSkips, collectNotes, type SkipStats } from '../studyData';
-import { useUnreadNotifCount } from '../useUnreadNotifCount';
+import { ATTENDANCE_ON, collectSkips, collectNotes, type SkipStats } from '../studyData';
 import { useTokens, Tokens, RADIUS, GUTTER, HEADER_H, TOUCH_MIN } from '../schedule/tokens';
 import { Txt } from '../schedule/ui';
 import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
-import { openHistory, openNotifications } from '../notifications/nav';
 import { Card, SectionTitle, SwitchRow, NavRow, ActionRow, Button } from './rows';
 import ProfileSheet from './ProfileSheet';
 import {
   useExamReminders, useLessonReminders, useLiveLessonRow, useBackgroundWork, useFeatureFlag,
 } from './reminders';
 import {
-  skipRows, skipsSpoken, totalLabel, profileLine, offlineNote, avatarLetter, pluralPairs,
+  skipRows, skipsSpoken, totalLabel, profileLine, avatarLetter, pluralPairs,
 } from './state';
 import TestModeSheet from '../TestModeSheet';
-import StreakRow from '../streak/FlameChip';
-import { useStreak } from '../streak/streak';
+import { myDeviceId, unreadInfo } from '../devMessages';
+import { StreakAvatar, StreakInline, StreakSheetHost } from '../streak/FlameChip';
+import { noteStreakHit, useStreak } from '../streak/streak';
 
 // Источник — app.json → expo.extra.webUrl (та же логика, что и API_BASE в src/api.ts)
 const WEB_URL =
@@ -50,7 +54,7 @@ const VERSION = Constants.expoConfig?.version ?? '';
 const HINT_KEY = 'hint_seen_tips_reminders_widget';
 
 async function shareMyData() {
-  const st = await collectSkips();
+  const st: SkipStats = ATTENDANCE_ON ? await collectSkips() : { total: 0, bySubject: [] };
   const notes = await collectNotes();
   const lines: string[] = ['МГУ Расписание — мои данные', ''];
   if (st.total > 0) {
@@ -62,8 +66,19 @@ async function shareMyData() {
     lines.push('Заметки к парам:');
     notes.forEach(n => lines.push('• ' + n.slot + ': ' + n.text));
   }
-  if (st.total === 0 && notes.length === 0) lines.push('Пока нет ни пропусков, ни заметок.');
+  if (st.total === 0 && notes.length === 0) lines.push(ATTENDANCE_ON ? 'Пока нет ни пропусков, ни заметок.' : 'Пока нет заметок.');
   try { await Share.share({ message: lines.join('\n') }); } catch { /* закрыли меню */ }
+}
+
+/** Приз «Ранний доступ» (достижение «Следопыт») — значок под именем, как на сайте. */
+function EarlyBadge({ k }: { k: Tokens }) {
+  const on = useEarlyAccess();   // «Следопыт» или 30+ дней с заходом (src/newFeatures.tsx, 9 ноя 2026)
+  if (!on) return null;
+  return (
+    <View style={{ alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, height: 22, borderRadius: 11, justifyContent: 'center', backgroundColor: k.accentSoft }}>
+      <Txt t="captionStrong" color={k.onAccentSoft}>Ранний доступ</Txt>
+    </View>
+  );
 }
 
 // ─── Профиль ────────────────────────────────────────────────────────────────
@@ -86,17 +101,18 @@ function ProfileCard({ k, name, group, onEdit }: { k: Tokens; name: string; grou
   const line = group ? profileLine(shortGroupName(group.name), group.year) : '';
   const title = name.trim() || line || 'Профиль';
   const sub = name.trim() ? line : '';
-  const streakOn = useStreak() != null;   // огонёк серии — строкой в этой же карточке
+  // огонёк серии — пламя на аватаре и «N дней подряд» под группой (вариант В, владелец 8 ноя 2026)
   return (
     <Card k={k}>
       <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 12, paddingHorizontal: 16, paddingVertical: 14 }}>
-        <Avatar k={k} letter={avatarLetter(name)} />
+        <StreakAvatar k={k}><Avatar k={k} letter={avatarLetter(name)} /></StreakAvatar>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Txt t="titleScreen" color={k.text}>{title}</Txt>
           {sub ? <Txt t="rowValue" color={k.textSecondary}>{sub}</Txt> : null}
+          <StreakInline k={k} />
+          <EarlyBadge k={k} />
         </View>
       </View>
-      {streakOn && <StreakRow k={k} />}
       <ActionRow k={k} title="Изменить имя или группу" onPress={onEdit} />
     </Card>
   );
@@ -219,11 +235,11 @@ export default function ProfileScreen() {
   const { mode } = useThemeMode();
   const appearance = useAppearanceSettings();
   const insets = useSafeAreaInsets();
+  const decor = useDecor();   // праздник: шапка цветом праздника, гирлянда (src/holiday/HolidayDecor.tsx)
   // Правая колонка блока QR растёт со шрифтом: при крупном шрифте колонки встают друг под друга
   const { fontScale } = useWindowDimensions();
   const qrTextMin = Math.round(140 * Math.min(Math.max(fontScale, 1), 2));
   const { isSyncing, isOnline, lastSyncTime, triggerSync, syncErrorText } = useSyncStatus();
-  const unread = useUnreadNotifCount();
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [testOpen, setTestOpen] = useState(false);
@@ -238,13 +254,14 @@ export default function ProfileScreen() {
 
   const attendance = useFeatureFlag('feature_attendance');
   const notes = useFeatureFlag('feature_notes');
+  const notesCloud = useNotesCloud();   // заметки в облаке — награда огонька за 7 дней (src/cloudNotes.ts)
+  const streakSt = useStreak();   // «Что нового» — когда огонёк виден (src/WhatsNew.tsx)
   const exams = useExamReminders();
   const lessons = useLessonReminders();
   const live = useLiveLessonRow();
   const background = useBackgroundWork();
 
   const scrollRef = useRef<ScrollView>(null);
-  const syncY = useRef(0);
 
   useEffect(() => {
     // Список групп — сначала с диска (иначе в офлайне выбор пустой), затем с сервера
@@ -328,18 +345,19 @@ export default function ProfileScreen() {
   };
 
   const link = linkState({ syncing: isSyncing, offline: !isOnline, stamps: [lastSyncTime], now: new Date() });
-  const lastSync = lastSyncTime ? formatSyncTime(lastSyncTime) : null;
-  const showShare = attendance.on || notes.on;
+  const showShare = (ATTENDANCE_ON && attendance.on) || notes.on;
 
   return (
     <View style={{ flex: 1, backgroundColor: k.bg }}>
-      {/* Шапка 60 dp: статус связи (касание — к карточке «Синхронизация») и колокольчик */}
-      <View style={{ paddingTop: insets.top, backgroundColor: k.bg }}>
+      <HolidayBackdrop />
+      {/* Шапка 60 dp: статус связи (касание — обновить расписание) и колокольчик */}
+      <View style={{ paddingTop: insets.top, backgroundColor: decor ? decor.top : k.bg, zIndex: decor ? 5 : undefined }}>
+        {decor && <HolidayGarland />}
         <View style={{ minHeight: HEADER_H, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingRight: GUTTER - 8 }}>
           <Pressable
-            onPress={() => scrollRef.current?.scrollTo({ y: Math.max(0, syncY.current - 8), animated: true })}
+            onPress={() => void sync()}
             accessibilityRole="button"
-            accessibilityHint="Показать синхронизацию"
+            accessibilityHint="Обновить расписание"
             style={{ minHeight: TOUCH_MIN, justifyContent: 'center' }}
           >
             <StatusPill s={link} k={k} />
@@ -360,6 +378,9 @@ export default function ProfileScreen() {
         {offlineOk === false && !noGroup ? <OfflineCard k={k} busy={isSyncing} offline={!isOnline} onPress={sync} /> : null}
 
         {/* Оформление */}
+        {/* Голосование за следующую функцию — только когда идёт и человеку 21+ день (src/profile/VoteCard.tsx) */}
+        <VoteCard k={k} />
+
         <SectionTitle k={k}>Оформление</SectionTitle>
         <Card k={k}>
           <NavRow k={k} icon="color-palette-outline" title="Внешний вид" value={appearanceSummary(appearance)} onPress={() => router.push('/appearance')} />
@@ -368,17 +389,17 @@ export default function ProfileScreen() {
         {/* Учёба */}
         <SectionTitle k={k}>Учёба</SectionTitle>
         <Card k={k}>
-          <SwitchRow k={k} title="Пропуски" subtitle="Отмечайте только пропущенные пары" on={attendance.on} onPress={attendance.toggle} />
-          {attendance.on && !noGroup && skips ? <SkipStatsBlock k={k} st={skips} /> : null}
-          <SwitchRow k={k} title="Заметки к парам" subtitle="Домашка и что принести" on={notes.on} onPress={notes.toggle} />
-          {showShare ? <ActionRow k={k} icon="share-outline" title="Поделиться заметками и посещаемостью" onPress={shareMyData} /> : null}
+          {/* Пропуски спрятаны до следующего семестра (владелец, 9 ноя 2026) — ATTENDANCE_ON в src/studyData.ts */}
+          {ATTENDANCE_ON ? <SwitchRow k={k} title="Пропуски" subtitle="Отмечайте только пропущенные пары" on={attendance.on} onPress={attendance.toggle} /> : null}
+          {ATTENDANCE_ON && attendance.on && !noGroup && skips ? <SkipStatsBlock k={k} st={skips} /> : null}
+          <SwitchRow k={k} title="Заметки к парам" subtitle={notesCloud ? 'Домашка и что принести · хранятся в облаке' : 'Домашка и что принести'} on={notes.on}
+            onPress={() => { notes.toggle(); setTimeout(() => void syncNotes(true), 300); }} />
+          {showShare ? <ActionRow k={k} icon="share-outline" title={ATTENDANCE_ON ? 'Поделиться заметками и пропусками' : 'Поделиться заметками'} onPress={shareMyData} /> : null}
         </Card>
 
         {/* Разделы */}
         <SectionTitle k={k}>Разделы</SectionTitle>
         <Card k={k}>
-          <NavRow k={k} icon="notifications-outline" title="Уведомления" badge={unread} onPress={() => openNotifications('/profile')} />
-          <NavRow k={k} icon="time-outline" title="История изменений" onPress={() => openHistory('/profile')} />
           <NavRow k={k} icon="swap-vertical-outline" title="Сравнить с другой группой" onPress={() => router.push('/compare')} />
         </Card>
 
@@ -402,32 +423,12 @@ export default function ProfileScreen() {
           ) : null}
         </Card>
 
-        {/* Синхронизация */}
-        <View onLayout={e => { syncY.current = e.nativeEvent.layout.y; }}>
-          <SectionTitle k={k}>Синхронизация</SectionTitle>
-          <Card k={k}>
-            <View style={{ padding: 14, rowGap: 12 }}>
-              {!isOnline ? (
-                <Plaque k={k} text={offlineNote(lastSync)} />
-              ) : (
-                <>
-                  {syncError && !isSyncing ? <Plaque k={k} text={syncErrorText ? `Не удалось обновить: ${syncErrorText}` : 'Не удалось обновить'} /> : null}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', columnGap: 12, rowGap: 2 }}>
-                    <Txt t="rowValue" color={k.textSecondary}>Последнее обновление</Txt>
-                    <Txt t="countNum" color={k.text} numberOfLines={1}>{lastSync ?? 'ещё не было'}</Txt>
-                  </View>
-                </>
-              )}
-              {isSyncing ? (
-                <Button k={k} title="Обновляем расписание" disabled busy onPress={sync}>
-                  <ActivityIndicator size="small" color={k.textSecondary} />
-                </Button>
-              ) : (
-                <Button k={k} title="Обновить расписание" icon="refresh" disabled={!isOnline} onPress={sync} />
-              )}
-            </View>
-          </Card>
-        </View>
+        {/* «Синхронизация» убрана (9 ноя 2026, как на сайте): обновить — нажатием на «обновлено …» в шапке */}
+        {isOnline && syncError && !isSyncing ? (
+          <View style={{ marginTop: 16 }}>
+            <Plaque k={k} text={syncErrorText ? `Не удалось обновить: ${syncErrorText}` : 'Не удалось обновить'} />
+          </View>
+        ) : null}
 
         {/* Позвать одногруппников */}
         <SectionTitle k={k}>Позвать одногруппников</SectionTitle>
@@ -451,6 +452,7 @@ export default function ProfileScreen() {
                   title="Поделиться ссылкой"
                   icon="share-outline"
                   onPress={() => {
+                    void noteStreakHit('share');   // «Позвал своих» (огонёк)
                     Share.share({ message: `МГУ Душанбе — расписание занятий, свободные аудитории и изменения. Заходите: ${WEB_URL}` }).catch(() => null);
                   }}
                 />
@@ -459,16 +461,15 @@ export default function ProfileScreen() {
           </View>
         </Card>
 
+        {/* Связь с разработчиком — переписка в приложении, как на сайте (src/profile/MessagesScreen.tsx) */}
+        <Card k={k} style={{ marginTop: 16 }}>
+          {streakSt ? <NavRow k={k} icon="sparkles-outline" title="Что нового" onPress={openWhatsNew} /> : null}
+          <MessagesRow k={k} />
+        </Card>
+
         {/* Подвал */}
         <View style={{ alignItems: 'center', marginTop: 20, rowGap: 2 }}>
-          {/* Режим разработчика — скрытая веб-панель /dev */}
-          <Pressable
-            onPress={() => Linking.openURL(`${WEB_URL}/dev`)}
-            accessibilityRole="link"
-            style={{ minHeight: TOUCH_MIN, justifyContent: 'center', paddingHorizontal: 12 }}
-          >
-            <Txt t="link" color={k.textSecondary}>Режим разработчика</Txt>
-          </Pressable>
+          {/* Ссылку «Режим разработчика» убрали совсем (владелец, 9 ноя 2026): панель — по прямому адресу сайта /dev */}
           <Txt t="smallSemi" color={k.text}>МГУ Душанбе · Расписание</Txt>
           <Txt t="small" color={k.textSecondary}>Данные с msu.tj</Txt>
           {/* Долгое нажатие на версию (15 с, чтобы студент не открыл случайно) — «Тестовый режим» (праздники и огонёк, src/TestModeSheet.tsx) */}
@@ -479,7 +480,9 @@ export default function ProfileScreen() {
           ) : null}
         </View>
       </ScrollView>
+      <HolidayNavDeco bottom={0} />
       <TestModeSheet visible={testOpen} onClose={() => setTestOpen(false)} k={k} />
+      <StreakSheetHost k={k} />
 
       <ProfileSheet
         k={k}
@@ -491,5 +494,28 @@ export default function ProfileScreen() {
         onSave={saveProfile}
       />
     </View>
+  );
+}
+
+/** «Написать разработчику»; справа — «Новый ответ», если разработчик ответил (счётчик сервер держит в памяти). */
+function MessagesRow({ k }: { k: Tokens }) {
+  const [unread, setUnread] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      myDeviceId().then(dev => (dev ? unreadInfo(dev) : { unread: 0 })).then(r => { if (alive) setUnread(r.unread); }).catch(() => null);
+      return () => { alive = false; };
+    }, []),
+  );
+  return (
+    <NavRow
+      k={k}
+      icon="chatbubble-ellipses-outline"
+      title="Написать разработчику"
+      value={unread > 0 ? (unread === 1 ? 'Новый ответ' : `Ответов: ${unread}`) : undefined}
+      valueColor={k.accentText}
+      valueStrong
+      onPress={() => router.push('/messages')}
+    />
   );
 }

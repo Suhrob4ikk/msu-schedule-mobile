@@ -7,6 +7,11 @@
  * «Что идёт сейчас» считается на телефоне (state.ts) — без сети и без
  * запросов /schedule/now.
  */
+import { onNotesSynced } from '../cloudNotes';
+import { REMINDER_LIFT, useNamesReminderShown } from '../names/NamesReminder';
+import { HolidayBackdrop, HolidayNavDeco } from '../holiday/HolidayDecor';
+import WeekFinale from '../prizes/WeekFinale';
+import { noteStreakHit } from '../streak/streak';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, AppState, LayoutAnimation, LayoutChangeEvent, Platform, Pressable, RefreshControl,
@@ -25,7 +30,7 @@ import { useOnlineAgain, useSyncStatus } from '../SyncContext';
 import { scheduleExamReminders, scheduleLessonReminders, NOTIF_PREF_KEY, LESSON_NOTIF_PREF_KEY } from '../examNotifications';
 import { writeWidgetData } from '../widgetData';
 import { refreshLiveLesson } from '../liveLesson';
-import { skipKey, noteWeeklyKey, noteDatedKey } from '../studyData';
+import { ATTENDANCE_ON, skipKey, noteWeeklyKey, noteDatedKey } from '../studyData';
 import { onScheduleUpdated } from '../scheduleEvents';
 import { useBackTo } from '../backTo';
 import CourseCheckBanner from '../CourseCheckBanner';
@@ -89,6 +94,7 @@ export default function ScheduleScreenNew() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
+  const fnLift = useNamesReminderShown() ? REMINDER_LIFT : 0; // строка «Помогите узнать полные имена» над меню
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
 
   const [groups, setGroups] = useState<Group[]>([]);
@@ -456,7 +462,7 @@ export default function ScheduleScreenNew() {
     useCallback(() => {
       StatusBar.setBarStyle(mode === 'dark' ? 'light-content' : 'dark-content');
       AsyncStorage.multiGet(['feature_attendance', 'feature_notes']).then(p => {
-        setFeatureAttendance(p[0][1] === '1');
+        setFeatureAttendance(ATTENDANCE_ON && p[0][1] === '1');
         setFeatureNotes(p[1][1] === '1');
       });
       if (groupsLoaded && groups.length) {
@@ -519,6 +525,7 @@ export default function ScheduleScreenNew() {
     } catch { setMarks(EMPTY_MARKS); }
   }, [showAttendance, showNotes]);
   useEffect(() => { loadMarks(); }, [loadMarks, lessons]);
+  useEffect(() => onNotesSynced(() => void loadMarks()), [loadMarks]);   // пришли заметки с другого устройства
 
   // ─── Прокрутка ────────────────────────────────────────────────────────
   const scrollRef = useRef<ScrollView>(null);
@@ -684,6 +691,7 @@ export default function ScheduleScreenNew() {
   const share = useCallback(async () => {
     if (sharingRef.current) return;
     sharingRef.current = true;
+    void noteStreakHit('share');   // «Позвал своих» (огонёк)
     try {
       // Лист ещё закрывается — даём ему уехать, иначе он попадёт в кадр системного меню
       await new Promise(r => setTimeout(r, 250));
@@ -732,6 +740,7 @@ export default function ScheduleScreenNew() {
 
   return (
     <View style={{ flex: 1, backgroundColor: k.bg }}>
+      <HolidayBackdrop />
       <ScheduleHeader
         k={k}
         topInset={insets.top}
@@ -743,6 +752,9 @@ export default function ScheduleScreenNew() {
 
       {/* Приветствие — своя группа, эта неделя (там статистики нет, они не встречаются) */}
       <HolidayBanner />
+      {/* Приз «Финал недели» (достижение «Летописец»): после последней пары своей группы на этой неделе */}
+      <WeekFinale days={days} weekStart={selectedWeek?.week_start ?? null} now={now} k={k} active={isMyGroup && rel === 'current'}
+        nextWeekOut={!!selectedWeek && weeks.some(w => w.week_start > selectedWeek.week_start)} />
       {/* Строку «Доброе утро · сегодня 3 пары» убрали (владелец, 1 ноя 2026: «место занимают»), Greeting.tsx не используется */}
 
       {/* Статистика — только когда открыта другая неделя. Отступ до первого
@@ -851,7 +863,7 @@ export default function ScheduleScreenNew() {
         <View
           pointerEvents="box-none"
           style={{
-            position: 'absolute', left: 0, right: 0, bottom: 12, paddingHorizontal: GUTTER,
+            position: 'absolute', left: 0, right: 0, bottom: 12 + fnLift, paddingHorizontal: GUTTER,
             flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 8, rowGap: 8,
           }}
         >
@@ -920,6 +932,7 @@ export default function ScheduleScreenNew() {
         onChanged={loadMarks}
       />
 
+      <HolidayNavDeco bottom={0} />
     </View>
   );
 }

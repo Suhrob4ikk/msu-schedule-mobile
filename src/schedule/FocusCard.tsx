@@ -6,6 +6,8 @@
  * только карточка, а не вся лента. Когда отсчёт дошёл до нуля, сообщаем
  * экрану (onExpire): тот пересчитает состояние без перезагрузки.
  */
+import { HolidayFrost, useDecor } from '../holiday/HolidayDecor';
+import { mixHex } from '../holiday/decor';
 import React, { memo, useEffect, useState } from 'react';
 import { AppState, Pressable, View } from 'react-native';
 import { Tokens, RADIUS } from './tokens';
@@ -14,7 +16,7 @@ import { Txt, KindBadge, PillDot } from './ui';
 import { openRoom, openTeacher } from './LessonRow';
 import HolidayCardDeco from '../holiday/HolidayCardDeco';
 import { usePrizes } from '../prizes/prizes';
-import { FlipCountdown, LiveFrame } from '../prizes/FocusPrizes';
+import { FlipCountdown, LiveWave } from '../prizes/FocusPrizes';
 
 const TICK_MS = 30_000;
 
@@ -42,7 +44,8 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
   stillAt?: number;
 }) {
   const { block, slot, filled } = focus;
-  const prizes = usePrizes();   // призы за достижения: «Живая рамка» и «Табло» (src/prizes)
+  const decor = useDecor();   // праздник: карточка и плашка цветом праздника (не у идущей пары)
+  const prizes = usePrizes();   // призы за достижения: «Волна» и «Табло» (src/prizes)
   const still = stillAt != null;
   const clock = useClock(focus.targetAt != null && !still);
   const now = stillAt ?? clock;
@@ -63,6 +66,8 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
   const progress = focus.progressFrom != null && focus.targetAt != null
     ? Math.min(1, Math.max(0, (now - focus.progressFrom) / (focus.targetAt - focus.progressFrom)))
     : null;
+  // «Волна» вместо полоски прогресса: идущая пара (и перемена перед следующей) наполняется светом
+  const wave = progress != null && filled && prizes.frame !== 'off' && !still;
 
   const status = leftMs != null
     ? `${focus.pill.toLowerCase()}, ${focus.countdownLabel} ${leftSpoken(Math.max(0, leftMs))}`
@@ -114,14 +119,19 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
       accessibilityRole="button"
       accessibilityLabel={blockA11y(block, status)}
       style={{
-        backgroundColor: filled ? k.accent : k.accentSoft,
+        backgroundColor: filled ? k.accent : decor ? mixHex(decor.acc, k.surface, k.mode === 'light' ? 0.13 : 0.22) : k.accentSoft,
+        borderWidth: !filled && decor ? 1 : 0,
+        borderColor: decor ? mixHex(decor.acc, k.surface, k.mode === 'light' ? 0.28 : 0.35) : 'transparent',
         borderRadius: RADIUS.lg,
         paddingHorizontal: 16,
         paddingTop: 14,
-        paddingBottom: progress != null ? 0 : 14,
+        paddingBottom: progress != null && !wave ? 0 : 14,
         overflow: 'hidden',
       }}
     >
+      {/* «Волна» — под содержимым, первым ребёнком (приз, src/prizes/FocusPrizes.tsx) */}
+      {wave && <LiveWave from={focus.progressFrom!} to={focus.targetAt!} />}
+      {!filled && <HolidayFrost radius={RADIUS.lg} />}
       <HolidayCardDeco place="focus" radius={RADIUS.lg} />
       {/* 1. Пилюля и отсчёт */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 6 }}>
@@ -138,7 +148,7 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
           </Txt>
         </View>
         {parts && prizes.flip && !still && focus.targetAt != null ? (
-          <FlipCountdown targetAt={focus.targetAt} label={focus.countdownLabel ?? ''} color={fg} k={k} />
+          <FlipCountdown targetAt={focus.targetAt} label={focus.countdownLabel ?? ''} color={fg} />
         ) : parts && (
           <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 4, marginLeft: 'auto' }}>
             <Txt t="label" color={fg}>{focus.countdownLabel}</Txt>
@@ -180,13 +190,10 @@ function FocusCard({ focus, k, onPress, onExpire, stillAt }: {
       )}
 
       {/* 5. Прогресс — только в живых состояниях, во всю ширину */}
-      {progress != null && (
+      {progress != null && !wave && (
         <View style={{ height: 4, marginTop: 14, marginHorizontal: -16, backgroundColor: k.accentChip }}>
           <View style={{ height: 4, width: `${progress * 100}%`, backgroundColor: k.onAccent }} />
         </View>
-      )}
-      {progress != null && filled && prizes.frame !== 'off' && !still && (
-        <LiveFrame progress={progress} rainbow={prizes.frame === 'rainbow'} radius={RADIUS.lg} k={k} />
       )}
     </Pressable>
   );

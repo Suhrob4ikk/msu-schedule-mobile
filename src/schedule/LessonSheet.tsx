@@ -5,6 +5,7 @@
  *
  * Формат хранения не меняется — ключи из src/studyData.ts, общие с сайтом.
  */
+import { scheduleNotesSync } from '../cloudNotes';
 import React, { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 // поле ввода — общее: понимает узкий шрифт на выбор (src/fontChoice.ts)
@@ -91,6 +92,7 @@ function SlotActions({ lesson, k, showAttendance, showNotes, slotLabel, onChange
     await AsyncStorage.removeItem(kWeekly);
     if (text.trim()) await AsyncStorage.setItem(repeat || !kDated ? kWeekly : kDated, text);
     onChanged();
+    scheduleNotesSync();   // заметки в облаке (src/cloudNotes.ts)
   };
 
   if (!canSkip && !showNotes) return null;

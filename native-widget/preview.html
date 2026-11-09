@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Виджет «Плитки» Б — все размеры</title>
+<!--
+  Вариант Б «Весь день, потом завтра» (выбор владельца 9 ноя 2026) во всех размерах — проверка без телефона.
+  Раскладка — копия ScheduleWidget.kt → tilesPlan (меняешь там — меняй здесь). 1 px = 1 dp.
+  Чего здесь нет: отступы и скругления лаунчеров, фирменные шрифты телефонов, Android 11 и старше.
+  Открывать через http-сервер (python -m http.server в native-widget/): с диска шрифт Onest не грузится.
+-->
+<style>
+  @font-face { font-family: OnestXB; src: url("fonts/onest_extrabold.ttf"); }
+  :root { --w:#191C23; --ink:#F1F3F7; --ink2:#A8AFBD; --tile:#2A2E39; --fill:#0FA27C; --on:#0B0D10; --on2:#0E4A39; --acc:#2BC79A; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:#0A0B0E; color:#E8EAF0; font:14px/1.4 system-ui,"Segoe UI",Roboto,sans-serif; padding:22px 16px 60px; }
+  h1 { font-size:22px; margin-bottom:6px; }
+  .note { color:#9AA1B2; max-width:1000px; margin-bottom:14px; }
+  .ctl { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .ctl button { background:#1E2330; color:#E8EAF0; border:1px solid #2C3240; border-radius:999px; padding:6px 14px; font:inherit; cursor:pointer; }
+  .ctl button.on { background:var(--fill); color:#0B0D12; border-color:transparent; font-weight:700; }
+  table { border-collapse:separate; border-spacing:14px; }
+  th { color:#9AA1B2; font-weight:600; font-size:12px; text-align:left; vertical-align:bottom; }
+  td { vertical-align:top; }
+  .w { background:var(--w); border-radius:22px; display:flex; flex-direction:column; overflow:hidden; font-family:Roboto,"Segoe UI",system-ui,sans-serif; }
+  .hd { display:flex; justify-content:space-between; font-weight:700; color:var(--ink); padding:0 3px; flex:none; white-space:nowrap; }
+  .hd span:first-child { overflow:hidden; text-overflow:ellipsis; } .hd span:last-child { color:var(--acc); margin-left:8px; }
+  .hero { background:var(--fill); border-radius:16px; display:flex; align-items:center; padding:0 12px; gap:11px; overflow:hidden; flex:none; margin-top:7px; }
+  .num { font-family:OnestXB,sans-serif; color:var(--on); line-height:1; flex:none; overflow:hidden; display:flex; align-items:center; }
+  .meta { color:var(--on2); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .subj { color:var(--on); font-weight:700; line-height:1.17; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .sep { color:var(--ink2); font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin-top:8px; padding-left:3px; flex:none; white-space:nowrap; overflow:hidden; }
+  .tile { background:var(--tile); border-radius:14px; padding:5px 10px 5px 11px; display:flex; flex-direction:column; margin-top:6px; flex:none; overflow:hidden; }
+  .tile .t { display:flex; justify-content:space-between; color:var(--ink2); font-size:11px; font-weight:500; }
+  .tile .m { flex:1; display:flex; align-items:center; min-height:0; }
+  .tile .r { font-weight:900; color:var(--ink); white-space:nowrap; }
+  .tile .s { color:var(--ink); font-size:12.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .dot { width:6px; height:6px; border-radius:3px; margin:0 6px 0 10px; flex:none; }
+  .lbl { color:#6F7686; font-size:11px; margin-top:3px; }
+  .warn { outline:2px solid #E5484D; }
+</style>
+</head>
+<body>
+<h1>Виджет «Плитки», вариант Б — все размеры</h1>
+<p class="note">Строки — высота, столбцы — ширина (dp). У вас на Poco: 2×2 ≈ 190×130, 4×2 ≈ 300×150, 4×3 ≈ 300×225, 4×4 ≈ 370×300.
+Красная рамка — содержимое не влезло (так быть не должно).</p>
+<div class="ctl" id="ctl"></div>
+<div id="out"></div>
+<script>
+// ── Копия ScheduleWidget.kt → tilesPlan. Меняешь там — меняй здесь. ──
+const TILES_S_MAX_W = 220;
+const clamp = (x, a, b) => Math.min(Math.max(x, a), b);
+function tilesPlan(w, h, seps, aspect) {
+  const small = w < TILES_S_MAX_W;
+  const k = small ? 1 : clamp(w / 300, 0.9, 1.2);
+  const head = (small ? 12.5 : 13 * k) * 1.2 + 7;
+  const avail = h - (small ? 20 : 22) - head;
+  const tileH = avail < 130 ? 46 : 50;
+  const sepH = 20;
+  const cost = i => tileH + 6 + (seps[i] ? sepH : 0);
+  const want = small ? 92 : Math.min(74, w * 0.2) + 30;
+  const maxRows = small ? 2 : 5;
+  let heroH;
+  if (!seps.length) heroH = Math.min(want, avail);
+  else if (small) heroH = avail - want >= cost(0) ? want : Math.min(want, avail);
+  else if (avail - cost(0) >= 46) heroH = Math.min(want, avail - cost(0));
+  else heroH = Math.min(want, avail);
+  let rest = avail - heroH, n = 0;
+  while (n < Math.min(seps.length, maxRows) && rest >= cost(n)) { rest -= cost(n); n++; }
+  const hero = heroH + Math.min(rest, want * 0.5);
+  const roomH = Math.max(18, Math.min(small ? 52 : 92, (small ? 0.42 : 0.36) * w / aspect, hero - 16, hero * 0.62));
+  return { small, k, heroH: hero, roomH, tileH, count: n };
+}
+
+const HERO = { room: "104", meta: "I пара · 08:00–09:30 · Практика", short: "I пара · 08:00", subj: "ДВ: Объектно-ориентир. программ" };
+const TODAY = [{ p: "II", t: "09:45", r: "602", s: "Численные методы", c: "#5B8DEF" }, { p: "III", t: "11:30", r: "Лаб. физики", s: "Физика", c: "#2BB27F" },
+  { p: "IV", t: "13:30", r: "305", s: "Философия", c: "#5B8DEF" }, { p: "V", t: "15:15", r: "Стадион", s: "Физкультура", c: "#2BB27F" }];
+const NEXT = [{ p: "I", t: "08:00", r: "210", s: "Английский язык", c: "#2BB27F" }, { p: "II", t: "09:45", r: "602", s: "Базы данных", c: "#5B8DEF" }, { p: "III", t: "11:30", r: "401", s: "Экзамен: Матанализ", c: "#E5484D" }];
+const SCEN = {
+  "Сегодня 2 пары (как у вас)": [TODAY.slice(0, 1), NEXT],
+  "Полный день": [TODAY, NEXT],
+  "Последняя пара недели": [[], []],
+};
+const cv = document.createElement("canvas").getContext("2d");
+/** Ширина номера к высоте цифры «0» — как у картинки roomBitmap. */
+function aspectOf(text) {
+  cv.font = "100px OnestXB";
+  const m = cv.measureText("0");
+  return cv.measureText(text).width * 1.06 / ((m.actualBoundingBoxAscent || 72) + (m.actualBoundingBoxDescent || 0));
+}
+const WS = [150, 190, 220, 260, 300, 340, 370, 420];
+const HS = [110, 130, 150, 190, 225, 260, 300, 360, 420, 500];
+
+function widget(w, h, [after, next]) {
+  const cands = [...after.map(x => [x, null]), ...next.map((x, i) => [x, i === 0 ? "Завтра · вторник" : null])];
+  const pl = tilesPlan(w, h, cands.map(c => c[1] != null), aspectOf(HERO.room));
+  const el = document.createElement("div");
+  el.className = "w";
+  el.style.cssText = `width:${w}px;height:${h}px;padding:${pl.small ? "10px 9px" : "11px"}`;
+  const hs = pl.small ? 12.5 : 13 * pl.k;
+  let html = `<div class="hd" style="font-size:${hs}px"><span>${w < 260 ? "Сегодня" : "Сегодня, понедельник"}</span><span>${pl.small ? "6 ч" : "через 6 ч"}</span></div>`;
+  const nm = pl.roomH, fs = nm / 0.72;
+  html += `<div class="hero" style="height:${pl.heroH}px"><span class="num" style="height:${nm}px;font-size:${fs}px;max-width:none">${HERO.room}</span>
+    <div style="min-width:0;flex:1"><div class="meta" style="font-size:${pl.small ? 10.5 : 11 * pl.k}px">${pl.small ? HERO.short : HERO.meta}</div>
+    <div class="subj" style="font-size:${pl.small ? 12.5 : Math.min(14.5 * pl.k, 17)}px;margin-top:3px">${HERO.subj}</div></div></div>`;
+  cands.slice(0, pl.count).forEach(([x, sep]) => {
+    if (sep) html += `<div class="sep">${sep}</div>`;
+    html += `<div class="tile" style="height:${pl.tileH}px"><div class="t"><span>${x.p}</span><span>${x.t}</span></div>
+      <div class="m"><span class="r" style="font-size:${x.r.length > 4 ? 15 : 22}px">${x.r}</span><i class="dot" style="background:${x.c}"></i><span class="s">${x.s}</span></div></div>`;
+  });
+  el.innerHTML = html;
+  return [el, pl];
+}
+
+function render(name) {
+  const out = document.getElementById("out");
+  out.innerHTML = "";
+  const t = document.createElement("table");
+  t.innerHTML = `<tr><th></th>${WS.map(w => `<th>${w} dp</th>`).join("")}</tr>`;
+  for (const h of HS) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<th>${h} dp</th>`;
+    for (const w of WS) {
+      const td = document.createElement("td");
+      const [el, pl] = widget(w, h, SCEN[name]);
+      td.appendChild(el);
+      td.insertAdjacentHTML("beforeend", `<div class="lbl">строк под главной: ${pl.count}</div>`);
+      tr.appendChild(td);
+    }
+    t.appendChild(tr);
+  }
+  out.appendChild(t);
+  requestAnimationFrame(() => document.querySelectorAll(".w").forEach(w => {
+    const r = w.getBoundingClientRect();
+    if ([...w.children].some(c => c.getBoundingClientRect().bottom > r.bottom + 0.5)) w.classList.add("warn");
+  }));
+}
+
+const ctl = document.getElementById("ctl");
+let cur = Object.keys(SCEN)[0];
+for (const s of Object.keys(SCEN)) {
+  const b = document.createElement("button");
+  b.textContent = s;
+  b.onclick = () => { cur = s; [...ctl.children].forEach(x => x.classList.toggle("on", x === b)); render(s); };
+  if (s === cur) b.classList.add("on");
+  ctl.appendChild(b);
+}
+document.fonts.load("100px OnestXB").then(() => render(cur), () => render(cur));
+</script>
+</body>
+</html>

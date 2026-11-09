@@ -403,34 +403,73 @@ internal object Widgets {
         return v
     }
 
-    // ── «Плитки» ─────────────────────────────────────────────────────────
+    // ── «Плитки», вариант Б «Весь день, потом завтра» ────────────────────
 
-    private val T_TILE = intArrayOf(R.id.w_t1, R.id.w_t2, R.id.w_t3, R.id.w_t4)
-    private val T_BG = intArrayOf(R.id.w_t1_bg, R.id.w_t2_bg, R.id.w_t3_bg, R.id.w_t4_bg)
-    private val T_ROOM = intArrayOf(R.id.w_t1_room, R.id.w_t2_room, R.id.w_t3_room, R.id.w_t4_room)
-    private val T_PAIR = intArrayOf(R.id.w_t1_pair, R.id.w_t2_pair, R.id.w_t3_pair, R.id.w_t4_pair)
-    private val T_TIME = intArrayOf(R.id.w_t1_time, R.id.w_t2_time, R.id.w_t3_time, R.id.w_t4_time)
-    private val T_DOT = intArrayOf(R.id.w_t1_dot, R.id.w_t2_dot, R.id.w_t3_dot, R.id.w_t4_dot)
-    private val T_SUBJ = intArrayOf(R.id.w_t1_subj, R.id.w_t2_subj, R.id.w_t3_subj, R.id.w_t4_subj)
+    private val T_TILE = intArrayOf(R.id.w_t1, R.id.w_t2, R.id.w_t3, R.id.w_t4, R.id.w_t5)
+    private val T_SEP = intArrayOf(R.id.w_t1_sep, R.id.w_t2_sep, R.id.w_t3_sep, R.id.w_t4_sep, R.id.w_t5_sep)
+    private val T_BG = intArrayOf(R.id.w_t1_bg, R.id.w_t2_bg, R.id.w_t3_bg, R.id.w_t4_bg, R.id.w_t5_bg)
+    private val T_ROOM = intArrayOf(R.id.w_t1_room, R.id.w_t2_room, R.id.w_t3_room, R.id.w_t4_room, R.id.w_t5_room)
+    private val T_PAIR = intArrayOf(R.id.w_t1_pair, R.id.w_t2_pair, R.id.w_t3_pair, R.id.w_t4_pair, R.id.w_t5_pair)
+    private val T_TIME = intArrayOf(R.id.w_t1_time, R.id.w_t2_time, R.id.w_t3_time, R.id.w_t4_time, R.id.w_t5_time)
+    private val T_DOT = intArrayOf(R.id.w_t1_dot, R.id.w_t2_dot, R.id.w_t3_dot, R.id.w_t4_dot, R.id.w_t5_dot)
+    private val T_SUBJ = intArrayOf(R.id.w_t1_subj, R.id.w_t2_subj, R.id.w_t3_subj, R.id.w_t4_subj, R.id.w_t5_subj)
 
     private val DAY_FULL = listOf("воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота")
 
     /**
-     * Все размеры — как широкий вариант, который понравился владельцу (8 ноя 2026): шапка, главная плитка во
-     * всю ширину (номер, «I пара · 08:00–09:30 · Практика», предмет), под ней пары в ряд — в каждой номер
-     * аудитории и рядом предмет. Плиток в ряду столько, сколько влезает по ширине (≈ 110 dp на плитку):
-     * сначала следующие пары, на оставшееся место — одна прошедшая (бледно). 2×2 — своя раскладка, одна плитка.
+     * Раскладка варианта Б по настоящему размеру (dp). Главная плитка — по содержимому, не растягивается; под ней пары
+     * строками, сколько влезает (первая пара следующего дня — с подписью). В 4×2 — главная и следующая пара, как раньше.
+     * ⚠️ Та же функция — в native-widget/preview.html (таблица всех размеров): меняешь числа здесь — меняй и там.
+     *
+     * @param costs высоты строк-кандидатов по порядку: строка + отступ, у первой пары следующего дня ещё подпись.
+     */
+    internal class TilesPlan(val small: Boolean, val k: Float, val heroH: Float, val roomH: Float, val tileH: Float, val count: Int)
+
+    /** aspect — ширина номера к высоте (картинка roomBitmap): номер не должен упираться в край и ужиматься. */
+    internal fun tilesPlan(w: Float, h: Float, seps: List<Boolean>, aspect: Float): TilesPlan {
+        val small = w < TILES_S_MAX_W
+        val k = if (small) 1f else (w / 300f).coerceIn(0.9f, 1.2f)
+        val head = (if (small) 12.5f else 13f * k) * 1.2f + 7f
+        val avail = h - (if (small) 20f else 22f) - head
+        val tileH = if (avail < 130f) 46f else 50f
+        val sepH = 20f
+        val cost = { i: Int -> tileH + 6f + (if (seps[i]) sepH else 0f) }
+        val want = if (small) 92f else minOf(74f, w * 0.2f) + 30f
+        val maxRows = if (small) 2 else 5
+        // главная уступает место первой паре (в 4×2), но не меньше 46 dp
+        val heroH = when {
+            seps.isEmpty() -> minOf(want, avail)
+            small -> if (avail - want >= cost(0)) want else minOf(want, avail)
+            avail - cost(0) >= 46f -> minOf(want, avail - cost(0))
+            else -> minOf(want, avail)
+        }
+        var rest = avail - heroH
+        var n = 0
+        while (n < minOf(seps.size, maxRows) && rest >= cost(n)) { rest -= cost(n); n++ }
+        // остаток, куда следующая строка не влезла, — главной (не больше половины её высоты): без тёмной полосы внизу
+        val hero = heroH + minOf(rest, want * 0.5f)
+        val roomH = minOf(if (small) 52f else 92f, (if (small) 0.42f else 0.36f) * w / aspect, hero - 16f, hero * 0.62f).coerceAtLeast(18f)
+        return TilesPlan(small, k, hero, roomH, tileH, n)
+    }
+
+    /** Подпись над первой парой следующего дня: «Завтра · вторник» или «Среда, 11 ноября». */
+    private fun dayLabel(ms: Long, now: Long): String =
+        if (isTomorrow(ms, now)) "Завтра · ${dayFull(ms)}"
+        else "${dayFull(ms).replaceFirstChar { it.titlecase(RU) }}, ${dateLong(ms)}"
+
+    /**
+     * Вариант Б «Весь день, потом завтра» (выбор владельца 9 ноя 2026; макет — docs/Виджет - варианты исправления.html
+     * в репозитории сайта). Шапка: день и отсчёт. Главная плитка — следующая или идущая пара: номер аудитории крупно
+     * (картинка Onest), «I пара · 08:00–09:30 · Практика», предмет. Её высота — по содержимому, она не растягивается
+     * (до 9 ноя в больших размерах было пустое зелёное поле). Под ней строками — остальные пары этого дня, потом
+     * подпись следующего дня и его пары, сколько влезает. Если пар мало — внизу тёмный фон виджета.
      */
     private fun buildTiles(
         context: Context, size: SizeF, state: WState, data: WidgetData?,
         colors: WidgetColors, night: Boolean, now: Long, roomImg: Bitmap?,
     ): RemoteViews {
         val small = size.width < TILES_S_MAX_W
-        // высокий — пары строками под главной плиткой (в ряд они вытянулись бы с пустотой внутри)
-        val tall = !small && size.height >= TILES_T_MIN_H
-        val v = RemoteViews(context.packageName, when {
-            small -> R.layout.widget_tiles_s; tall -> R.layout.widget_tiles_t; else -> R.layout.widget_tiles_w
-        })
+        val v = RemoteViews(context.packageName, if (small) R.layout.widget_tiles_s else R.layout.widget_tiles_w)
         val p = Painter(v, colors, night)
         v.setOnClickPendingIntent(R.id.w_root, openScheduleIntent(context))
 
@@ -443,10 +482,19 @@ internal object Widgets {
         v.setViewVisibility(R.id.w_empty, View.GONE)
         p.fill(R.id.w_bg) { it.surface }
 
+        // Кандидаты под главной: остальные пары её дня, потом пары следующего дня (первая — с подписью)
+        val heroDay = data.items.filter { isSameDay(it.start, hero.start) }
+        val after = heroDay.drop(heroDay.indexOf(hero) + 1)
+        val nextFirst = data.items.firstOrNull { startOfDay(it.start) > startOfDay(hero.start) }
+        val nextDay = if (nextFirst == null) emptyList() else data.items.filter { isSameDay(it.start, nextFirst.start) }
+        val cands = after.map { it to null } + nextDay.mapIndexed { i, l -> l to (if (i == 0) dayLabel(l.start, now) else null) }
+        val aspect = roomImg?.let { it.width.toFloat() / it.height.coerceAtLeast(1) } ?: 1.9f
+        val pl = tilesPlan(size.width, size.height, cands.map { it.second != null }, aspect)
+        val k = pl.k
+
         val live = state is WState.Live
         val dip = TypedValue.COMPLEX_UNIT_DIP
-        // Масштаб текста — по ширине: на крупных ячейках Samsung крупнее, на узких не мельче 0,9
-        val k = if (small) 1f else (size.width / 300f).coerceIn(0.9f, 1.25f)
+        val newApi = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
         // ── Шапка: день и отсчёт ──
         v.setViewVisibility(R.id.w_live_dot, if (live) View.VISIBLE else View.GONE)
@@ -465,6 +513,10 @@ internal object Widgets {
             p.fill(R.id.w_hero_prog) { it.fillLine }
             v.setInt(R.id.w_hero_prog, "setImageLevel", level(now - hero.start, hero.end - hero.start))
         }
+        if (newApi) {
+            v.setViewLayoutHeight(R.id.w_hero, pl.heroH, dip)
+            v.setViewLayoutHeight(R.id.w_room_img, pl.roomH, dip)
+        }
         if (roomImg != null) v.setImageViewBitmap(R.id.w_room_img, roomImg)
         p.fill(R.id.w_room_img) { it.onFill }
         val metaParts = if (small) listOf(if (hero.pair.isEmpty()) "" else "${hero.pair} пара", hhmm(hero.start))
@@ -474,44 +526,36 @@ internal object Widgets {
         p.text(R.id.w_meta) { it.onFill2 }
         p.text(R.id.w_subj) { it.onFill }
         if (!small) {
-            v.setTextViewTextSize(R.id.w_meta, dip, 11.5f * k)
-            v.setTextViewTextSize(R.id.w_subj, dip, (if (tall) 16f else 15f) * k)
+            v.setTextViewTextSize(R.id.w_meta, dip, 11f * k)
+            v.setTextViewTextSize(R.id.w_subj, dip, minOf(14.5f * k, 17f))
         }
 
-        // ── Пары в ряд ──
-        val day = data.items.filter { isSameDay(it.start, hero.start) }
-        val heroIdx = day.indexOf(hero)
-        val after = day.drop(heroIdx + 1)
-        val slots = if (small) 1 else if (tall) (if (size.height >= 300f) 3 else 2) else (size.width / 110f).toInt().coerceIn(1, 4)
-        val prev = if (state !is WState.Later && heroIdx > 0) day[heroIdx - 1] else null
-        var rest = after.take(slots)
-        if (rest.size < slots && prev != null) rest = listOf(prev) + rest
-        // Совсем низкий виджет — только главная плитка
-        if (size.height < 100f) rest = emptyList()
-        v.setViewVisibility(R.id.w_row, if (rest.isEmpty()) View.GONE else View.VISIBLE)
-        val tiles = if (small) 1 else 4
+        // ── Пары строками ──
+        val tiles = if (small) 2 else 5
         for (i in 0 until tiles) {
-            val l = rest.getOrNull(i)
-            v.setViewVisibility(T_TILE[i], if (l == null) View.GONE else View.VISIBLE)
-            if (l == null) continue
-            val past = state !is WState.Later && l.end <= now
-            val label = tileRoom(l.room)
+            val c = cands.getOrNull(i)
+            val shown = c != null && i < pl.count
+            v.setViewVisibility(T_TILE[i], if (shown) View.VISIBLE else View.GONE)
+            v.setViewVisibility(T_SEP[i], if (shown && c!!.second != null) View.VISIBLE else View.GONE)
+            if (!shown) continue
+            val (l, sep) = c!!
+            if (sep != null) { v.setTextViewText(T_SEP[i], sep); p.text(T_SEP[i]) { it.ink2 } }
+            if (newApi) v.setViewLayoutHeight(T_TILE[i], pl.tileH, dip)
+            val label = roomLines(l.room).joinToString(" ").ifEmpty { "—" }
             v.setTextViewText(T_PAIR[i], l.pair)
             v.setTextViewText(T_TIME[i], hhmm(l.start))
             v.setTextViewText(T_ROOM[i], label)
             v.setTextViewText(T_SUBJ[i], tidySubject(l.subject))
-            // Номер: короткий — крупно; «Лаб.» / «физики», «704» / «701», «Стадион» — мельче
-            val long = label.contains('\n') || label.length > 4
-            v.setTextViewTextSize(T_ROOM[i], dip, if (small) (if (long) 11f else 18f) else (if (long) 13f else 24f) * k)
-            if (!small) v.setTextViewTextSize(T_SUBJ[i], dip, 12.5f * k)
+            // короткий номер — крупно; «Лаб. физики», «Стадион» — мельче
+            v.setTextViewTextSize(T_ROOM[i], dip, if (label.length > 4) 15f else 22f)
             p.fill(T_BG[i]) { it.line }
-            p.text(T_PAIR[i]) { if (past) it.ink3 else it.ink2 }
-            p.text(T_TIME[i]) { if (past) it.ink3 else it.ink2 }
-            p.text(T_ROOM[i]) { if (past) it.ink3 else it.ink }
-            p.text(T_SUBJ[i]) { if (past) it.ink3 else it.ink }
+            p.text(T_PAIR[i]) { it.ink2 }
+            p.text(T_TIME[i]) { it.ink2 }
+            p.text(T_ROOM[i]) { it.ink }
+            p.text(T_SUBJ[i]) { it.ink }
             val tc = typeColor(l.type)
             v.setViewVisibility(T_DOT[i], if (tc == null) View.GONE else View.VISIBLE)
-            if (tc != null) v.setInt(T_DOT[i], "setColorFilter", if (past) (tc and 0x00FFFFFF) or 0x73000000 else tc)
+            if (tc != null) v.setInt(T_DOT[i], "setColorFilter", tc)
         }
         v.setContentDescription(R.id.w_root, describe(state, hero, now))
         return v

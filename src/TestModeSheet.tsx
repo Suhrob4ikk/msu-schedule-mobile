@@ -3,13 +3,15 @@
  * Включает праздник (src/holiday/holidays.ts) и огонёк серии (src/streak/streak.ts) так же, как на сайте
  * ссылки `?holiday=…` и `?streak=…`. Студенты сюда не попадают случайно: подсказки о жесте нигде нет.
  */
+import { openWhatsNew } from './WhatsNew';
+import { showNewFeatureDemo } from './newFeatures';
 import { Pressable, View } from 'react-native';
 import BottomSheet from './schedule/BottomSheet';
 import { RADIUS, type Tokens } from './schedule/tokens';
 import { Txt } from './schedule/ui';
 import { HOLIDAYS, setTestHoliday, useHoliday, type HolidayId } from './holiday/holidays';
 import { setStreakTest, useStreak } from './streak/streak';
-import { FLAME_NAMES, savePrizes, usePrizes, type FlameKind } from './prizes/prizes';
+import { FLAME_NAMES, savePrizesTest as savePrizes, usePrizes, type FlameKind } from './prizes/prizes';
 
 function Chip({ k, on, label, onPress }: { k: Tokens; on: boolean; label: string; onPress: () => void }) {
   return (
@@ -45,11 +47,10 @@ export default function TestModeSheet({ visible, onClose, k }: { visible: boolea
         </View>
         <Txt t="caption" color={k.textSecondary}>«Настоящий счёт» — серия считается по вашим заходам с сегодняшнего дня. Число — подставить серию, чтобы увидеть подсказки и огонь.</Txt>
         {/* Призы за достижения (src/prizes): пока достижений нет — включаются только здесь */}
-        <Txt t="sectionTitle" color={k.textSecondary} style={{ marginTop: 10 }}>Призы · живая рамка</Txt>
+        <Txt t="sectionTitle" color={k.textSecondary} style={{ marginTop: 10 }}>Призы · волна</Txt>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           <Chip k={k} on={pz.frame === 'off'} label="Выкл" onPress={() => { void savePrizes({ frame: 'off' }); }} />
-          <Chip k={k} on={pz.frame === 'accent'} label="В цвет оформления" onPress={() => { void savePrizes({ frame: 'accent' }); }} />
-          <Chip k={k} on={pz.frame === 'rainbow'} label="Радуга" onPress={() => { void savePrizes({ frame: 'rainbow' }); }} />
+          <Chip k={k} on={pz.frame !== 'off'} label="Вкл" onPress={() => { void savePrizes({ frame: 'accent' }); }} />
         </View>
         <Txt t="sectionTitle" color={k.textSecondary} style={{ marginTop: 10 }}>Призы · табло и небо</Txt>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -61,6 +62,11 @@ export default function TestModeSheet({ visible, onClose, k }: { visible: boolea
           {(Object.keys(FLAME_NAMES) as FlameKind[]).map(f => <Chip key={f} k={k} on={pz.flame === f} label={FLAME_NAMES[f]} onPress={() => { void savePrizes({ flame: f }); }} />)}
         </View>
         <Txt t="caption" color={k.textSecondary}>Огонёк виден в Кабинете, когда включён «Огонёк серии» выше.</Txt>
+        <Txt t="sectionTitle" color={k.textSecondary} style={{ marginTop: 10 }}>Новые функции</Txt>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Chip k={k} on={false} label="Показать «Что нового»" onPress={() => { onClose(); setTimeout(openWhatsNew, 400); }} />
+          <Chip k={k} on={false} label="Показать окно «Новое»" onPress={() => { onClose(); setTimeout(showNewFeatureDemo, 400); }} />
+        </View>
       </View>
     </BottomSheet>
   );

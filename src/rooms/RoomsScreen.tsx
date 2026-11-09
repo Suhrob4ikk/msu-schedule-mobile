@@ -7,6 +7,7 @@
  * собирается день каждой аудитории (state.ts). Сначала кэш (ключи
  * cache_rooms_<день>_<пара>_<неделя>, их же заполняет bulk-sync), потом сеть.
  */
+import { HolidayBackdrop, HolidayNavDeco } from '../holiday/HolidayDecor';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, RefreshControl, ScrollView, StatusBar, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
@@ -424,6 +425,7 @@ export default function RoomsScreenNew() {
 
   return (
     <View style={{ flex: 1, backgroundColor: k.bg }}>
+      <HolidayBackdrop />
       <ScheduleHeader
         k={k}
         topInset={insets.top}
@@ -505,6 +507,7 @@ export default function RoomsScreenNew() {
         k={k}
         onClose={() => setSheetRoom(null)}
       />
+      <HolidayNavDeco bottom={0} />
     </View>
   );
 }

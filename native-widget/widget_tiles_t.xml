@@ -21,33 +21,35 @@
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
     android:text="через 15 ч" android:layout_marginStart="8dp" />
     </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical"
-        android:layout_marginTop="7dp">
-      <FrameLayout android:id="@+id/w_hero" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="7dp">
+      <FrameLayout android:id="@+id/w_hero" android:layout_width="match_parent" android:layout_height="90dp">
       <ImageView android:id="@+id/w_hero_bg" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="#2F62EA" android:importantForAccessibility="no" />
       <ImageView android:id="@+id/w_hero_prog" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:src="@drawable/widget_tile_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />
       <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal"
-          android:gravity="center_vertical" android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="5dp" android:paddingBottom="5dp">
+          android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="12dp">
         <ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="wrap_content"
-          android:adjustViewBounds="true" android:maxHeight="64dp" android:maxWidth="160dp" android:scaleType="fitCenter"
-          android:src="@drawable/widget_room_sample" android:tint="#FFFFFF" android:importantForAccessibility="no" />
+            android:adjustViewBounds="true" android:maxHeight="92dp" android:maxWidth="180dp" android:scaleType="fitCenter"
+            android:src="@drawable/widget_room_sample" android:tint="#FFFFFF" android:importantForAccessibility="no" />
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
-            android:layout_marginStart="10dp">
+            android:layout_marginStart="11dp">
           <TextView android:id="@+id/w_meta" android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:textSize="12dp" android:fontFamily="sans-serif-medium" android:textColor="#EAEFFD"
+    android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#EAEFFD"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
     android:text="I пара · 08:00–09:30 · Практика"  />
           <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:layout_marginTop="3dp" android:textSize="16dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#FFFFFF" android:includeFontPadding="false"
+              android:layout_marginTop="3dp" android:textSize="14.5dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#FFFFFF" android:includeFontPadding="false"
               android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="ДВ: Объектно-ориентир. программ" />
         </LinearLayout>
       </LinearLayout>
     </FrameLayout>
-      <LinearLayout android:id="@+id/w_row" android:layout_width="match_parent" android:layout_height="wrap_content"
-          android:orientation="vertical">
-        <FrameLayout android:id="@+id/w_t1" android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="6dp">
+    </FrameLayout>
+    <TextView android:id="@+id/w_t1_sep" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:paddingStart="3dp" android:textSize="10.5dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#4B5262"
+        android:textAllCaps="true" android:letterSpacing="0.06" android:includeFontPadding="false" android:singleLine="true"
+        android:text="Завтра · вторник" android:visibility="gone" />
+    <FrameLayout android:id="@+id/w_t1" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="6dp">
       <ImageView android:id="@+id/w_t1_bg" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="#E7EBF2" android:importantForAccessibility="no" />
       <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
@@ -65,20 +67,22 @@
         <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
             android:gravity="center_vertical">
           <TextView android:id="@+id/w_t1_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
-              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:maxLines="2" android:lineSpacingExtra="0dp"
-              android:textSize="24dp" android:text="602" />
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="horizontal"
-              android:gravity="center_vertical" android:layout_marginStart="10dp">
-            <ImageView android:id="@+id/w_t1_dot" android:layout_width="6dp" android:layout_height="6dp"
-    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginEnd="5dp" />
-            <TextView android:id="@+id/w_t1_subj" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A" android:includeFontPadding="false"
-                android:maxLines="2" android:ellipsize="end" android:text="Численные методы" />
-          </LinearLayout>
+              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:singleLine="true"
+              android:textSize="22dp" android:text="602" />
+          <ImageView android:id="@+id/w_t1_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginStart="10dp" android:layout_marginEnd="6dp" />
+          <TextView android:id="@+id/w_t1_subj" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Численные методы" android:layout_weight="1" />
         </LinearLayout>
       </LinearLayout>
     </FrameLayout>
-        <FrameLayout android:id="@+id/w_t2" android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="6dp">
+    <TextView android:id="@+id/w_t2_sep" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:paddingStart="3dp" android:textSize="10.5dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#4B5262"
+        android:textAllCaps="true" android:letterSpacing="0.06" android:includeFontPadding="false" android:singleLine="true"
+        android:text="Завтра · вторник" android:visibility="gone" />
+    <FrameLayout android:id="@+id/w_t2" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="6dp" android:visibility="gone">
       <ImageView android:id="@+id/w_t2_bg" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="#E7EBF2" android:importantForAccessibility="no" />
       <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
@@ -87,29 +91,31 @@
           <TextView android:id="@+id/w_t2_pair" android:layout_width="0dp" android:layout_height="wrap_content"
     android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
-    android:text="III" android:layout_weight="1" />
+    android:text="I" android:layout_weight="1" />
           <TextView android:id="@+id/w_t2_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
     android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
-    android:text="11:30"  />
+    android:text="08:00"  />
         </LinearLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
             android:gravity="center_vertical">
           <TextView android:id="@+id/w_t2_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
-              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:maxLines="2" android:lineSpacingExtra="0dp"
-              android:textSize="24dp" android:text="305" />
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="horizontal"
-              android:gravity="center_vertical" android:layout_marginStart="10dp">
-            <ImageView android:id="@+id/w_t2_dot" android:layout_width="6dp" android:layout_height="6dp"
-    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginEnd="5dp" />
-            <TextView android:id="@+id/w_t2_subj" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A" android:includeFontPadding="false"
-                android:maxLines="2" android:ellipsize="end" android:text="Базы данных" />
-          </LinearLayout>
+              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:singleLine="true"
+              android:textSize="22dp" android:text="305" />
+          <ImageView android:id="@+id/w_t2_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginStart="10dp" android:layout_marginEnd="6dp" />
+          <TextView android:id="@+id/w_t2_subj" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Философия" android:layout_weight="1" />
         </LinearLayout>
       </LinearLayout>
     </FrameLayout>
-        <FrameLayout android:id="@+id/w_t3" android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="6dp">
+    <TextView android:id="@+id/w_t3_sep" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:paddingStart="3dp" android:textSize="10.5dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#4B5262"
+        android:textAllCaps="true" android:letterSpacing="0.06" android:includeFontPadding="false" android:singleLine="true"
+        android:text="Завтра · вторник" android:visibility="gone" />
+    <FrameLayout android:id="@+id/w_t3" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="6dp" android:visibility="gone">
       <ImageView android:id="@+id/w_t3_bg" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="#E7EBF2" android:importantForAccessibility="no" />
       <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
@@ -118,29 +124,31 @@
           <TextView android:id="@+id/w_t3_pair" android:layout_width="0dp" android:layout_height="wrap_content"
     android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
-    android:text="IV" android:layout_weight="1" />
+    android:text="II" android:layout_weight="1" />
           <TextView android:id="@+id/w_t3_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
     android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
-    android:text="14:00"  />
+    android:text="09:45"  />
         </LinearLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
             android:gravity="center_vertical">
           <TextView android:id="@+id/w_t3_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
-              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:maxLines="2" android:lineSpacingExtra="0dp"
-              android:textSize="24dp" android:text="210" />
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="horizontal"
-              android:gravity="center_vertical" android:layout_marginStart="10dp">
-            <ImageView android:id="@+id/w_t3_dot" android:layout_width="6dp" android:layout_height="6dp"
-    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginEnd="5dp" />
-            <TextView android:id="@+id/w_t3_subj" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A" android:includeFontPadding="false"
-                android:maxLines="2" android:ellipsize="end" android:text="Английский язык" />
-          </LinearLayout>
+              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:singleLine="true"
+              android:textSize="22dp" android:text="210" />
+          <ImageView android:id="@+id/w_t3_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginStart="10dp" android:layout_marginEnd="6dp" />
+          <TextView android:id="@+id/w_t3_subj" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Базы данных" android:layout_weight="1" />
         </LinearLayout>
       </LinearLayout>
     </FrameLayout>
-        <FrameLayout android:id="@+id/w_t4" android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="6dp" android:visibility="gone">
+    <TextView android:id="@+id/w_t4_sep" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:paddingStart="3dp" android:textSize="10.5dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#4B5262"
+        android:textAllCaps="true" android:letterSpacing="0.06" android:includeFontPadding="false" android:singleLine="true"
+        android:text="Завтра · вторник" android:visibility="gone" />
+    <FrameLayout android:id="@+id/w_t4" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="6dp" android:visibility="gone">
       <ImageView android:id="@+id/w_t4_bg" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="#E7EBF2" android:importantForAccessibility="no" />
       <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
@@ -149,30 +157,60 @@
           <TextView android:id="@+id/w_t4_pair" android:layout_width="0dp" android:layout_height="wrap_content"
     android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
-    android:text="V" android:layout_weight="1" />
+    android:text="III" android:layout_weight="1" />
           <TextView android:id="@+id/w_t4_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
     android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
     android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
-    android:text="15:45"  />
+    android:text="11:30"  />
         </LinearLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
             android:gravity="center_vertical">
           <TextView android:id="@+id/w_t4_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
-              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:maxLines="2" android:lineSpacingExtra="0dp"
-              android:textSize="24dp" android:text="401" />
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="horizontal"
-              android:gravity="center_vertical" android:layout_marginStart="10dp">
-            <ImageView android:id="@+id/w_t4_dot" android:layout_width="6dp" android:layout_height="6dp"
-    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginEnd="5dp" />
-            <TextView android:id="@+id/w_t4_subj" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A" android:includeFontPadding="false"
-                android:maxLines="2" android:ellipsize="end" android:text="Философия" />
-          </LinearLayout>
+              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:singleLine="true"
+              android:textSize="22dp" android:text="401" />
+          <ImageView android:id="@+id/w_t4_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginStart="10dp" android:layout_marginEnd="6dp" />
+          <TextView android:id="@+id/w_t4_subj" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Английский язык" android:layout_weight="1" />
         </LinearLayout>
       </LinearLayout>
     </FrameLayout>
+    <TextView android:id="@+id/w_t5_sep" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:paddingStart="3dp" android:textSize="10.5dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#4B5262"
+        android:textAllCaps="true" android:letterSpacing="0.06" android:includeFontPadding="false" android:singleLine="true"
+        android:text="Завтра · вторник" android:visibility="gone" />
+    <FrameLayout android:id="@+id/w_t5" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="6dp" android:visibility="gone">
+      <ImageView android:id="@+id/w_t5_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="#E7EBF2" android:importantForAccessibility="no" />
+      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+          android:paddingStart="11dp" android:paddingEnd="10dp" android:paddingTop="5dp" android:paddingBottom="5dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+          <TextView android:id="@+id/w_t5_pair" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="IV" android:layout_weight="1" />
+          <TextView android:id="@+id/w_t5_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="11dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="13:30"  />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
+            android:gravity="center_vertical">
+          <TextView android:id="@+id/w_t5_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:fontFamily="sans-serif-black" android:textColor="#10131A" android:includeFontPadding="false" android:singleLine="true"
+              android:textSize="22dp" android:text="104" />
+          <ImageView android:id="@+id/w_t5_dot" android:layout_width="6dp" android:layout_height="6dp"
+    android:src="@drawable/widget_dot" android:tint="#5B8DEF" android:importantForAccessibility="no" android:layout_marginStart="10dp" android:layout_marginEnd="6dp" />
+          <TextView android:id="@+id/w_t5_subj" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="12.5dp" android:fontFamily="sans-serif-medium" android:textColor="#10131A"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Физкультура" android:layout_weight="1" />
+        </LinearLayout>
       </LinearLayout>
-    </LinearLayout>
+    </FrameLayout>
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
   </LinearLayout>
   <LinearLayout android:id="@+id/w_empty" android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:gravity="center" android:padding="16dp" android:visibility="gone">

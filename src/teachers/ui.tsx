@@ -62,7 +62,7 @@ export function SearchField({ k, value, onChange, disabled, inputRef }: {
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         editable={!disabled}
-        placeholder="Фамилия"
+        placeholder="Фамилия или имя"
         placeholderTextColor={k.textSecondary}
         autoCorrect={false}
         autoCapitalize="words"

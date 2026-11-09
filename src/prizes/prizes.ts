@@ -17,30 +17,83 @@ export const FLAME_NAMES: Record<FlameKind, string> = {
 };
 
 export interface Prizes {
-  /** Живая рамка: выкл / в цвет оформления / радуга. */
+  /** «Волна» (бывшая «Живая рамка», 9 ноя 2026): 'off' — выкл, иначе вкл ('rainbow' — от прежних тестов, тоже вкл). */
   frame: 'off' | 'accent' | 'rainbow';
   flip: boolean;
   sky: boolean;
   flame: FlameKind;
+  /** «Финал недели» (src/prizes/WeekFinale.tsx) — не выключается: получил — работает. */
+  final: boolean;
 }
-export const NO_PRIZES: Prizes = { frame: 'off', flip: false, sky: false, flame: 'base' };
-const KEY = 'prizes';
+export const NO_PRIZES: Prizes = { frame: 'off', flip: false, sky: false, flame: 'base', final: false };
+/** Открытый приз, который человек ещё не трогал, — включён (как на сайте, lib/prizes.ts). */
+const ON_BY_DEFAULT: Prizes = { frame: 'accent', flip: true, sky: true, flame: 'base', final: true };
+const KEY = 'prizes';                       // выбор человека
+const UNLOCKED = 'prizes_unlocked';         // открытые достижениями (пишет src/streak/AchToast.tsx)
+const TEST = 'prizes_test';                 // «Тестовый режим»: призы без достижений
 
+let choices: Partial<Prizes> = {};
+let unlocked = new Set<string>();
+let test = false;
 let state: Prizes = NO_PRIZES;
 const listeners = new Set<() => void>();
 
+/** Призы, которые сейчас действуют: в тесте — выбор как есть, иначе — только открытые достижениями (как на сайте). */
+function effective(): Prizes {
+  if (test) return { ...NO_PRIZES, ...choices };
+  return {
+    frame: unlocked.has('frame') ? choices.frame ?? ON_BY_DEFAULT.frame : 'off',
+    flip: unlocked.has('flip') ? choices.flip ?? ON_BY_DEFAULT.flip : false,
+    sky: unlocked.has('sky') ? choices.sky ?? ON_BY_DEFAULT.sky : false,
+    flame: unlocked.has('flame') ? choices.flame ?? 'base' : 'base',
+    final: unlocked.has('final'),
+  };
+}
+const emit = () => { state = effective(); listeners.forEach(f => f()); };
+
 export async function refreshPrizes(): Promise<void> {
-  try { state = { ...NO_PRIZES, ...JSON.parse((await AsyncStorage.getItem(KEY)) ?? '{}') }; } catch { state = NO_PRIZES; }
-  listeners.forEach(f => f());
+  try {
+    const [[, c], [, u], [, t]] = await AsyncStorage.multiGet([KEY, UNLOCKED, TEST]);
+    choices = JSON.parse(c ?? '{}');
+    unlocked = new Set(JSON.parse(u ?? '[]'));
+    // до 9 ноя 2026 призы включались только «Тестовым режимом» — у кого они уже выбраны, тот тестировщик
+    test = t === '1' || (t === null && c !== null && u === null);
+    if (test && t === null) AsyncStorage.setItem(TEST, '1').catch(() => {});
+  } catch { choices = {}; unlocked = new Set(); test = false; }
+  emit();
 }
 
+/** Выбор человека в шторке огонька. */
 export async function savePrizes(patch: Partial<Prizes>): Promise<void> {
-  state = { ...state, ...patch };
-  listeners.forEach(f => f());
-  try { await AsyncStorage.setItem(KEY, JSON.stringify(state)); } catch { /* нет хранилища */ }
+  choices = { ...choices, ...patch };
+  emit();
+  try { await AsyncStorage.setItem(KEY, JSON.stringify(choices)); } catch { /* нет хранилища */ }
 }
 
-export const anyPrize = (p: Prizes) => p.frame !== 'off' || p.flip || p.sky || p.flame !== 'base';
+/** «Тестовый режим»: включить приз без достижений. */
+export async function savePrizesTest(patch: Partial<Prizes>): Promise<void> {
+  test = true;
+  AsyncStorage.setItem(TEST, '1').catch(() => {});
+  await savePrizes(patch);
+}
+
+/** Какие призы открыты достижениями — пишет AchToast по ответу сервера. */
+export async function saveUnlocked(ids: string[]): Promise<void> {
+  const next = [...ids].sort();
+  if (next.join() === [...unlocked].sort().join()) return;
+  unlocked = new Set(next);
+  emit();
+  try { await AsyncStorage.setItem(UNLOCKED, JSON.stringify(next)); } catch { /* нет хранилища */ }
+}
+
+export const anyPrize = (p: Prizes) => test && (p.frame !== 'off' || p.flip || p.sky || p.flame !== 'base');
+
+/** Открыт ли приз достижением (например, «Ранний доступ» — значок в профиле). */
+export function usePrizeUnlocked(id: string): boolean {
+  const [on, setOn] = useState(unlocked.has(id));
+  useEffect(() => { const f = () => setOn(unlocked.has(id)); listeners.add(f); f(); return () => { listeners.delete(f); }; }, [id]);
+  return on;
+}
 
 export function usePrizes(): Prizes {
   const [p, setP] = useState(state);

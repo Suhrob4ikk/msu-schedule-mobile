@@ -6,6 +6,7 @@
  * после последней пары педагога — сразу следующая, если она опубликована
  * (как в «Расписании», решение владельца). Данные — кэш, потом сеть.
  */
+import { REMINDER_LIFT, useNamesReminderShown } from '../names/NamesReminder';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, AppState, LayoutAnimation, LayoutChangeEvent, Pressable, RefreshControl, ScrollView, View,
@@ -24,6 +25,7 @@ import {
   weekRange,
 } from './state';
 import { cachedTeacherWeek, fetchTeacherWeek, statusStore } from './data';
+import { noteStreakTeacher } from '../streak/streak';
 import TDaySection from './TDaySection';
 import { EmptyState } from './ui';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -79,6 +81,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
   weeksAll: WeekOption[] | null;
   onBack: () => void;
 }) {
+  const fnLift = useNamesReminderShown() ? REMINDER_LIFT : 0; // строка «Помогите узнать полные имена» над меню
   const insets = useSafeAreaInsets();
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
 
@@ -124,6 +127,8 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
     if (r1.status === 'fulfilled') {
       setThisLs(r1.value);
       statusStore.setOne(teacher.id, r1.value);
+      // «Кто ведёт?» — у каких групп ведёт этот преподаватель (огонёк, src/streak/streak.ts)
+      void noteStreakTeacher(teacher.id, r1.value.map(l => l.group?.id ?? 0));
     }
     if (r2.status === 'fulfilled') setNextLs(r2.value);
     setFailed({ this: r1.status === 'rejected', next: r2.status === 'rejected' });
@@ -457,7 +462,7 @@ export default function TeacherScreen({ teacher, k, weeksAll, onBack }: {
       </Animated.ScrollView>
 
       {showToday && (
-        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 12, alignItems: 'center' }}>
+        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 12 + fnLift, alignItems: 'center' }}>
           <Pressable
             onPress={() => {
               Haptics.selectionAsync();

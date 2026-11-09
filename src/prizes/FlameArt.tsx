@@ -47,7 +47,8 @@ const LAYERS: [number, number, number, number, number, number][] = [
 ];
 const frame = (t: number) => LAYERS.map(([cx, w, h, seed, amp, dy]) => tongue(cx, BASE + dy, w, h, t, seed, amp));
 
-export default function FlameArt({ kind, size = 96, dark }: { kind: FlameKind; size?: number; dark: boolean }) {
+/** still — без движения (значок на вкладке: живое пламя на всех экранах подтормаживало приложение, 9 ноя 2026). */
+export default function FlameArt({ kind, size = 96, dark, still: fixed = false }: { kind: FlameKind; size?: number; dark: boolean; still?: boolean }) {
   const paths = useRef<(Path | null)[]>([]);
   const dots = useRef<(Circle | null)[]>([]);
   const [hue, setHue] = useState(0);
@@ -70,14 +71,14 @@ export default function FlameArt({ kind, size = 96, dark }: { kind: FlameKind; s
         dots.current[i]?.setNativeProps({ cx: e.x, cy: e.y, opacity: Math.max(0, e.l) });
       }
     };
-    const start = () => { if (!still && active && !raf) raf = requestAnimationFrame(tick); };
+    const start = () => { if (!fixed && !still && active && !raf) raf = requestAnimationFrame(tick); };
     const stop = () => { cancelAnimationFrame(raf); raf = 0; };
     AccessibilityInfo.isReduceMotionEnabled().then(r => { still = r; if (r) stop(); else start(); }).catch(start);
     const sub = AppState.addEventListener('change', s => { active = s === 'active'; if (active) start(); else stop(); });
     // радужный — цвет плавно идёт по кругу (раз в 120 мс хватает)
     const hueId = kind === 'rainbow' ? setInterval(() => setHue(h => (h + 5) % 360), 120) : null;
     return () => { alive = false; stop(); sub.remove(); if (hueId) clearInterval(hueId); };
-  }, [kind]);
+  }, [kind, fixed]);
 
   const pal = PAL[kind] ?? [hsl(hue, 100, 92), hsl((hue + 30) % 360, 100, 65), hsl((hue + 70) % 360, 95, 55), hsl((hue + 120) % 360, 90, 45)];
   return (

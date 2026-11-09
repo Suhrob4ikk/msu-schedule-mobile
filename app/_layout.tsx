@@ -1,8 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import WhatsNew from '../src/WhatsNew';
+import { NewFeatureSheet } from '../src/newFeatures';
+import { useCloudNotesSync } from '../src/cloudNotes';
+import { HolidayHat } from '../src/holiday/HolidayDecor';
 import { View, AppState, AppStateStatus, TouchableOpacity, Animated, Linking, type ColorValue } from 'react-native';
 import { Text } from '../src/OnestText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Tabs, usePathname } from 'expo-router';
+import { Tabs, router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -27,9 +31,14 @@ import { mondayOf } from '../src/teachers/state';
 import UpdateBanner from '../src/UpdateBanner';
 import HolidayParticles from '../src/holiday/HolidayParticles';
 import { refreshHoliday } from '../src/holiday/holidays';
-import { noteStreakVisit } from '../src/streak/streak';
+import { noteStreakScreen, noteStreakVisit } from '../src/streak/streak';
+import { StreakTabBadge } from '../src/streak/FlameChip';
 import { refreshPrizes } from '../src/prizes/prizes';
 import StreakHint from '../src/streak/StreakHint';
+import AchToast from '../src/streak/AchToast';
+import DevReplyToast from '../src/profile/DevReplyToast';
+import NamesReminder from '../src/names/NamesReminder';
+import { emitDevReply } from '../src/devMessages';
 import { useAppearance } from '../src/appearance';
 import { FONT } from '../src/schedule/tokens';
 import { CONDENSED_FONTS } from '../src/fontChoice';
@@ -50,6 +59,8 @@ import {
 function onRemotePush(content: Notifications.NotificationContent): void {
   if (content.data?.type) return; // наше локальное напоминание
   if (content.data?.kind === 'app_update') return; // «Вышла новая версия» — расписание ни при чём
+  if (content.data?.kind === 'dev-reply') { emitDevReply(); return; } // ответ разработчика — расписание ни при чём
+  if (content.data?.kind === 'vote') return; // голосование — расписание ни при чём
   invalidateApiCache('/schedule/');
   emitScheduleUpdated();
 }
@@ -77,6 +88,17 @@ function useRemotePushRefresh(pathRef: { current: string }): void {
       }
       // Напоминание о зачёте — туда же, куда строка во «Входящих»: день в
       // Расписании, лист пары; строка отмечается прочитанной.
+      // Голосование за следующую функцию — в Кабинет, там карточка
+      if (content.data?.kind === 'vote') {
+        router.navigate('/profile');
+        return;
+      }
+      // Ответ разработчика — сразу в переписку
+      if (content.data?.kind === 'dev-reply') {
+        emitDevReply();
+        router.navigate('/messages');
+        return;
+      }
       if (content.data?.type === 'exam' && typeof content.data.examId === 'string') {
         const { examId, date, pair } = content.data as { examId: string; date?: string; pair?: string };
         markExamReadById(examId).catch(() => null);
@@ -241,8 +263,12 @@ function tabLabel(text: string, lit: boolean, litColor: ColorValue) {
 }
 
 function tabIcon(name: keyof typeof Ionicons.glyphMap, lit: boolean, litColor: ColorValue) {
+  // в праздник над активной вкладкой — шапочка (цветок, звезда…), как на сайте (src/holiday/HolidayDecor.tsx)
   return ({ color, size }: { color: ColorValue; size: number }) => (
-    <Ionicons name={name} size={size} color={(lit ? litColor : color) as string} />
+    <View>
+      <Ionicons name={name} size={size} color={(lit ? litColor : color) as string} />
+      {lit && <HolidayHat />}
+    </View>
   );
 }
 
@@ -258,13 +284,16 @@ function AppTabs() {
   // Экраны «Табло» рисуют свою шапку со статусом связи и колокольчиком —
   // общую шапку и плавающую точку статуса на них прячем.
   const pathname = usePathname();
-  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/profile' || pathname === '/rooms' || pathname === '/teachers' || isOverlay(pathname);
+  const ownHeader = pathname === '/' || pathname === '/index' || pathname === '/appearance' || pathname === '/messages' || pathname === '/profile' || pathname === '/rooms' || pathname === '/teachers' || isOverlay(pathname);
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
+  // Огонёк: «Следопыт» (побывал везде) и «Ключ от аудитории» — по открытым экранам
+  useEffect(() => { if (pathname) void noteStreakScreen(pathname); }, [pathname]);
   // Уведомления и История — поверх вкладки, из которой открыли: она и подсвечена
   const lit = (tab: TabPath) => isOverlay(pathname) && overlayOrigin() === tab;
 
   useRemotePushRefresh(pathRef);
+  useCloudNotesSync();   // заметки в облаке (src/cloudNotes.ts)
 
   useEffect(() => {
     AsyncStorage.getItem('selected_group_id').then(async id => {
@@ -384,15 +413,22 @@ function AppTabs() {
             tabBarLabel: tabLabel('Кабинет', lit('/profile'), C.primaryText),
             // Своя шапка со статусом связи и колокольчиком («Табло»)
             headerShown: false,
-            tabBarIcon: tabIcon('person-outline', lit('/profile'), C.primaryText),
+            // огонёк серии — число с пламенем на «Кабинете» (вариант В, владелец 8 ноя 2026)
+            tabBarIcon: (p) => <View>{tabIcon('person-outline', lit('/profile'), C.primaryText)(p)}<StreakTabBadge /></View>,
           }}
         />
         <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
         <Tabs.Screen name="appearance" options={{ href: null, headerShown: false, title: 'Внешний вид' }} />
+        <Tabs.Screen name="messages" options={{ href: null, headerShown: false, title: 'Написать разработчику' }} />
       </Tabs>
       {/* Плавающая карточка обновления — поверх вкладок, поэтому после <Tabs> */}
       <UpdateBanner />
+      <NamesReminder />
       <StreakHint />
+      <AchToast />
+      <DevReplyToast />
+      <NewFeatureSheet />
+      <WhatsNew />
       <HolidayParticles />
     </View>
   );

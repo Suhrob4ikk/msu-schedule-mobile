@@ -3,8 +3,9 @@
  * При прокрутке уменьшается и гаснет, уходя вверх; следом приходит название
  * следующего дня. Общее для Расписания и расписания педагога.
  */
+import { HolidayOrn } from '../holiday/HolidayDecor';
 import React, { useMemo } from 'react';
-import { Animated } from 'react-native';
+import { Animated, View } from 'react-native';
 import { DAYS_ORDER } from '../api';
 import { Tokens } from './tokens';
 import { Txt } from './ui';
@@ -40,9 +41,13 @@ export default function DayHeading({ k, dayIndex, sub, a11y, accent, scrollY, to
       accessibilityLabel={a11y}
       style={[{ alignItems: 'center', paddingHorizontal: 4, paddingBottom: 6 + k.dayHeaderPad }, style]}
     >
-      <Txt t="display" color={accent ? k.accentText : k.text} style={{ fontSize: 32, lineHeight: 38, letterSpacing: 0, textAlign: 'center' }}>
-        {name.charAt(0).toUpperCase() + name.slice(1)}
-      </Txt>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <HolidayOrn size={21} />
+        <Txt t="display" color={accent ? k.accentText : k.text} style={{ fontSize: 32, lineHeight: 38, letterSpacing: 0, textAlign: 'center' }}>
+          {name.charAt(0).toUpperCase() + name.slice(1)}
+        </Txt>
+        <HolidayOrn size={21} />
+      </View>
       <Txt t="small" color={k.textSecondary} style={{ textAlign: 'center', marginTop: 2 }}>{sub}</Txt>
     </Animated.View>
   );

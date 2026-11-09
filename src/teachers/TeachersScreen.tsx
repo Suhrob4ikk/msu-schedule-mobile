@@ -7,6 +7,7 @@
  * Данные — сначала кэш (общий с полной синхронизацией), потом сеть. Статусы
  * строк считаются на телефоне из кэша расписаний педагогов (data.ts).
  */
+import { HolidayBackdrop, HolidayGarland, HolidayNavDeco, useDecor } from '../holiday/HolidayDecor';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, AppState, BackHandler, Easing, RefreshControl, ScrollView, StatusBar, StyleSheet,
@@ -50,6 +51,7 @@ export default function TeachersScreen() {
   const k = useTokens();
   const { mode } = useThemeMode();
   const insets = useSafeAreaInsets();
+  const decor = useDecor();   // праздник: фон, шапка с гирляндой (src/holiday/HolidayDecor.tsx)
   const { isOnline, isSyncing, lastSyncTime } = useSyncStatus();
 
   // ─── Часы: раз в минуту — статусы видимых строк; сам экран — только в полночь ──
@@ -288,7 +290,7 @@ export default function TeachersScreen() {
           key={`h:${s.letter}`}
           accessibilityRole="header"
           onLayout={e => { letterY.current.set(s.letter, e.nativeEvent.layout.y); }}
-          style={{ backgroundColor: k.bg, paddingTop: 10, paddingBottom: 6, paddingHorizontal: 4 }}
+          style={{ backgroundColor: decor ? 'transparent' : k.bg, paddingTop: 10, paddingBottom: 6, paddingHorizontal: 4 }}
         >
           <Txt t="letter" color={k.accentText}>{s.letter}</Txt>
         </View>,
@@ -359,12 +361,14 @@ export default function TeachersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: k.bg }}>
+      <HolidayBackdrop />
       <View
         importantForAccessibility={open ? 'no-hide-descendants' : 'auto'}
         style={{ flex: 1 }}
       >
         {/* Шапка: поле растягивается; при крупном шрифте статус и колокольчик — второй строкой */}
-        <View style={{ paddingTop: insets.top, backgroundColor: k.bg }}>
+        <View style={{ paddingTop: insets.top, backgroundColor: decor ? decor.top : k.bg, zIndex: decor ? 5 : undefined }}>
+          {decor && <HolidayGarland />}
           <View
             style={{
               minHeight: HEADER_H, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
@@ -413,6 +417,7 @@ export default function TeachersScreen() {
           />
         </Animated.View>
       )}
+      <HolidayNavDeco bottom={0} />
     </View>
   );
 }

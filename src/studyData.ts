@@ -12,6 +12,11 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+/** Пропуски спрятаны до следующего семестра (решение владельца, 9 ноя 2026): нет переключателя в Кабинете, кнопки
+ *  у пар, значков и пропусков в «Поделиться». Уже сделанные отметки не стираются — вернём, и они снова видны.
+ *  Так же на сайте (frontend/src/lib/studyData.ts → ATTENDANCE_ON). */
+export const ATTENDANCE_ON = false;
+
 const SKIP_PREFIX = 'miss_';
 const NOTE_WEEKLY_PREFIX = 'note2_';
 const NOTE_DATED_PREFIX = 'noted_';

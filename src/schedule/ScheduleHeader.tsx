@@ -2,6 +2,7 @@
  * Шапка 60 dp: слева кнопка «группа · неделя / дата ▾» (открывает лист
  * недели и группы), справа статус связи словами и колокольчик.
  */
+import { HolidayGarland, useDecor } from '../holiday/HolidayDecor';
 import React, { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import { usePathname } from 'expo-router';
@@ -110,9 +111,11 @@ function ScheduleHeader({ k, topInset, subtitle, subtitleLead, title, link, onOp
 }) {
   // приз «Живое небо» (src/prizes/SkyBand.tsx): небо фоном, надписи — по светлоте неба
   const sky = useSky();
+  const decor = useDecor();
   const subColor = sky.on ? (sky.night ? '#ffffff' : '#1a2440') : k.textSecondary;
   return (
-    <View style={{ paddingTop: topInset, backgroundColor: k.bg }}>
+    <View style={{ paddingTop: topInset, backgroundColor: decor ? decor.top : k.bg, zIndex: decor ? 5 : undefined }}>
+      {decor && <HolidayGarland />}
       {sky.on && <SkyBand now={sky.now} dark={k.mode !== 'light'} bg={k.bg} />}
       <View
         style={{
