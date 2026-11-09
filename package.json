@@ -44,7 +44,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "ota:check": "node scripts/check-ota.js",
-    "ota:publish": "node scripts/check-ota.js && tsc --noEmit -p . && eas update --channel production --platform android --non-interactive --message"
+    "ota:publish": "node scripts/ota-publish.js"
   },
   "private": true
 }
