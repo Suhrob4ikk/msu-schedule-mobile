@@ -1,31 +1,18 @@
 /**
  * OTA-обновления (9 ноя 2026, EAS Update, канал production). Исправления в коде приложения приходят без нового APK.
  *
- * Как приходит обновление:
- * - при запуске модуль сам проверяет и тихо скачивает (AndroidManifest: CHECK_ON_LAUNCH=ALWAYS, LAUNCH_WAIT_MS=0 —
- *   запуск не ждёт сети); скачанное включится при следующем запуске;
- * - здесь же, при возврате в приложение (если с прошлой проверки прошло больше 2 минут; до 9 ноя — 30 мин, владелец
- *   заметил задержку), — проверка и скачивание; скачанное применяется при
- *   СЛЕДУЮЩЕМ возврате в приложение одной быстрой перезагрузкой — не посреди того, что человек делает.
- * Без сети, при недоступном сервере обновлений или в отладочной сборке — ничего не делает, приложение работает как было.
+ * Как приходит обновление (владелец 9 ноя: «показать загрузку, чтобы было видно, что идёт обновление»):
+ * - при запуске модуль сам проверяет и скачивает (AndroidManifest: CHECK_ON_LAUNCH=ALWAYS, LAUNCH_WAIT_MS=0);
+ * - при возврате в приложение (если с прошлой проверки больше 2 минут) — проверка здесь;
+ * - пока скачивается — экран «Загружаем обновление» с честным кольцом (процент от модуля), скачалось — «Обновляем
+ *   приложение» и перезапуск в новой версии (src/UpdatingOverlay.tsx). Сорвалось — экран уходит, всё как было.
+ * Без сети, при недоступном сервере обновлений или в отладочной сборке — ничего не делает.
  * Если новое обновление не запустится, модуль сам откатывается на предыдущее (встроенная защита expo-updates).
  * Что приходит по OTA: только JS и картинки. Виджеты, «идёт пара» в шторке, разрешения, версия Expo — только новым APK.
  */
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import * as Updates from 'expo-updates';
-
-// Экран «Обновляем приложение» (UpdatingOverlay): виден, пока включается скачанное обновление (владелец 9 ноя 2026:
-// «показать загрузку — иконка в центре, вокруг кольцо»), вместо непонятного мигания при перезапуске
-const APPLY_SHOW_MS = 1400;
-let applying = false;
-const applyListeners = new Set<(v: boolean) => void>();
-function setApplying(v: boolean) { applying = v; applyListeners.forEach(f => f(v)); }
-export function useOtaApplying(): boolean {
-  const [v, setV] = useState(applying);
-  useEffect(() => { applyListeners.add(setV); setV(applying); return () => { applyListeners.delete(setV); }; }, []);
-  return v;
-}
 
 const CHECK_EVERY_MS = 2 * 60_000;   // запрос маленький (только «есть ли новое»), скачивание — только если есть
 
@@ -33,19 +20,15 @@ export function useOtaUpdates(): void {
   useEffect(() => {
     if (__DEV__ || !Updates.isEnabled) return;
     let lastCheck = Date.now();   // при запуске проверил сам модуль
-    let ready = false;            // обновление скачано — применить при следующем возврате
     let busy = false;
     let prev = AppState.currentState;
 
     const check = async () => {
-      if (busy || ready) return;
+      if (busy) return;
       busy = true;
       try {
         const res = await Updates.checkForUpdateAsync();
-        if (res.isAvailable) {
-          const got = await Updates.fetchUpdateAsync();
-          if (got.isNew) ready = true;
-        }
+        if (res.isAvailable) await Updates.fetchUpdateAsync();   // ход и перезапуск — UpdatingOverlay
       } catch { /* нет сети или сервер обновлений недоступен — в следующий раз */ }
       busy = false;
       lastCheck = Date.now();
@@ -54,16 +37,7 @@ export function useOtaUpdates(): void {
     const sub = AppState.addEventListener('change', next => {
       const back = prev !== 'active' && next === 'active';
       prev = next;
-      if (!back) return;
-      if (ready) {
-        ready = false;
-        setApplying(true);
-        setTimeout(() => {
-          Updates.reloadAsync().catch(() => { setApplying(false); });   // не вышло — приложение работает дальше как было
-        }, APPLY_SHOW_MS);
-        return;
-      }
-      if (Date.now() - lastCheck >= CHECK_EVERY_MS) void check();
+      if (back && Date.now() - lastCheck >= CHECK_EVERY_MS) void check();
     });
     return () => sub.remove();
   }, []);

@@ -17,6 +17,7 @@ import { useReduceMotion } from '../schedule/ui';
 import type { Phase } from './state';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const ICON_FILL = 0.84;   // assets/icon.png: круг 431 из 512 px
 
 export default function LoaderIcon({ k, phase = 'running', progress, size = 72 }: {
   k: Tokens; phase?: Phase; progress?: number; size?: number;
@@ -73,7 +74,10 @@ export default function LoaderIcon({ k, phase = 'running', progress, size = 72 }
           />
         </Svg>
       </Animated.View>
-      <Image source={require('../../assets/icon.png')} style={{ width: size, height: size, borderRadius: size / 2 }} />
+      {/* Круг на картинке иконки занимает 84 % (вокруг прозрачные поля) — увеличиваем, чтобы синяя кайма шла по краю */}
+      <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+        <Image source={require('../../assets/icon.png')} style={{ width: size / ICON_FILL, height: size / ICON_FILL }} />
+      </View>
       {phase !== 'running' && (
         <View
           style={{
