@@ -11,8 +11,8 @@
 | Файл здесь | Куда |
 |---|---|
 | `ScheduleWidget.kt` (оба виджета: `ScheduleWidget` = «Плитки», `DialWidget` = Циферблат) | `java/tj/msu/schedule/` |
-| `widget_tiles_{s,w}.xml`, `widget_dial_{s,m,l}.xml` | `res/layout/` |
-| `widget_bg.xml`, `widget_plate.xml`, `widget_tile.xml`, `widget_tile_fill.xml`, `widget_dot.xml`, `widget_ring.xml`, `widget_ring_track.xml` | `res/drawable/` |
+| `widget_tiles_{s,w,t}.xml`, `widget_tiles_m{24,30,36,44,52,60}.xml` (пределы шрифта названия), `widget_dial_{s,m,l}.xml` | `res/layout/` |
+| `widget_bg.xml`, `widget_plate.xml`, `widget_tile.xml`, `widget_tile_fill.xml`, `widget_strip.xml`, `widget_strip_fill.xml`, `widget_dot.xml`, `widget_ring.xml`, `widget_ring_track.xml` | `res/drawable/` |
 | `widget_bg_v31.xml` | `res/drawable-v31/` **под именем `widget_bg.xml`** |
 | `widget_room_sample.png` (номер «104» для предпросмотра) | `res/drawable-nodpi/` |
 | `fonts/onest_extrabold.ttf` (номер аудитории главной плитки рисуется им картинкой) | `res/font/` |

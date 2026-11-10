@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- «МГУ · Расписание» — «Плитки» (с 2.0.7, вместо «Табло»; класс ScheduleWidget — прежнее имя,
+<!-- Минимум ~3 ячейки в ширину (9 ноя 2026, владелец: 2×2 не нужен — «слишком маленькое»).
+     «МГУ · Расписание» — «Плитки» (с 2.0.7, вместо «Табло»; класс ScheduleWidget — прежнее имя,
      уже поставленные виджеты сменят вид сами). Раскладки widget_tiles_{s,w} — по ширине
      (ScheduleWidget.kt, tileSz). По умолчанию 4×2. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="110dp"
+    android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="110dp"
-    android:minResizeHeight="100dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="120dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"

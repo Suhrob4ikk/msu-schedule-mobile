@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано native-widget/gen-layouts.js — руками не править. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent">
+  <ImageView android:id="@+id/w_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:scaleType="fitXY" android:src="@drawable/widget_bg" android:tint="#2F62EA" android:importantForAccessibility="no" />
+  <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="14dp" android:paddingBottom="14dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:gravity="center_vertical">
+      <ImageView android:id="@+id/w_live_dot" android:layout_width="8dp" android:layout_height="8dp"
+    android:src="@drawable/widget_dot" android:tint="#FFFFFF" android:importantForAccessibility="no" android:layout_marginEnd="7dp" />
+      <TextView android:id="@+id/w_head" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="14dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#FFFFFF"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Идёт · III пара" android:layout_weight="1" />
+      <TextView android:id="@+id/w_cd_lbl" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="14dp" android:fontFamily="sans-serif-medium" android:textColor="#FFFFFF"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="осталось" android:layout_marginStart="8dp" />
+      <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
+          android:textSize="14dp" android:fontFamily="sans-serif-black" android:textColor="#FFFFFF" android:includeFontPadding="false" android:singleLine="true"
+          android:layout_marginStart="4dp" android:visibility="gone" />
+      <TextView android:id="@+id/w_when" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="14dp" android:fontFamily="sans-serif-black" android:textColor="#FFFFFF"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="45:08" android:layout_marginStart="4dp" />
+    </LinearLayout>
+    <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:layout_marginTop="6dp" android:textSize="28dp" android:fontFamily="sans-serif-black" android:textColor="#FFFFFF" android:includeFontPadding="false"
+        android:maxLines="3" android:ellipsize="end" android:gravity="top|start"
+        android:breakStrategy="simple" android:hyphenationFrequency="none"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="16dp" android:autoSizeMaxTextSize="60dp" android:autoSizeStepGranularity="1dp"
+        android:text="Языки и методы программирования" />
+    <TextView android:id="@+id/w_meta" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:textSize="14dp" android:fontFamily="sans-serif-medium" android:textColor="#EAEFFD"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="Лекция · Самохина М.А." android:layout_marginTop="4dp" />
+    <LinearLayout android:id="@+id/w_bottom" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:gravity="center_vertical" android:layout_marginTop="8dp">
+      <TextView android:id="@+id/w_time" android:layout_width="0dp" android:layout_height="wrap_content"
+    android:textSize="17dp" android:fontFamily="sans-serif" android:textStyle="bold" android:textColor="#FFFFFF"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="11:30 – 13:00" android:layout_weight="1" />
+      <TextView android:id="@+id/w_room_lbl" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:textSize="14dp" android:fontFamily="sans-serif-medium" android:textColor="#FFFFFF"
+    android:includeFontPadding="false" android:singleLine="true" android:ellipsize="end"
+    android:text="ауд." android:layout_marginStart="10dp" android:layout_marginEnd="5dp" />
+      <ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="26dp"
+          android:adjustViewBounds="true" android:scaleType="fitEnd"
+          android:src="@drawable/widget_room_sample" android:tint="#FFFFFF" android:importantForAccessibility="no" />
+    </LinearLayout>
+    <FrameLayout android:id="@+id/w_bar_box" android:layout_width="match_parent" android:layout_height="5dp" android:layout_marginTop="10dp">
+      <ImageView android:id="@+id/w_bar_track" android:layout_width="match_parent" android:layout_height="match_parent"
+          android:scaleType="fitXY" android:src="@drawable/widget_strip" android:tint="#5981EE" android:importantForAccessibility="no" />
+      <ImageView android:id="@+id/w_bar" android:layout_width="match_parent" android:layout_height="match_parent"
+          android:scaleType="fitXY" android:src="@drawable/widget_strip_fill" android:tint="#FFFFFF" android:importantForAccessibility="no" />
+    </FrameLayout>
+  </LinearLayout>
+  <LinearLayout android:id="@+id/w_empty" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:padding="16dp" android:visibility="gone">
+    <TextView android:id="@+id/w_empty_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textSize="22dp" android:fontFamily="sans-serif-black" android:textColor="#10131A" android:gravity="center"
+        android:includeFontPadding="false" android:text="Каникулы" />
+    <TextView android:id="@+id/w_empty_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:textSize="13dp" android:fontFamily="sans-serif-medium" android:textColor="#4B5262"
+        android:gravity="center" android:includeFontPadding="false" android:text="" />
+  </LinearLayout>
+</FrameLayout>

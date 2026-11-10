@@ -85,7 +85,11 @@ async function readDays(): Promise<string[]> {
 const EMPTY: ServerStreak = { days: [], offdays: [], events: {}, login: null };
 export const readServerStreak = () => readJson<ServerStreak>(SRV, EMPTY);
 
+/** Выпуск для всех (владелец, 10 ноя 2026; как STREAK_FOR_ALL на сайте): огонёк у каждого, не только у тестировщиков. */
+export const STREAK_FOR_ALL = true;
+
 export async function streakEnabled(): Promise<boolean> {
+  if (STREAK_FOR_ALL) return true;
   try { return (await AsyncStorage.getItem(ON)) === '1'; } catch { return false; }
 }
 

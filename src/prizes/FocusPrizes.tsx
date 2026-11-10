@@ -80,9 +80,12 @@ export function FlipCountdown({ targetAt, label, color }: { targetAt: number; la
       <Txt t="label" color={color}>{label}</Txt>
       {p.lessThanMinute ? <Txt t="labelStrong" color={color}>меньше минуты</Txt> : p.parts.map(x => (
         <View key={x.u} style={{ flexDirection: 'row', alignItems: 'center', columnGap: 3 }}>
-          <View style={{ flexDirection: 'row', columnGap: 3 }}>
-            {[...x.n].map((c, j) => <FlipDigit key={x.n.length - j} d={c} color={color} />)}
-          </View>
+          {/* в плашках — только минуты; часы обычной цифрой, иначе «12 ч 12 мин» не влезает в строку (9 ноя 2026) */}
+          {x.u === 'мин' ? (
+            <View style={{ flexDirection: 'row', columnGap: 3 }}>
+              {[...x.n].map((c, j) => <FlipDigit key={x.n.length - j} d={c} color={color} />)}
+            </View>
+          ) : <Txt t="countdown" color={color}>{x.n}</Txt>}
           <Txt t="label" color={color}>{x.u}</Txt>
         </View>
       ))}

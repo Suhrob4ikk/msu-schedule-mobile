@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Полоска хода пары на главной плитке «Плиток» (с 9 ноя 2026): белая, скругление 2.5 dp. Цвет — setColorFilter. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="2.5dp" />
+</shape>

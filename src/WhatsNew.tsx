@@ -102,17 +102,20 @@ function Picture({ pic }: { pic: Pic }) {
         </View>
       </View>);
     case 'widget': return (
-      <View style={{ backgroundColor: W, borderRadius: 22, padding: 12, rowGap: 6 }}>
-        <View style={{ backgroundColor: '#2F62EA', borderRadius: 14, padding: 10 }}>
-          <Text style={T({ s: 10.5, w: 700, o: 0.85 })}>СЕЙЧАС · ДО 11:50</Text>
-          <Text style={T({ s: 16, w: 700 })}>Численные методы</Text><Text style={T({ s: 12, o: 0.9 })}>ауд. 105</Text>
+      // Виджет «Плитки» с 9 ноя 2026 — одна карточка: статус и отсчёт, предмет крупно, время и аудитория
+      <View style={{ backgroundColor: '#0E9B72', borderRadius: 22, padding: 16, rowGap: 6 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Text style={T({ s: 12, w: 700, c: '#0b0d10' })}>Идёт · III пара</Text>
+          <Text style={T({ s: 12, c: '#0b0d10' })}>осталось <Text style={T({ s: 12, w: 800, c: '#0b0d10' })}>45:12</Text></Text>
         </View>
-        <View style={{ flexDirection: 'row', columnGap: 6 }}>
-          {['III  Базы данных', 'IV  Английский'].map(t => <Text key={t} style={T({ s: 12, c: '#11131a', st: { flex: 1, backgroundColor: '#eef1f6', borderRadius: 10, padding: 7, overflow: 'hidden' } })}>{t}</Text>)}
+        <Text style={T({ s: 26, w: 800, c: '#0b0d10', st: { lineHeight: 29 } })}>Численные методы</Text>
+        <Text style={T({ s: 12, c: 'rgba(11,13,16,0.66)' })}>Практика · Хайбуллоев Д.А.</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 }}>
+          <Text style={T({ s: 14, w: 700, c: '#0b0d10' })}>11:30 – 13:00</Text>
+          <Text style={T({ s: 12, c: '#0b0d10' })}>ауд. <Text style={T({ s: 24, w: 800, c: '#0b0d10' })}>702</Text></Text>
         </View>
-        <Text style={T({ s: 10.5, w: 700, c: '#5d6373' })}>ЗАВТРА</Text>
-        <View style={{ flexDirection: 'row', columnGap: 6 }}>
-          {['I  Матанализ', 'II  Физкультура'].map(t => <Text key={t} style={T({ s: 12, c: '#11131a', st: { flex: 1, backgroundColor: '#eef1f6', borderRadius: 10, padding: 7, overflow: 'hidden' } })}>{t}</Text>)}
+        <View style={{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', marginTop: 6 }}>
+          <View style={{ width: '49%', height: 5, borderRadius: 3, backgroundColor: '#0b0d10' }} />
         </View>
       </View>);
     default: return null;

@@ -111,95 +111,67 @@ const root = inner => `<?xml version="1.0" encoding="utf-8"?>
 </FrameLayout>
 `;
 
-// ── «Плитки», вариант Б «Весь день, потом завтра» (выбор владельца 9 ноя 2026; макет — docs/Виджет - варианты
-// исправления.html в репозитории сайта). Главная плитка НЕ растягивается: её высота — сколько нужно номеру и названию
-// (ставит код, ScheduleWidget.kt → tilesPlan). Под ней строками — остальные пары этого дня, потом подпись «Завтра ·
-// вторник» и пары следующего дня — сколько влезает. Если пар мало, внизу остаётся тёмный фон виджета, не зелёный.
-// 4×2 — как раньше: главная и под ней следующая пара. Значения здесь — для старых Android (там размер не ставится).
-const TL = { bg: '#FFFFFF', ink: '#10131A', ink2: '#4B5262', ink3: '#9AA0AD', acc: '#2856D6', fill: '#2F62EA', line: '#E7EBF2', on: '#FFFFFF', on2: '#EAEFFD' };
+// ── «Плитки», вариант А «Предмет крупно» — одна карточка на весь виджет (владелец 9 ноя 2026, по скриншотам с Poco:
+// «достаточно знать одну пару», «шрифт маленький», «часть текста не отображается», 2×2 не нужен). Макет —
+// docs/Виджет - предмет крупно.html в репозитории сайта.
+// Карточка как в приложении: «Идёт · III пара» и отсчёт, название самым крупным, «Лекция · Самохина М.А.», время и
+// «ауд. 208», у идущей пары — полоска хода. ⚠️ Высоты НЕ считаются кодом: размер, который сообщает лаунчер (Poco/HyperOS),
+// меньше настоящего — плитка выходила короче виджета и обрезала низ. Всё на весах: название занимает свободное место и
+// подбирает размер само (autoSize, Android 8+), низ прижат к краю.
+const TL = { fill: '#2F62EA', on: '#FFFFFF', on2: '#EAEFFD', track: '#5981EE' };
 
 const tlDot = (id, size, tint, extra = '') => `<ImageView android:id="@+id/${id}" android:layout_width="${size}dp" android:layout_height="${size}dp"
     android:src="@drawable/widget_dot" android:tint="${tint}" android:importantForAccessibility="no" ${extra} />`;
 
-/** Шапка: точка «идёт», день, отсчёт (Chronometer — последний час) или текст (w_when: «через 15 ч»). */
-const tlHead = size => `<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="3dp" android:paddingEnd="3dp">
-      ${tlDot('w_live_dot', 7, TL.fill, 'android:layout_marginEnd="6dp"')}
-      ${tv('w_head', { size, font: 'b', color: TL.ink, text: 'Завтра, пн', w: '0dp', extra: 'android:layout_weight="1"' })}
-      <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
-          android:textSize="${size}dp" ${F.b} android:textColor="${TL.acc}" android:includeFontPadding="false" android:singleLine="true"
-          android:layout_marginStart="8dp" android:visibility="gone" />
-      ${tv('w_when', { size, font: 'b', color: TL.acc, text: 'через 15 ч', extra: 'android:layout_marginStart="8dp"' })}
-    </LinearLayout>`;
-
-/** Подложка плитки и заполнение (прошедшая часть идущей пары — светлее). */
-const tlBg = (id, tint, prog) => `<ImageView android:id="@+id/${id}_bg" android:layout_width="match_parent" android:layout_height="match_parent"
-        android:scaleType="fitXY" android:src="@drawable/widget_tile" android:tint="${tint}" android:importantForAccessibility="no" />${prog ? `
-      <ImageView android:id="@+id/${id}_prog" android:layout_width="match_parent" android:layout_height="match_parent"
-        android:scaleType="fitXY" android:src="@drawable/widget_tile_fill" android:tint="#5981EE" android:importantForAccessibility="no" android:visibility="gone" />` : ''}`;
-
-/** Главная плитка: номер слева (картинка Onest, roomBitmap), справа «I пара · 08:00–09:30 · Практика» и предмет. */
-const hero = (h, maxH, maxW, meta, subj) => `<FrameLayout android:id="@+id/w_hero" android:layout_width="match_parent" android:layout_height="${h}dp">
-      ${tlBg('w_hero', TL.fill, true)}
-      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal"
-          android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="12dp">
-        <ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:adjustViewBounds="true" android:maxHeight="${maxH}dp" android:maxWidth="${maxW}dp" android:scaleType="fitCenter"
-            android:src="@drawable/widget_room_sample" android:tint="${TL.on}" android:importantForAccessibility="no" />
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"
-            android:layout_marginStart="11dp">
-          ${tv('w_meta', { size: meta, font: 'm', color: TL.on2, text: 'I пара · 08:00–09:30 · Практика', w: 'match_parent' })}
-          <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:layout_marginTop="3dp" android:textSize="${subj}dp" ${F.b} android:textColor="${TL.on}" android:includeFontPadding="false"
-              android:maxLines="2" android:ellipsize="end" android:lineSpacingExtra="1dp" android:text="ДВ: Объектно-ориентир. программ" />
-        </LinearLayout>
-      </LinearLayout>
-    </FrameLayout>`;
-
-/** Строка-пара i во всю ширину: над ней (если это первая пара следующего дня) — подпись «Завтра · вторник»;
- *  сверху номер пары и время, ниже номер аудитории и рядом предмет с точкой типа. */
-function tile(i) {
-  const demo = [['II', '09:45', '602', 'Численные методы'], ['I', '08:00', '305', 'Философия'], ['II', '09:45', '210', 'Базы данных'], ['III', '11:30', '401', 'Английский язык'], ['IV', '13:30', '104', 'Физкультура']][i - 1];
-  return `<TextView android:id="@+id/w_t${i}_sep" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="8dp" android:paddingStart="3dp" android:textSize="10.5dp" ${F.b} android:textColor="${TL.ink2}"
-        android:textAllCaps="true" android:letterSpacing="0.06" android:includeFontPadding="false" android:singleLine="true"
-        android:text="Завтра · вторник" android:visibility="gone" />
-    <FrameLayout android:id="@+id/w_t${i}" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="6dp"${i > 1 ? ' android:visibility="gone"' : ''}>
-      ${tlBg(`w_t${i}`, TL.line, false)}
-      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
-          android:paddingStart="11dp" android:paddingEnd="10dp" android:paddingTop="5dp" android:paddingBottom="5dp">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-          ${tv(`w_t${i}_pair`, { size: 11, font: 'm', color: TL.ink2, text: demo[0], w: '0dp', extra: 'android:layout_weight="1"' })}
-          ${tv(`w_t${i}_time`, { size: 11, font: 'm', color: TL.ink2, text: demo[1] })}
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal"
-            android:gravity="center_vertical">
-          <TextView android:id="@+id/w_t${i}_room" android:layout_width="wrap_content" android:layout_height="wrap_content"
-              ${F.x} android:textColor="${TL.ink}" android:includeFontPadding="false" android:singleLine="true"
-              android:textSize="22dp" android:text="${demo[2]}" />
-          ${tlDot(`w_t${i}_dot`, 6, '#5B8DEF', 'android:layout_marginStart="10dp" android:layout_marginEnd="6dp"')}
-          ${tv(`w_t${i}_subj`, { size: 12.5, font: 'm', color: TL.ink, text: demo[3], w: '0dp', extra: 'android:layout_weight="1"' })}
-        </LinearLayout>
-      </LinearLayout>
-    </FrameLayout>`;
-}
-
-const tiles = (n, padS, padT, headSize, heroArgs) => root(`${bg(TL.bg)}
+const tiles = (demo, max) => root(`<ImageView android:id="@+id/w_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:scaleType="fitXY" android:src="@drawable/widget_bg" android:tint="${TL.fill}" android:importantForAccessibility="no" />
   <LinearLayout android:id="@+id/w_content" android:layout_width="match_parent" android:layout_height="match_parent"
-      android:orientation="vertical" android:paddingStart="${padS}dp" android:paddingEnd="${padS}dp" android:paddingTop="${padT}dp" android:paddingBottom="${padT}dp">
-    ${tlHead(headSize)}
-    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="7dp">
-      ${hero(...heroArgs)}
+      android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="14dp" android:paddingBottom="14dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:gravity="center_vertical">
+      ${tlDot('w_live_dot', 8, TL.on, 'android:layout_marginEnd="7dp"')}
+      ${tv('w_head', { size: 14, font: 'b', color: TL.on, text: demo.status, w: '0dp', extra: 'android:layout_weight="1"' })}
+      ${tv('w_cd_lbl', { size: 14, font: 'm', color: TL.on, text: demo.lbl, extra: 'android:layout_marginStart="8dp"' })}
+      <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
+          android:textSize="14dp" ${F.x} android:textColor="${TL.on}" android:includeFontPadding="false" android:singleLine="true"
+          android:layout_marginStart="4dp" android:visibility="gone" />
+      ${tv('w_when', { size: 14, font: 'x', color: TL.on, text: demo.when, extra: 'android:layout_marginStart="4dp"' })}
+    </LinearLayout>
+    <TextView android:id="@+id/w_subj" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:layout_marginTop="6dp" android:textSize="28dp" ${F.x} android:textColor="${TL.on}" android:includeFontPadding="false"
+        android:maxLines="3" android:ellipsize="end" android:gravity="top|start"
+        android:breakStrategy="simple" android:hyphenationFrequency="none"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="16dp" android:autoSizeMaxTextSize="${max}dp" android:autoSizeStepGranularity="1dp"
+        android:text="${demo.subj}" />
+    ${tv('w_meta', { size: 14, font: 'm', color: TL.on2, text: demo.meta, w: 'match_parent', extra: 'android:layout_marginTop="4dp"' })}
+    <LinearLayout android:id="@+id/w_bottom" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:gravity="center_vertical" android:layout_marginTop="8dp">
+      ${tv('w_time', { size: 17, font: 'b', color: TL.on, text: demo.time, w: '0dp', extra: 'android:layout_weight="1"' })}
+      ${tv('w_room_lbl', { size: 14, font: 'm', color: TL.on, text: 'ауд.', extra: 'android:layout_marginStart="10dp" android:layout_marginEnd="5dp"' })}
+      <ImageView android:id="@+id/w_room_img" android:layout_width="wrap_content" android:layout_height="26dp"
+          android:adjustViewBounds="true" android:scaleType="fitEnd"
+          android:src="@drawable/widget_room_sample" android:tint="${TL.on}" android:importantForAccessibility="no" />
+    </LinearLayout>
+    <FrameLayout android:id="@+id/w_bar_box" android:layout_width="match_parent" android:layout_height="5dp" android:layout_marginTop="10dp">
+      <ImageView android:id="@+id/w_bar_track" android:layout_width="match_parent" android:layout_height="match_parent"
+          android:scaleType="fitXY" android:src="@drawable/widget_strip" android:tint="${TL.track}" android:importantForAccessibility="no" />
+      <ImageView android:id="@+id/w_bar" android:layout_width="match_parent" android:layout_height="match_parent"
+          android:scaleType="fitXY" android:src="@drawable/widget_strip_fill" android:tint="${TL.on}" android:importantForAccessibility="no" />
     </FrameLayout>
-    ${Array.from({ length: n }, (_, i) => tile(i + 1)).join('\n    ')}
-    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
   </LinearLayout>
   ${empty}`);
 
-/** Уже 220 dp (2×2): главная и, если высоты хватает, до двух пар. */
-const tilesS = tiles(2, 9, 10, 12.5, [92, 52, 90, 10.5, 12.5]);
-/** Шире 220 dp: главная и до пяти пар (сегодня, потом завтра). widget_tiles_t — та же раскладка (старое имя). */
-const tilesW = tiles(5, 11, 11, 13, [90, 92, 180, 11, 14.5]);
+const DEMO = { status: 'Идёт · III пара', lbl: 'осталось', when: '45:08', subj: 'Языки и методы программирования', meta: 'Лекция · Самохина М.А.', time: '11:30 – 13:00' };
+/**
+ * Предел autoSize — свой у каждой раскладки (widget_tiles_m24 … _m60): autoSize Android ради крупного шрифта рвёт
+ * длинное слово («Численны / е»), а задать предел из кода нельзя (RemoteViews этого не умеет). Код выбирает раскладку,
+ * где самое длинное слово названия целиком влезает в ширину (ScheduleWidget.kt → SUBJ_MAX).
+ * widget_tiles_w / _s / _t — с пределом 60 (старые имена: на них могут ссылаться поставленные виджеты, предпросмотр).
+ */
+const SUBJ_MAX = [24, 30, 36, 44, 52, 60];
+const tilesBy = Object.fromEntries(SUBJ_MAX.map(m => [`widget_tiles_m${m}`, tiles(DEMO, m)]));
+const tilesW = tiles(DEMO, 60);
+const tilesS = tilesW;
 const tilesT = tilesW;
 
 // ── «Циферблат»: спокойный фон, отсчёт в кольце ──
@@ -251,6 +223,6 @@ const dialL = root(`${bg(D.bg)}
   </LinearLayout>
   ${empty}`);
 
-const out = { widget_tiles_s: tilesS, widget_tiles_w: tilesW, widget_tiles_t: tilesT, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
+const out = { ...tilesBy, widget_tiles_s: tilesS, widget_tiles_w: tilesW, widget_tiles_t: tilesT, widget_dial_s: dialS, widget_dial_m: dialM, widget_dial_l: dialL };
 for (const [name, xml] of Object.entries(out)) fs.writeFileSync(path.join(__dirname, `${name}.xml`), xml);
 console.log('ok:', Object.keys(out).join(', '));
