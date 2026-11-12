@@ -64,6 +64,7 @@ function onRemotePush(content: Notifications.NotificationContent): void {
   if (content.data?.kind === 'app_update') return; // «Вышла новая версия» — расписание ни при чём
   if (content.data?.kind === 'dev-reply') { emitDevReply(); return; } // ответ разработчика — расписание ни при чём
   if (content.data?.kind === 'vote') return; // голосование — расписание ни при чём
+  if (content.data?.kind === 'streak') return; // напоминание про огонёк — расписание ни при чём
   invalidateApiCache('/schedule/');
   emitScheduleUpdated();
 }

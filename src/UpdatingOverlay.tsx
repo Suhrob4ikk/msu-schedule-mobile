@@ -6,7 +6,7 @@
  * Подключено в app/_layout.tsx.
  */
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 import * as Updates from 'expo-updates';
 import { useTokens } from './schedule/tokens';
 import { Txt } from './schedule/ui';
@@ -57,14 +57,33 @@ function Overlay() {
     return () => clearTimeout(t);
   }, [isDownloading, phase]);
 
+  // Всегда что-то движется (владелец 12 ноя 2026: «непонятно, зависла или скачивается»): иконка мягко «дышит»,
+  // а пока применяется — по кольцу бежит дуга вместо застывшего полного кольца.
+  const breath = useRef(new Animated.Value(0)).current;
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => { AccessibilityInfo.isReduceMotionEnabled().then(setReduce).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!visible || reduce) return;
+    const a = Animated.loop(Animated.sequence([
+      Animated.timing(breath, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breath, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    a.start();
+    return () => a.stop();
+  }, [visible, reduce, breath]);
+  const scale = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+
   if (!visible) return null;
   const done = isUpdatePending || phase === 'applying';
-  const p = done ? 1 : downloadProgress;   // нет процента (редко) — кольцо с бегущей дугой
+  // применяется — дуга бежит (progress не задан); скачивается — честный процент, нет процента — тоже дуга
+  const p = done ? null : downloadProgress;
   const pct = p != null ? Math.round(p * 100) : null;
   return (
     <View accessibilityLiveRegion="polite" accessibilityViewIsModal
       style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000, backgroundColor: k.bg, alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
-      <LoaderIcon k={k} progress={p ?? undefined} />
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <LoaderIcon k={k} progress={p ?? undefined} />
+      </Animated.View>
       <Txt t="titleScreen" color={k.text} style={{ marginTop: 22, textAlign: 'center' }}>
         {done ? 'Обновляем приложение' : 'Загружаем обновление'}
       </Txt>

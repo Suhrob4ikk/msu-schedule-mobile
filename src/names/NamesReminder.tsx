@@ -8,6 +8,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
+import { useNotifCardShown } from '../notifications/NotifBanner';
 import { Pressable, View } from 'react-native';
 import { usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +43,7 @@ export default function NamesReminder() {
   const [ask, setAsk] = useState<string[]>([]);
   const [closed, setClosed] = useState(true);
   const [sheet, setSheet] = useState(false);
+  const notifCard = useNotifCardShown();   // очередь: пока «Уведомления выключены» на экране — ждём
   const monday = mondayOf(isoOf(dushanbeNow()));
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export default function NamesReminder() {
   useEffect(() => { setShown(visible); }, [visible]);
   useEffect(() => () => setShown(false), []);
 
-  if (!data || closed || hiddenHere || (ask.length === 0 && !sheet)) return null;
+  if (!data || closed || hiddenHere || (notifCard && !sheet) || (ask.length === 0 && !sheet)) return null;
   const n = ask.length;
 
   return (

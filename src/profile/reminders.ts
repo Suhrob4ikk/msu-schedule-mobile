@@ -56,11 +56,11 @@ export function useExamReminders() {
   };
 }
 
-/** За 10 минут до пары. По умолчанию выключено. */
+/** За 10 минут до пары. По умолчанию включено (владелец, 12 ноя 2026), выключено — только своим нажатием. */
 export function useLessonReminders() {
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { AsyncStorage.getItem(LESSON_NOTIF_PREF_KEY).then(v => setOn(v === '1')); }, []);
+  useEffect(() => { AsyncStorage.getItem(LESSON_NOTIF_PREF_KEY).then(v => setOn(v !== '0')); }, []);
   const toggle = async () => {
     if (busy) return;
     setBusy(true);

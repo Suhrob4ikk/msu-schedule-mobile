@@ -126,7 +126,8 @@ export async function scheduleLessonReminders(
   if (status !== 'granted') return;
 
   const pref = await AsyncStorage.getItem(LESSON_NOTIF_PREF_KEY);
-  if (pref !== '1') { await cancelLessonReminders(); return; }
+  // по умолчанию включено (владелец, 12 ноя 2026: «чтобы не пропустить пару»); выключено — только если человек сам выключил
+  if (pref === '0') { await cancelLessonReminders(); return; }
 
   // Пересобираем весь набор: расписание могло измениться
   await cancelLessonReminders();

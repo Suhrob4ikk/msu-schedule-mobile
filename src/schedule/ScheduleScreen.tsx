@@ -48,6 +48,7 @@ import DayBar from './DayBar';
 import WeekSheet from './WeekSheet';
 import DayPager from './DayPager';
 import LessonSheet from './LessonSheet';
+import NotifBanner from '../notifications/NotifBanner';
 import HolidayBanner from '../holiday/HolidayBanner';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -754,6 +755,8 @@ export default function ScheduleScreenNew() {
 
       {/* Приветствие — своя группа, эта неделя (там статистики нет, они не встречаются) */}
       <HolidayBanner />
+      {/* Уведомления выключены — карточка без крестика, пока не включат (владелец, 12 ноя 2026) */}
+      {isMyGroup && <NotifBanner />}
       {/* Приз «Финал недели» (достижение «Летописец»): после последней пары своей группы на этой неделе */}
       <WeekFinale days={days} weekStart={selectedWeek?.week_start ?? null} now={now} k={k} active={isMyGroup && rel === 'current'}
         nextWeekOut={!!selectedWeek && weeks.some(w => w.week_start > selectedWeek.week_start)} />
