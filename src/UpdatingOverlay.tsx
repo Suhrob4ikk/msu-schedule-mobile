@@ -1,95 +1,86 @@
 /**
- * Экран обновления приложения (OTA, src/otaUpdates.ts) — владелец 9 ноя 2026: «чтобы было видно, что идёт обновление».
- * - скачивается — «Загружаем обновление», кольцо ЧЕСТНОЕ: процент скачивания от модуля expo-updates;
- * - скачано — «Обновляем приложение», кольцо полное, через секунду перезапуск в новой версии;
- * - скачивание сорвалось (пропал интернет) — экран уходит, приложение работает как было.
+ * Ход обновления приложения (OTA, src/otaUpdates.ts) — маленькая полоска сверху, НЕ на весь экран и БЕЗ перезапуска.
+ *
+ * История (12 ноя 2026): раньше по готовности приложение само перезапускалось в новую версию (Updates.reloadAsync) под
+ * экраном «Обновляем приложение». На телефоне владельца (Xiaomi, HyperOS) перезапуск зависал намертво — экран висел
+ * минутами; не помогла и страховка «через 8 секунд убрать экран»: во время перезапуска замирает само приложение, таймеры
+ * не идут. Поэтому перезапуска на ходу больше нет совсем: обновление скачивается в фоне и включается при следующем
+ * открытии приложения (так expo-updates и задуман по умолчанию).
+ *
+ * - скачивается — полоска «Загружаем обновление · 45%» с кольцом (иконка «дышит», чтобы было видно, что идёт);
+ * - скачалось — «Обновление скачано · закройте приложение полностью и откройте заново» (владелец: прямо сказать, что
+ *   делать); 15 секунд, и снова при каждом возврате в приложение, пока его не перезапустят;
+ * - нажатия не перехватывает: приложением можно пользоваться как обычно.
  * Подключено в app/_layout.tsx.
  */
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Animated, AppState, Easing, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
 import { useTokens } from './schedule/tokens';
 import { Txt } from './schedule/ui';
 import LoaderIcon from './offline/LoaderIcon';
 
-const APPLY_MS = 1000;      // «Обновляем приложение» — столько видно полное кольцо перед перезапуском
-const MIN_SHOW_MS = 700;    // маленькое обновление качается мгновенно — экран не мелькает, а успевает прочитаться
-// Страховка (12 ноя 2026: у владельца «Обновляем приложение» висело больше 10 минут): если перезапуск не случился
-// за это время или сорвался — экран уходит насовсем до следующего запуска, приложение работает, а скачанное
-// обновление включится при следующем открытии. Повторных попыток нет — раньше они шли раз в секунду бесконечно.
-const APPLY_GIVE_UP_MS = 8000;
-// Скачивание дольше этого (медленный интернет) — экран уходит, скачивание идёт дальше без него
-const DOWNLOAD_GIVE_UP_MS = 60_000;
+const READY_SHOW_MS = 15_000;   // «Обновление скачано» — столько видно, потом полоска уходит до следующего возврата
 
 export default function UpdatingOverlay() {
   if (__DEV__ || !Updates.isEnabled) return null;
-  return <Overlay />;
+  return <Strip />;
 }
 
-/**
- * Обычный слой поверх приложения, НЕ Modal: окно Modal на Android может пережить перезапуск React и остаться висеть
- * над уже обновлённым приложением (так, вероятно, и было 12 ноя 2026). Слой живёт внутри приложения и исчезает
- * вместе с ним при перезапуске.
- */
-function Overlay() {
+function Strip() {
   const k = useTokens();
+  const insets = useSafeAreaInsets();
   const { isDownloading, downloadProgress, isUpdatePending } = Updates.useUpdates();
-  const [phase, setPhase] = useState<'idle' | 'applying' | 'gaveUp'>('idle');
-  const shownAt = useRef(0);
-  const visible = phase !== 'gaveUp' && (isDownloading || isUpdatePending || phase === 'applying');
-  if (visible && !shownAt.current) shownAt.current = Date.now();
-  if (!visible) shownAt.current = 0;
+  const [readyGone, setReadyGone] = useState(false);
 
-  // Скачалось — «Обновляем приложение» и один перезапуск в новой версии
+  // «скачано» — показать 15 секунд и убрать; вернулся в приложение, а оно всё ещё не перезапущено — показать снова
   useEffect(() => {
-    if (!isUpdatePending || phase !== 'idle') return;
-    setPhase('applying');
-    const wait = Math.max(APPLY_MS, MIN_SHOW_MS - (Date.now() - (shownAt.current || Date.now())));
-    const t = setTimeout(() => { Updates.reloadAsync().catch(() => setPhase('gaveUp')); }, wait);
-    const giveUp = setTimeout(() => setPhase('gaveUp'), wait + APPLY_GIVE_UP_MS);
-    return () => { clearTimeout(t); clearTimeout(giveUp); };
-  }, [isUpdatePending, phase]);
+    if (!isUpdatePending) return;
+    let t = setTimeout(() => setReadyGone(true), READY_SHOW_MS);
+    const sub = AppState.addEventListener('change', st => {
+      if (st !== 'active') return;
+      setReadyGone(false);
+      clearTimeout(t);
+      t = setTimeout(() => setReadyGone(true), READY_SHOW_MS);
+    });
+    return () => { clearTimeout(t); sub.remove(); };
+  }, [isUpdatePending]);
 
-  // Скачивание слишком долгое — не держать человека
-  useEffect(() => {
-    if (!isDownloading || phase !== 'idle') return;
-    const t = setTimeout(() => setPhase('gaveUp'), DOWNLOAD_GIVE_UP_MS);
-    return () => clearTimeout(t);
-  }, [isDownloading, phase]);
+  const visible = isDownloading || (isUpdatePending && !readyGone);
 
-  // Всегда что-то движется (владелец 12 ноя 2026: «непонятно, зависла или скачивается»): иконка мягко «дышит»,
-  // а пока применяется — по кольцу бежит дуга вместо застывшего полного кольца.
+  // иконка мягко «дышит», пока полоска на экране (владелец: «чтобы хоть что-то двигалось»)
   const breath = useRef(new Animated.Value(0)).current;
   const [reduce, setReduce] = useState(false);
   useEffect(() => { AccessibilityInfo.isReduceMotionEnabled().then(setReduce).catch(() => {}); }, []);
   useEffect(() => {
     if (!visible || reduce) return;
     const a = Animated.loop(Animated.sequence([
-      Animated.timing(breath, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(breath, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breath, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breath, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
     ]));
     a.start();
     return () => a.stop();
   }, [visible, reduce, breath]);
-  const scale = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const scale = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
 
   if (!visible) return null;
-  const done = isUpdatePending || phase === 'applying';
-  // применяется — дуга бежит (progress не задан); скачивается — честный процент, нет процента — тоже дуга
-  const p = done ? null : downloadProgress;
-  const pct = p != null ? Math.round(p * 100) : null;
+  const ready = isUpdatePending && !isDownloading;
+  const pct = !ready && downloadProgress != null ? Math.round(downloadProgress * 100) : null;
   return (
-    <View accessibilityLiveRegion="polite" accessibilityViewIsModal
-      style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000, backgroundColor: k.bg, alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
-      <Animated.View style={{ transform: [{ scale }] }}>
-        <LoaderIcon k={k} progress={p ?? undefined} />
-      </Animated.View>
-      <Txt t="titleScreen" color={k.text} style={{ marginTop: 22, textAlign: 'center' }}>
-        {done ? 'Обновляем приложение' : 'Загружаем обновление'}
-      </Txt>
-      <Txt t="body" color={k.textSecondary} style={{ marginTop: 6, textAlign: 'center' }}>
-        {done ? 'Пара секунд' : pct != null ? `Загружено ${pct}%` : 'Пара секунд'}
-      </Txt>
+    <View pointerEvents="none" accessibilityLiveRegion="polite"
+      style={{ position: 'absolute', top: insets.top + 6, left: 12, right: 12, zIndex: 1000, elevation: 1000, alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 10, backgroundColor: k.surface, borderRadius: 999,
+        paddingVertical: 6, paddingLeft: 6, paddingRight: 16, borderWidth: 1, borderColor: k.border,
+        shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}>
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <LoaderIcon k={k} size={22} phase={ready ? 'done' : 'running'} progress={pct != null ? pct / 100 : undefined} />
+        </Animated.View>
+        <View style={{ flexShrink: 1 }}>
+          <Txt t="labelStrong" color={k.text}>{ready ? 'Обновление скачано' : 'Загружаем обновление'}</Txt>
+          <Txt t="caption" color={k.textSecondary}>{ready ? 'Закройте приложение полностью и откройте заново' : pct != null ? `Загружено ${pct}%` : 'Можно пользоваться'}</Txt>
+        </View>
+      </View>
     </View>
   );
 }
