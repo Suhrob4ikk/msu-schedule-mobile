@@ -50,6 +50,30 @@ const Flake = memo(function Flake({ w, h }: { w: number; h: number }) {
   );
 });
 
+// ── Дождь (погода из панели /dev, 12 ноя 2026) ─────────────────────
+/** Тонкая косая капля; дальние — короче, бледнее и медленнее. Цвет серо-голубой — виден и на светлом, и на тёмном. */
+const Drop = memo(function Drop({ w, h }: { w: number; h: number }) {
+  const p = useRef(new Animated.Value(0)).current;
+  const cfg = useMemo(() => {
+    const z = R();
+    return { x: R() * (w + 60) - 30, len: 9 + z * 14, dur: 1300 - z * 550, a: 0.25 + z * 0.35, start: R() };
+  }, [w]);
+  useEffect(() => {
+    p.setValue(cfg.start);
+    const first = Animated.timing(p, { toValue: 1, duration: cfg.dur * (1 - cfg.start), easing: Easing.linear, useNativeDriver: true });
+    let a: Animated.CompositeAnimation | null = null;
+    first.start(({ finished }) => { if (finished) { a = loop(p, cfg.dur); a.start(); } });
+    return () => { first.stop(); a?.stop(); };
+  }, [p, cfg]);
+  const ty = p.interpolate({ inputRange: [0, 1], outputRange: [-30, h + 30] });
+  // косо, как при лёгком ветре: за падение сдвиг на 12 % высоты экрана
+  const tx = p.interpolate({ inputRange: [0, 1], outputRange: [0, (h + 60) * 0.12] });
+  return (
+    <Animated.View style={{ position: 'absolute', left: cfg.x, top: 0, width: 1.3, height: cfg.len, borderRadius: 1, opacity: cfg.a,
+      backgroundColor: '#8FA9D2', transform: [{ translateY: ty }, { translateX: tx }, { rotate: '-7deg' }] }} />
+  );
+});
+
 // ── Лепестки ───────────────────────────────────────────────────────
 const PETAL_COLORS = ['#FFE4EC', '#F8BBD0', '#FFF5F7', '#FFCDD2'];
 const Petal = memo(function Petal({ w, h }: { w: number; h: number }) {
@@ -142,7 +166,7 @@ function Firework({ w, h, delay }: { w: number; h: number; delay: number }) {
 }
 
 export default function HolidayParticles() {
-  const { holiday, test } = useHoliday();
+  const { holiday, test, weather } = useHoliday();
   const { width: w, height: h } = useWindowDimensions();
   const [reduce, setReduce] = useState(false);
   const [bursts, setBursts] = useState<{ id: number; kind: Burst }[]>([]);
@@ -167,8 +191,15 @@ export default function HolidayParticles() {
     }).catch(() => {});
   }, [holiday, test, reduce]);
 
-  if (!holiday || reduce) return null;
+  if ((!holiday && !weather) || reduce) return null;
   const density = Math.min(1.3, Math.max(0.7, (w * h) / (390 * 800)));
+  // погода из панели /dev вне праздника — только снег или дождь (src/holiday/holidays.ts → refreshSiteFlags)
+  if (!holiday) return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 50, elevation: 50 }]}>
+      {weather === 'snow' && Array.from({ length: Math.round(38 * density) }, (_, i) => <Flake key={`s${i}`} w={w} h={h} />)}
+      {weather === 'rain' && Array.from({ length: Math.round(55 * density) }, (_, i) => <Drop key={`r${i}`} w={w} h={h} />)}
+    </View>
+  );
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 50, elevation: 50 }]}>
       {holiday.fx === 'snow' && Array.from({ length: Math.round(38 * density) }, (_, i) => <Flake key={`s${i}`} w={w} h={h} />)}

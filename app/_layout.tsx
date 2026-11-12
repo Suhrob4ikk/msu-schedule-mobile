@@ -33,7 +33,7 @@ import { badgeText } from '../src/notifications/state';
 import { mondayOf } from '../src/teachers/state';
 import UpdateBanner from '../src/UpdateBanner';
 import HolidayParticles from '../src/holiday/HolidayParticles';
-import { refreshHoliday } from '../src/holiday/holidays';
+import { refreshHoliday, refreshSiteFlags } from '../src/holiday/holidays';
 import { noteStreakScreen, noteStreakVisit } from '../src/streak/streak';
 import { StreakTabBadge } from '../src/streak/FlameChip';
 import { refreshPrizes } from '../src/prizes/prizes';
@@ -333,10 +333,11 @@ function AppTabs() {
   // праздник мог начаться, а сегодняшний заход засчитывается в серию.
   useEffect(() => {
     void refreshHoliday();
+    void refreshSiteFlags(true);
     void noteStreakVisit();
     void refreshPrizes();
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active') { void refreshHoliday(); void noteStreakVisit(); }
+      if (state === 'active') { void refreshHoliday(); void refreshSiteFlags(); void noteStreakVisit(); }
     });
     return () => sub.remove();
   }, []);

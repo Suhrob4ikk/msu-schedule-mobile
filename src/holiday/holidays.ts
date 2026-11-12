@@ -6,9 +6,15 @@
  * Даты владелец назовёт позже: без `days` студенты ничего не видят. Проверка — «Тестовый режим»
  * (Кабинет → долгое нажатие на номер версии внизу, src/TestModeSheet.tsx): ключ `holiday_test`.
  * Выключатель для всех — «Внешний вид» → «Праздничное оформление» (ключ `holiday_off`).
+ *
+ * «Погода» из панели /dev (12 ноя 2026, как на сайте — frontend/src/lib/siteFlags.ts): владелец включает снег или дождь
+ * у всех, если он пошёл в Душанбе. Только эффект, без открытки. Ответ сервера `GET /user/site-flags` — в AsyncStorage
+ * `site_weather` («snow» / «rain» / пусто); спрашиваем при запуске и возврате (не чаще раза в 5 минут). `holiday_off`
+ * снимает и его.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
+import { API_BASE } from '../api';
 
 export type HolidayId = 'ny' | 'nye' | 'ny2' | 'navruz' | 'mar8' | 'sep1' | 'indep' | 'session' | 'eid_ramazon' | 'eid_qurbon';
 export type HolidayFx = 'snow' | 'petals' | 'glow' | 'none';
@@ -43,6 +49,8 @@ export const HOLIDAYS: Holiday[] = [
 
 export const HOLIDAY_TEST_KEY = 'holiday_test';
 export const HOLIDAY_OFF_KEY = 'holiday_off';
+export const SITE_WEATHER_KEY = 'site_weather';
+export type Weather = 'snow' | 'rain' | null;
 
 /** Сейчас по Душанбе (UTC+5) — поля Date как у часов в Душанбе. */
 export function dushanbeNow(ms: number = Date.now()): Date {
@@ -54,20 +62,43 @@ const mmdd = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}-${String
 const inRange = (md: string, [from, to]: [string, string]) => (from <= to ? md >= from && md <= to : md >= from || md <= to);
 
 // ── Состояние на всё приложение ────────────────────────────────────
-let state: { holiday: Holiday | null; test: boolean; off: boolean; testId: HolidayId | null } = { holiday: null, test: false, off: false, testId: null };
+type HState = { holiday: Holiday | null; test: boolean; off: boolean; testId: HolidayId | null; weather: Weather };
+let state: HState = { holiday: null, test: false, off: false, testId: null, weather: null };
 const listeners = new Set<() => void>();
 const burstListeners = new Set<(b: Burst) => void>();
 
 export async function refreshHoliday(): Promise<void> {
-  let test: string | null = null, off = false;
-  try { [test, off] = [await AsyncStorage.getItem(HOLIDAY_TEST_KEY), (await AsyncStorage.getItem(HOLIDAY_OFF_KEY)) === '1']; } catch { /* нет хранилища */ }
+  let test: string | null = null, off = false, w: string | null = null;
+  try {
+    [test, off, w] = [await AsyncStorage.getItem(HOLIDAY_TEST_KEY), (await AsyncStorage.getItem(HOLIDAY_OFF_KEY)) === '1',
+      await AsyncStorage.getItem(SITE_WEATHER_KEY)];
+  } catch { /* нет хранилища */ }
+  const siteWeather: Weather = w === 'snow' || w === 'rain' ? w : null;
   // выключатель во «Внешнем виде» сильнее всего, и тестового праздника тоже (как на сайте)
   let holiday: Holiday | null = null;
   if (off) holiday = null;
   else if (test) holiday = HOLIDAYS.find(h => h.id === test) ?? null;
   else { const md = mmdd(dushanbeNow()); holiday = HOLIDAYS.find(h => h.days?.some(r => inRange(md, r))) ?? null; }
-  state = { holiday, test: !!test && !!holiday, off, testId: (test as HolidayId | null) ?? null };
+  // погода владельца — только когда праздника нет (в праздник свой эффект) и оформление не выключено
+  state = { holiday, test: !!test && !!holiday, off, testId: (test as HolidayId | null) ?? null, weather: !off && !holiday ? siteWeather : null };
   listeners.forEach(f => f());
+}
+
+let flagsAt = 0;
+/** Спросить сервер, включены ли снег или дождь из панели /dev (не чаще раза в 5 минут; force — сразу). */
+export async function refreshSiteFlags(force = false): Promise<void> {
+  if (!force && Date.now() - flagsAt < 5 * 60_000) return;
+  flagsAt = Date.now();
+  try {
+    const r = await fetch(`${API_BASE}/user/site-flags`);
+    if (!r.ok) return;
+    const f = await r.json();
+    const next = f.snow ? 'snow' : f.rain ? 'rain' : '';
+    if (((await AsyncStorage.getItem(SITE_WEATHER_KEY)) ?? '') !== next) {
+      await AsyncStorage.setItem(SITE_WEATHER_KEY, next);
+      await refreshHoliday();
+    }
+  } catch { /* нет сети — остаётся прежний ответ */ }
 }
 
 export async function setTestHoliday(id: HolidayId | null): Promise<void> {
@@ -83,7 +114,7 @@ export async function setHolidayOff(off: boolean): Promise<void> {
   await refreshHoliday();
 }
 
-export function useHoliday(): { holiday: Holiday | null; test: boolean; off: boolean; testId: HolidayId | null } {
+export function useHoliday(): HState {
   const [s, setS] = useState(state);
   useEffect(() => {
     const f = () => setS(state);
