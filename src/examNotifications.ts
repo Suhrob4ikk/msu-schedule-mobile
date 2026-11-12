@@ -16,10 +16,9 @@ import { firstName, getUserName } from './userName';
 import { syncExamInbox } from './notificationHistory';
 import type { ExamEntry } from './notifications/state';
 
-// Локальный переключатель напоминаний (отдельно от системного разрешения).
+// Прежние переключатели напоминаний. С 12 ноя 2026 выключателей нет (владелец: обязательная вещь) — напоминания
+// о зачётах и перед парой включены у всех, старое «0» в этих ключах больше ничего не выключает.
 export const NOTIF_PREF_KEY = 'notif_enabled';
-// Напоминание перед парой — отдельно и ПО УМОЛЧАНИЮ ВЫКЛЮЧЕНО: это уведомления
-// по несколько раз в день, включать их за человека нельзя.
 export const LESSON_NOTIF_PREF_KEY = 'notif_lesson_enabled';
 export const MINUTES_BEFORE_LESSON = 10;
 
@@ -125,10 +124,6 @@ export async function scheduleLessonReminders(
   const { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') return;
 
-  const pref = await AsyncStorage.getItem(LESSON_NOTIF_PREF_KEY);
-  // по умолчанию включено (владелец, 12 ноя 2026: «чтобы не пропустить пару»); выключено — только если человек сам выключил
-  if (pref === '0') { await cancelLessonReminders(); return; }
-
   // Пересобираем весь набор: расписание могло измениться
   await cancelLessonReminders();
   const who = firstName(await getUserName());
@@ -186,10 +181,6 @@ export async function scheduleExamReminders(
 ): Promise<void> {
   const { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') { await syncExamInbox([]); return; }
-
-  // Уважаем локальный переключатель: если выключен — снимаем все напоминания
-  const pref = await AsyncStorage.getItem(NOTIF_PREF_KEY);
-  if (pref === '0') { await cancelExamReminders(); await syncExamInbox([]); return; }
 
   // Отменяем только наши напоминания о зачётах
   await cancelExamReminders();

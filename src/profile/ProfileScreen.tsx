@@ -36,7 +36,7 @@ import { StatusPill, Bell, linkState } from '../schedule/ScheduleHeader';
 import { Card, SectionTitle, SwitchRow, NavRow, ActionRow, Button } from './rows';
 import ProfileSheet from './ProfileSheet';
 import {
-  useExamReminders, useLessonReminders, useLiveLessonRow, useBackgroundWork, useFeatureFlag,
+  useLiveLessonRow, useBackgroundWork, useFeatureFlag,
 } from './reminders';
 import {
   skipRows, skipsSpoken, totalLabel, profileLine, avatarLetter, pluralPairs,
@@ -259,8 +259,6 @@ export default function ProfileScreen() {
   const notes = useFeatureFlag('feature_notes');
   const notesCloud = useNotesCloud();   // заметки в облаке — награда огонька за 7 дней (src/cloudNotes.ts)
   const streakSt = useStreak();   // «Что нового» — когда огонёк виден (src/WhatsNew.tsx)
-  const exams = useExamReminders();
-  const lessons = useLessonReminders();
   const live = useLiveLessonRow();
   const background = useBackgroundWork();
 
@@ -410,8 +408,7 @@ export default function ProfileScreen() {
         <SectionTitle k={k}>Напоминания</SectionTitle>
         <WidgetHint k={k} />
         <Card k={k}>
-          <SwitchRow k={k} title="Уведомления о зачётах и экзаменах" subtitle={exams.subtitle} on={exams.on} onPress={exams.toggle} />
-          <SwitchRow k={k} title="Напоминать перед парой" subtitle="За 10 минут до пары" on={lessons.on} onPress={lessons.toggle} />
+          {/* Напоминания о зачётах и перед парой — без выключателей, всегда включены (владелец, 12 ноя 2026: обязательная вещь) */}
           <SwitchRow k={k} title="Показывать текущую пару" subtitle="Строка в шторке, пока идёт пара" on={live.on} onPress={live.toggle} />
           {background.available ? (
             <NavRow
